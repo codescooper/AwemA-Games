@@ -359,10 +359,15 @@ function nearestEnemyTower(u) { let best = null, bd = Infinity; for (const b of 
 function nearestUnitTo(x, y, range) { let best = null, bd = range * range; for (const u of units) { if (u.hp <= 0) continue; const d = dist2(x, y, u.x, u.y); if (d < bd) { bd = d; best = u; } } return best; }
 // place chaque soldat sur l'anneau de garde/patrouille autour de la Cité
 function stancePos(u) {
-  const c = playerCite(); if (!c) return null;
-  const army = units.filter(x => x.faction === "player" && isMil(x) && !x.commander && x.type !== "feticheur").sort((a, b) => a.id - b.id);
+  const c = buildings.find(b => b.faction === u.faction && b.type === "cite"); if (!c) return null;
+  const army = units.filter(x => x.faction === u.faction && isMil(x) && !x.commander && x.type !== "feticheur").sort((a, b) => a.id - b.id);
   const n = Math.max(1, army.length), idx = Math.max(0, army.indexOf(u));
-  const ang = idx / n * TAU + (armyStance === "patrol" ? gameT * 0.45 : 0), R = 116 + c.hw;
+  const half = Math.ceil(n / 2), inner = idx < half;                 // 1ʳᵉ moitié → autour de la Cité ; 2ᵉ moitié → autour de TOUS les bâtiments
+  let outerR = 132 + c.hw;                                           // rayon extérieur : englobe le bâtiment le plus éloigné
+  for (const b of buildings) if (b.faction === u.faction) { const d = dist(b.x, b.y, c.x, c.y) + Math.max(b.hw, b.hh) + 30; if (d > outerR) outerR = d; }
+  const R = inner ? (116 + c.hw) : outerR;
+  const grpN = Math.max(1, inner ? half : n - half), grpI = inner ? idx : idx - half;
+  const ang = grpI / grpN * TAU + (armyStance === "patrol" ? gameT * 0.45 : 0);
   return { x: clamp(c.x + Math.cos(ang) * R, 16, worldW() - 16), y: clamp(c.y + Math.sin(ang) * R, 16, worldH() - 16) };
 }
 // ordre du commandant à toute l'armée (sauf lui-même)

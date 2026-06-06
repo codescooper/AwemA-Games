@@ -146,7 +146,7 @@
 
 /* ===== CONFIG (toute la balance ici) ====================================== */
 const CFG = {
-  TS: 40, MW: 64, MH: 46,                       // tuiles & taille de carte (agrandie)
+  TS: 40, MW: 80, MH: 56,                       // tuiles & taille de carte (grande)
   START: { food: 200, wood: 200, gold: 120 },
   POP_BASE: 6, POP_PER_HOUSE: 5, POP_MAX: 60,
   GATHER_RATE: 7, CARRY_CAP: 12,                // récolte
@@ -156,9 +156,10 @@ const CFG = {
     lancier: { food: 45, wood: 20 }, archer: { food: 40, gold: 25 }, cavalier: { food: 60, gold: 45 },
     commandant: { food: 80, gold: 40 }, feticheur: { food: 80, gold: 60 }, sorcier: { food: 60, gold: 70 },
     atelier: { wood: 50 }, baie: { wood: 80 }, tamtam: { wood: 70, gold: 40 },
+    foret: { food: 20 }, cloture: { wood: 15 },
   },
   TRAIN_TIME: { villager: 6, lancier: 9, archer: 11, cavalier: 14, commandant: 12, feticheur: 14 },
-  BUILD_WORK: { maison: 16, caserne: 28, marche: 22, tour: 22, champ: 12, atelier: 16, baie: 22, tamtam: 24 },   // secondes-ouvrier
+  BUILD_WORK: { maison: 16, caserne: 28, marche: 22, tour: 22, champ: 12, atelier: 16, baie: 22, tamtam: 24, foret: 5, cloture: 6 },   // secondes-ouvrier
   UNIT: {
     villager: { hp: 28, speed: 62, atk: 3, range: 16, cd: 1.1, r: 9 },
     lancier:  { hp: 52, speed: 56, atk: 7, range: 18, cd: 1.0, r: 10 },
@@ -181,6 +182,8 @@ const CFG = {
     atelier: { hp: 150, hw: 24, hh: 18, dropoff: true },                             // atelier de bois : dépôt + débloque la baie
     baie:    { hp: 150, hw: 30, hh: 16, food: 2.2 },                                 // baie aux pirogues : pêche (vivres/sec) près d'un lac
     tamtam:  { hp: 170, hw: 20, hh: 26 },                                            // tam-tam parleur : chant des esprits
+    foret:   { hp: 60, hw: 22, hh: 18, forest: true, wood: 320, mature: 35 },        // forêt plantée : mûrit (~35 s) puis bois récoltable
+    cloture: { hp: 160, hw: 18, hh: 11, wall: true },                                // clôture : bloque l'ennemi, PV évolutifs (laisse passer les siens)
   },
   // ── LES TROIS EMPIRES (façon « Âges » d'AoE) ──────────────────────────────
   AGE: [
@@ -193,7 +196,8 @@ const CFG = {
       codex: ["La puissance du Songhaï", "Aux XVᵉ–XVIᵉ siècles, l'empire Songhaï, depuis Gao, devient le plus vaste d'Afrique de l'Ouest : Sonni Ali et les Askia bâtissent une puissante cavalerie et une flotte sur le Niger."] },
   ],
   // Âge minimal requis pour débloquer chaque unité / bâtiment
-  UNLOCK: { villager: 0, maison: 0, champ: 0, caserne: 0, marche: 0, lancier: 0, archer: 1, tour: 1, cavalier: 2, commandant: 0, feticheur: 1, sorcier: 1, atelier: 0, baie: 0, tamtam: 1 },
+  UNLOCK: { villager: 0, maison: 0, champ: 0, caserne: 0, marche: 0, lancier: 0, archer: 1, tour: 1, cavalier: 2, commandant: 0, feticheur: 1, sorcier: 1, atelier: 0, baie: 0, tamtam: 1, foret: 0, cloture: 0 },
+  WALL_UP: { max: 3, mult: 0.85, cost: { wood: 120, gold: 60 } },   // clôture : niveaux de résistance (×PV cumulés)
   PROJ_SPEED: 330, AGGRO: 130, VISION: 300, LEASH: 240, RESEED_TIME: 4, RESEED_COST: { wood: 12 },
   RETINUE: 6, VDEF: 52,                          // escorte du commandant ; portée d'auto-défense des villageois
   FETICH_MULT: 2, CONVERT_MULT: 0.5, CONVERT: { range: 95, cd: 4 }, SORCIER_CD: 3,    // féticheur : ×2 allié ; conversion (÷2) ; invocation sorcier
@@ -241,7 +245,7 @@ const isMil = u => u.type !== "villager";
 /* ===== ÉTAT =============================================================== */
 const cv = document.getElementById("game"), ctx = cv.getContext("2d");
 let CSSW = 0, CSSH = 0, DPR = 1, terrain = null;
-let units = [], buildings = [], nodes = [], floats = [], parts = [], projectiles = [], corpses = [], rubble = [], birds = [], animals = [], spirits = [], lakes = [];
+let units = [], buildings = [], nodes = [], floats = [], parts = [], projectiles = [], corpses = [], rubble = [], birds = [], animals = [], spirits = [], lakes = [], fish = [], pirogues = [];
 let res = { player: { food: 0, wood: 0, gold: 0 }, enemy: { food: 0, wood: 0, gold: 0 } };
 let age = { player: 0, enemy: 0 };                 // index dans CFG.AGE
 let advancing = { player: null, enemy: null };     // {t,time} pendant une transition d'Âge
@@ -249,6 +253,7 @@ let autoEmploy = true;                             // auto-emploi des villageois
 let armyStance = "free";                           // ordre du commandant : 'free' | 'guard' | 'patrol'
 let spectator = false;                             // mode observation : les deux camps pilotés par l'IA
 let aiFlip = false;                                // alterne l'ordre des 2 IA en observation (équité : pas d'avantage du 1er coup)
+let clotureLevel = { player: 0, enemy: 0 };        // niveau de résistance des clôtures par camp
 let DIFFICULTY = CFG.DIFF.normal;                  // niveau courant (règle l'IA ennemie)
 let lastDiff = "normal";                           // dernier niveau choisi (pour Rejouer)
 const groups = {};                                 // groupes de contrôle 1..9 -> [ids]
@@ -273,9 +278,12 @@ function makeUnit(faction, type, x, y) {
 }
 function makeBuilding(faction, type, x, y, complete) {
   const b = CFG.BLD[type];
+  let maxHp = b.hp;
+  if (b.wall) maxHp = Math.round(b.hp * (1 + (clotureLevel[faction] || 0) * CFG.WALL_UP.mult));   // PV de clôture selon le niveau
   return { id: nextId++, kind: "building", faction, type, x, y, hw: b.hw, hh: b.hh,
-    maxHp: b.hp, hp: complete ? b.hp : Math.max(1, b.hp * 0.15), progress: complete ? 1 : 0,
-    dropoff: !!b.dropoff, farm: !!b.farm, foodNode: null, queue: [], trainT: 0, cd: 0, smokeT: 0, rally: { x: x, y: y + b.hh + 28 } };
+    maxHp: maxHp, hp: complete ? maxHp : Math.max(1, maxHp * 0.15), progress: complete ? 1 : 0,
+    dropoff: !!b.dropoff, farm: !!b.farm, forest: !!b.forest, wall: !!b.wall, foodNode: null, woodNode: null, matured: false, matureT: 0,
+    queue: [], trainT: 0, cd: 0, smokeT: 0, rally: { x: x, y: y + b.hh + 28 } };
 }
 function makeNode(type, x, y, amount) { return { id: nextId++, kind: "node", type, x, y, r: 15, amount, maxAmount: amount }; }
 
@@ -400,11 +408,13 @@ function commandBuild(u, b) { u.state = "build"; u.target = b; u.gNode = null; u
 function commandAttack(u, t) { u.state = "attack"; u.target = t; u.gNode = null; u.idleT = 0; }
 
 /* ===== MOUVEMENT & COLLISIONS ============================================= */
-function blockedAt(u, x, y) {            // la position (x,y) entre-t-elle dans un bâtiment solide ?
+function blockedAt(u, x, y) {            // la position (x,y) est-elle infranchissable ?
   if (u.flying) return false;            // une unité volante franchit tout
+  if (onLake(x, y)) return true;         // les unités terrestres ne marchent PAS sur l'eau
   const r = CFG.UNIT[u.type].r - 2;
   for (const b of buildings) {
-    if (b.hp <= 0 || b.farm) continue;                                          // les champs sont franchissables
+    if (b.hp <= 0 || b.farm || b.forest) continue;                              // champs & forêts franchissables (on y récolte)
+    if (b.wall && b.faction === u.faction) continue;                            // on passe ses propres clôtures
     if ((u.state === "build" || u.state === "attack") && u.target === b) continue; // on rejoint sa cible
     if (Math.abs(x - b.x) < b.hw + r && Math.abs(y - b.y) < b.hh + r) return true;
   }
@@ -455,11 +465,12 @@ function separate(u) {                  // évite l'empilement (symétrique, dou
   }
   u.x = clamp(u.x, 8, worldW() - 8); u.y = clamp(u.y, 8, worldH() - 8);
 }
-function collideBuildings(u) {          // les bâtiments repoussent → on glisse au lieu de coller
-  if (u.flying) return;                 // les volants survolent les bâtiments
+function collideBuildings(u) {          // les bâtiments & lacs repoussent → on glisse au lieu de coller
+  if (u.flying) return;                 // les volants survolent tout
   const r = CFG.UNIT[u.type].r;
   for (const b of buildings) {
-    if (b.hp <= 0 || b.farm) continue;                                              // on marche librement sur les champs
+    if (b.hp <= 0 || b.farm || b.forest) continue;                                  // champs & forêts franchissables
+    if (b.wall && b.faction === u.faction) continue;                                // ses propres clôtures laissent passer
     if ((u.state === "build" || u.state === "attack") && u.target === b) continue;  // laisser toucher sa cible
     const ex = b.hw + r - 2, ey = b.hh + r - 2;
     const dx = u.x - b.x, dy = u.y - b.y;
@@ -468,6 +479,10 @@ function collideBuildings(u) {          // les bâtiments repoussent → on glis
       if (px < py) u.x = b.x + (dx < 0 ? -ex : ex);
       else u.y = b.y + (dy < 0 ? -ey : ey);
     }
+  }
+  for (const L of lakes) {                                              // repousser hors de l'eau
+    const dx = u.x - L.x, dy = u.y - L.y;
+    if ((dx * dx) / (L.rw * L.rw) + (dy * dy) / (L.rh * L.rh) < 1) { const a = Math.atan2(dy, dx); u.x = L.x + Math.cos(a) * (L.rw + 5); u.y = L.y + Math.sin(a) * (L.rh + 5); }
   }
 }
 
@@ -594,7 +609,7 @@ function updateUnit(u, dt) {
       else {
         u.swing += dt * 9; b.progress = Math.min(1, b.progress + dt / CFG.BUILD_WORK[b.type]);
         b.hp = Math.max(b.hp, b.maxHp * (0.15 + 0.85 * b.progress));
-        if (b.progress >= 1) { b.hp = b.maxHp; spawnDust(b.x, b.y, 14, "#d9c08a"); if (b.farm) completeFarm(b); if (u.faction === "player") tip("✅ " + bldName(b.type) + " achevé"); }
+        if (b.progress >= 1) { b.hp = b.maxHp; spawnDust(b.x, b.y, 14, "#d9c08a"); if (b.farm) completeFarm(b); if (b.forest) b.matureT = CFG.BLD.foret.mature; if (b.type === "baie") { spawnPirogue(b); spawnPirogue(b); } if (u.faction === "player") tip("✅ " + (b.forest ? "Forêt plantée — patiente qu'elle mûrisse" : bldName(b.type) + " achevé")); }
       }
       break;
     }
@@ -742,6 +757,45 @@ function drawSpirit(s) {
 }
 const onLake = (x, y) => lakes.some(L => { const dx = (x - L.x) / L.rw, dy = (y - L.y) / L.rh; return dx * dx + dy * dy < 1; });
 const nearLake = (x, y) => lakes.some(L => { const dx = (x - L.x) / (L.rw + 38), dy = (y - L.y) / (L.rh + 38); return dx * dx + dy * dy < 1; });
+function nearestLake(x, y) { let best = null, bd = Infinity; for (const L of lakes) { const d = dist2(x, y, L.x, L.y); if (d < bd) { bd = d; best = L; } } return best; }
+
+/* ===== POISSONS (bancs animés) & PIROGUES (pêche) ======================== */
+function makeFish(L) { return { L: L, ang: rand(0, TAU), rad: rand(0.25, 0.82), spd: rand(0.3, 0.7) * (Math.random() < .5 ? 1 : -1), ph: rand(0, TAU) }; }
+function updateFish(z, dt) { z.ang += z.spd * dt; z.ph += dt * 4; }
+function drawFish(z) {
+  const L = z.L, fx = L.x + Math.cos(z.ang) * L.rw * z.rad, fy = L.y + Math.sin(z.ang) * L.rh * z.rad;
+  const x = sx(fx), y = sy(fy); if (x < -10 || x > CSSW + 10 || y < -10 || y > CSSH + 10) return;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(z.ang + Math.PI / 2 + Math.sin(z.ph) * 0.18 + (z.spd < 0 ? Math.PI : 0));
+  ctx.fillStyle = "#33454f"; ctx.beginPath(); ctx.ellipse(0, 0, 4.5, 2, 0, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(-7, -2.5); ctx.lineTo(-7, 2.5); ctx.fill();
+  ctx.restore();
+}
+function spawnPirogue(baie) { const L = nearestLake(baie.x, baie.y); if (!L) return; pirogues.push({ L: L, x: L.x + rand(-L.rw * 0.4, L.rw * 0.4), y: L.y + rand(-L.rh * 0.4, L.rh * 0.4), tx: L.x, ty: L.y, t: 0, facing: 1, bob: rand(0, TAU) }); }
+function updatePirogue(p, dt) {
+  const L = p.L; p.t -= dt; p.bob += dt * 3;
+  if (p.t <= 0) { p.t = rand(2.5, 5); const a = rand(0, TAU), rr = Math.sqrt(Math.random()) * 0.72; p.tx = L.x + Math.cos(a) * L.rw * rr; p.ty = L.y + Math.sin(a) * L.rh * rr; }
+  const dx = p.tx - p.x, dy = p.ty - p.y, d = Math.hypot(dx, dy);
+  if (d > 2) { p.facing = dx < 0 ? -1 : 1; p.x += dx / d * 24 * dt; p.y += dy / d * 24 * dt; }
+}
+function drawPirogue(p) {
+  const x = sx(p.x), y = sy(p.y) + Math.sin(p.bob) * 1.3; if (x < -20 || x > CSSW + 20 || y < -20 || y > CSSH + 20) return;
+  ctx.save(); ctx.translate(x, y); ctx.scale(p.facing, 1);
+  ctx.fillStyle = "#0003"; ctx.beginPath(); ctx.ellipse(0, 3, 12, 3, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = "#6a4a28"; ctx.beginPath(); ctx.ellipse(0, 0, 11, 4, 0, 0, TAU); ctx.fill();        // coque
+  ctx.fillStyle = "#8a6a3a"; ctx.beginPath(); ctx.ellipse(0, -1, 8, 2, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = "#caa46a"; ctx.beginPath(); ctx.arc(2, -4, 2.6, 0, TAU); ctx.fill();                 // pêcheur
+  ctx.strokeStyle = "#5a3d1f"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(4, -5); ctx.lineTo(11, 3); ctx.stroke();   // ligne
+  ctx.restore();
+}
+function upgradeWall(f) {                               // faire évoluer la résistance des clôtures
+  if (clotureLevel[f] >= CFG.WALL_UP.max) { if (f === "player") tip("🧱 Clôture déjà au niveau maximal"); return; }
+  if (!canAfford(f, CFG.WALL_UP.cost)) { if (f === "player") tip("⚠ Ressources insuffisantes pour renforcer"); return; }
+  pay(f, CFG.WALL_UP.cost); clotureLevel[f]++;
+  const nm = Math.round(CFG.BLD.cloture.hp * (1 + clotureLevel[f] * CFG.WALL_UP.mult));
+  for (const b of buildings) if (b.faction === f && b.wall) { b.hp = b.hp / b.maxHp * nm; b.maxHp = nm; }
+  if (f === "player") { tip("🧱 Clôture renforcée — niveau " + clotureLevel[f] + " (" + nm + " PV)"); refreshCmd(); }
+}
+function upgradeWallSel() { upgradeWall("player"); }
 
 /* ===== ENTRAÎNEMENT, FILES, RALLIEMENT ==================================== */
 function trainAt(b, type) {
@@ -769,6 +823,7 @@ function updateBuilding(b, dt) {
   if (b.progress >= 1) {
     if (b.type === "marche") res[b.faction].gold += CFG.BLD.marche.gold * dt;
     if (b.type === "baie") res[b.faction].food += CFG.BLD.baie.food * dt;     // pêche aux pirogues
+    if (b.forest && !b.matured) { b.matureT -= dt; if (b.matureT <= 0) { b.matured = true; const n = makeNode("wood", b.x, b.y, CFG.BLD.foret.wood); n.r = 16; n.fromForest = b; b.woodNode = n; nodes.push(n); spawnDust(b.x, b.y, 12, "#3f8f5a"); } }   // forêt mûre → bois récoltable
     if (b.type === "tamtam" && b.cd > 0) b.cd = Math.max(0, b.cd - dt);        // récupération du chant
     if (b.type === "tour") {
       b.cd = Math.max(0, b.cd - dt);
@@ -963,6 +1018,8 @@ function update(dt) {
   for (const u of units) { if (u.flash) u.flash = Math.max(0, u.flash - dt); updateUnit(u, dt); }
   for (const a of animals) updateAnimal(a, dt);
   for (const s of spirits) updateSpirit(s, dt);
+  for (const z of fish) updateFish(z, dt);
+  for (const p of pirogues) updatePirogue(p, dt);
   if (!over) { aiTimer -= dt; if (aiTimer <= 0) { aiTimer = 1.0;
     if (spectator) { if (aiFlip) { aiUpdate("player"); aiUpdate("enemy"); } else { aiUpdate("enemy"); aiUpdate("player"); } aiFlip = !aiFlip; }   // ordre alterné = équité
     else aiUpdate("enemy");
@@ -980,6 +1037,7 @@ function update(dt) {
   projectiles = projectiles.filter(p => !p.done);
 
   // nettoyage des morts (dépouilles / ruines déjà générées par onDeath dans applyDamage)
+  for (const b of buildings) if (b.forest && b.matured && b.woodNode && b.woodNode.amount <= 0.01) b.hp = 0;   // forêt épuisée → disparaît
   units = units.filter(u => u.hp > 0);
   buildings = buildings.filter(b => b.hp > 0);
   animals = animals.filter(a => a.hp > 0);
@@ -1030,32 +1088,52 @@ function buildTerrain() {
   for (let x = 0; x <= terrain.width; x += 120) t.lineTo(x, terrain.height * .62 + Math.sin(x / 200) * 70);
   t.stroke();
   t.lineCap = "butt";
-  // végétation décorative (touffes d'herbe, buissons, acacias)
-  for (let i = 0; i < 150; i++) {
-    const vx = rnd() * terrain.width, vy = rnd() * terrain.height, r2 = rnd();
-    if (r2 < 0.45) { t.strokeStyle = "#7a9a4a"; t.lineWidth = 1.5; for (let g = -2; g <= 2; g++) { t.beginPath(); t.moveTo(vx + g * 2, vy); t.lineTo(vx + g * 2 + (rnd() - .5) * 3, vy - 5 - rnd() * 4); t.stroke(); } }
-    else if (r2 < 0.78) { t.fillStyle = "#5f8a46"; t.beginPath(); t.arc(vx, vy, 4 + rnd() * 4, 0, TAU); t.fill(); }
-    else { t.strokeStyle = "#7a5a30"; t.lineWidth = 2; t.beginPath(); t.moveTo(vx, vy); t.lineTo(vx, vy - 12); t.stroke(); t.fillStyle = "#5f8a46"; t.beginPath(); t.ellipse(vx, vy - 14, 10, 5, 0, 0, TAU); t.fill(); }
+  // forêts denses (bosquets) — zones de végétation touffue
+  for (let zone = 0; zone < 8; zone++) {
+    const cx = rnd() * terrain.width, cy = rnd() * terrain.height, kn = 18 + rnd() * 16;
+    for (let k = 0; k < kn; k++) {
+      const tx = cx + (rnd() - .5) * 170, ty = cy + (rnd() - .5) * 140;
+      t.strokeStyle = "#6a4a28"; t.lineWidth = 2; t.beginPath(); t.moveTo(tx, ty); t.lineTo(tx, ty - 12); t.stroke();
+      t.fillStyle = rnd() > .5 ? "#3f8f5a" : "#4f9a55"; t.beginPath(); t.ellipse(tx, ty - 15, 9 + rnd() * 4, 6 + rnd() * 3, 0, 0, TAU); t.fill();
+    }
   }
-  // lacs (eau) avec reflets, roseaux et poissons
+  // herbe & buissons épars
+  for (let i = 0; i < 220; i++) {
+    const vx = rnd() * terrain.width, vy = rnd() * terrain.height;
+    if (rnd() < 0.55) { t.strokeStyle = "#7a9a4a"; t.lineWidth = 1.5; for (let g = -2; g <= 2; g++) { t.beginPath(); t.moveTo(vx + g * 2, vy); t.lineTo(vx + g * 2 + (rnd() - .5) * 3, vy - 5 - rnd() * 4); t.stroke(); } }
+    else { t.fillStyle = "#5f8a46"; t.beginPath(); t.arc(vx, vy, 4 + rnd() * 4, 0, TAU); t.fill(); }
+  }
+  // hameaux (civilisation) : petites cases de banco au toit de chaume
+  for (let h = 0; h < 7; h++) {
+    const hx = 220 + rnd() * (terrain.width - 440), hy = 220 + rnd() * (terrain.height - 440), kn = 3 + rnd() * 4;
+    for (let k = 0; k < kn; k++) {
+      const cxh = hx + (rnd() - .5) * 80, cyh = hy + (rnd() - .5) * 70, s2 = 8 + rnd() * 5;
+      t.fillStyle = "#0001"; t.beginPath(); t.ellipse(cxh, cyh + s2 * 0.6, s2, s2 * 0.4, 0, 0, TAU); t.fill();
+      t.fillStyle = "#c8a878"; t.fillRect(cxh - s2, cyh - s2 * 0.5, s2 * 2, s2 * 1.1);
+      t.strokeStyle = "#8a6a3a"; t.lineWidth = 1.5; t.strokeRect(cxh - s2, cyh - s2 * 0.5, s2 * 2, s2 * 1.1);
+      t.fillStyle = "#9a7a4a"; t.beginPath(); t.moveTo(cxh - s2 - 2, cyh - s2 * 0.5); t.lineTo(cxh, cyh - s2 * 1.3); t.lineTo(cxh + s2 + 2, cyh - s2 * 0.5); t.fill();
+    }
+  }
+  // lacs plus grands, hors de l'axe de passage (poissons animés au runtime)
   lakes.length = 0;
-  for (const [fx, fy] of [[0.36, 0.26], [0.64, 0.72], [0.5, 0.48]]) {
-    const lx = fx * terrain.width, ly = fy * terrain.height, rw = 72 + rnd() * 48, rh = 50 + rnd() * 32;
+  for (const [fx, fy] of [[0.30, 0.24], [0.70, 0.30], [0.5, 0.78]]) {
+    const lx = fx * terrain.width, ly = fy * terrain.height, rw = 135 + rnd() * 80, rh = 95 + rnd() * 55;
     lakes.push({ x: lx, y: ly, rw, rh });
-    const lg = t.createRadialGradient(lx, ly, 8, lx, ly, rw); lg.addColorStop(0, "#5b97b8"); lg.addColorStop(1, "#83b6cb");
+    const lg = t.createRadialGradient(lx, ly, 10, lx, ly, rw); lg.addColorStop(0, "#5b97b8"); lg.addColorStop(1, "#83b6cb");
     t.fillStyle = lg; t.beginPath(); t.ellipse(lx, ly, rw, rh, 0, 0, TAU); t.fill();
     t.strokeStyle = "#4a7d96"; t.lineWidth = 2; t.stroke();
-    t.strokeStyle = "#d5edf555"; t.lineWidth = 2;
-    for (let i = 0; i < 3; i++) { t.beginPath(); t.moveTo(lx - rw * .4, ly - rh * .25 + i * 8); t.lineTo(lx + rw * .3, ly - rh * .25 + i * 8); t.stroke(); }
-    t.fillStyle = "#36474f"; for (let i = 0; i < 5; i++) { const px = lx + (rnd() - .5) * rw * 1.1, py = ly + (rnd() - .5) * rh * 1.1; t.beginPath(); t.ellipse(px, py, 4, 2, rnd() * 3, 0, TAU); t.fill(); }
+    t.strokeStyle = "#d5edf544"; t.lineWidth = 2;
+    for (let i = 0; i < 4; i++) { t.beginPath(); t.moveTo(lx - rw * .45, ly - rh * .3 + i * 11); t.lineTo(lx + rw * .35, ly - rh * .3 + i * 11); t.stroke(); }
     t.strokeStyle = "#4f7a3a"; t.lineWidth = 2;
-    for (let i = 0; i < 16; i++) { const a = rnd() * TAU, ex = lx + Math.cos(a) * rw, ey = ly + Math.sin(a) * rh; t.beginPath(); t.moveTo(ex, ey); t.lineTo(ex + (rnd() - .5) * 3, ey - 6 - rnd() * 6); t.stroke(); }
+    for (let i = 0; i < 26; i++) { const a = rnd() * TAU, ex = lx + Math.cos(a) * rw, ey = ly + Math.sin(a) * rh; t.beginPath(); t.moveTo(ex, ey); t.lineTo(ex + (rnd() - .5) * 3, ey - 6 - rnd() * 7); t.stroke(); }
   }
 }
 
 function draw() {
   ctx.fillStyle = "#cdb88c"; ctx.fillRect(0, 0, CSSW, CSSH);
   if (terrain) ctx.drawImage(terrain, cam.x, cam.y, CSSW, CSSH, 0, 0, CSSW, CSSH);
+  for (const z of fish) drawFish(z);
+  for (const p of pirogues) drawPirogue(p);
 
   for (const r of rubble) drawRubble(r);
   for (const n of nodes) drawNode(n);
@@ -1076,7 +1154,7 @@ function draw() {
 }
 
 function drawNode(n) {
-  if (n.farm) return;                       // un champ est dessiné par son bâtiment (drawFarm)
+  if (n.farm || n.fromForest) return;       // champ/forêt : dessinés par leur bâtiment
   const x = sx(n.x), y = sy(n.y); if (x < -30 || x > CSSW + 30 || y < -30 || y > CSSH + 30) return;
   const frac = n.amount / n.maxAmount;
   if (n.carcass) {                          // carcasse de gibier (viande)
@@ -1098,12 +1176,49 @@ function drawNode(n) {
   ctx.fillStyle = "#7a5"; ctx.fillRect(x - 14, y + 14, 28 * frac, 3);
 }
 
+function drawForest(b, x, y) {                     // forêt : pousses (immature) → arbres (mûre), densité selon la réserve
+  const planting = b.progress < 1;
+  const grow = b.matured ? 1 : clamp(1 - (b.matureT / CFG.BLD.foret.mature), 0, 1);
+  const frac = (b.matured && b.woodNode) ? clamp(b.woodNode.amount / CFG.BLD.foret.wood, 0, 1) : 1;
+  ctx.save(); if (planting) ctx.globalAlpha = 0.55;
+  ctx.fillStyle = "#8a6a40"; ctx.beginPath(); ctx.ellipse(x, y + b.hh * 0.45, b.hw * 0.95, b.hh * 0.5, 0, 0, TAU); ctx.fill();
+  const trees = [[-b.hw * 0.55, 2], [b.hw * 0.45, 4], [0, -b.hh * 0.4], [-b.hw * 0.12, b.hh * 0.45], [b.hw * 0.2, -b.hh * 0.1]];
+  for (let i = 0; i < trees.length; i++) {
+    if (b.matured && (i / trees.length) > frac) continue;             // arbres abattus à mesure qu'on récolte
+    const tx = x + trees[i][0], ty = y + trees[i][1], h = (7 + (i % 3) * 2) * (0.35 + 0.65 * grow);
+    ctx.strokeStyle = "#7a5a30"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(tx, ty - h); ctx.stroke();
+    ctx.fillStyle = grow < 0.5 ? "#7fae5a" : "#3f8f5a"; ctx.beginPath(); ctx.arc(tx, ty - h - 2 * grow, 3 + 4 * grow, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+  if (planting) barAt(x, y + b.hh + 6, b.hw * 2, b.progress, "#3a7bd5");
+  else if (!b.matured) barAt(x, y + b.hh + 6, b.hw * 2, grow, "#5f8a46");      // jauge de maturation
+}
+function drawWall(b, x, y) {                       // clôture : mur bas banco + pieux ; pastilles = niveau
+  const c = COL[b.faction];
+  ctx.fillStyle = "#0002"; ctx.beginPath(); ctx.ellipse(x, y + b.hh - 1, b.hw, b.hh * 0.4, 0, 0, TAU); ctx.fill();
+  const grd = ctx.createLinearGradient(0, y - b.hh, 0, y + b.hh); grd.addColorStop(0, "#c8a878"); grd.addColorStop(1, "#9e784a");
+  ctx.fillStyle = grd; rrect(x - b.hw, y - b.hh, b.hw * 2, b.hh * 2, 3); ctx.fill();
+  ctx.strokeStyle = "#6a4a28"; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = "#7a5a30"; for (let i = -1; i <= 1; i++) ctx.fillRect(x + i * (b.hw * 0.7) - 2, y - b.hh - 3, 4, 5);
+  ctx.fillStyle = c; for (let i = 0; i <= (clotureLevel[b.faction] || 0); i++) ctx.fillRect(x - b.hw + 2 + i * 5, y + b.hh - 3, 3, 2);
+}
 function drawBuilding(b) {
   const x = sx(b.x), y = sy(b.y); if (x < -80 || x > CSSW + 80 || y < -80 || y > CSSH + 80) return;
   if (b.farm) {
     drawFarm(b, x, y);
     if (selBld === b) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); rrect(x - b.hw - 4, y - b.hh - 4, b.hw * 2 + 8, b.hh * 2 + 8, 6); ctx.stroke(); ctx.setLineDash([]); }
     if (b.progress >= 1 && b.hp < b.maxHp) barAt(x, y + b.hh + 6, b.hw * 2, b.hp / b.maxHp, "#2e7d32");
+    return;
+  }
+  if (b.forest) {
+    drawForest(b, x, y);
+    if (selBld === b) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); rrect(x - b.hw - 4, y - b.hh - 4, b.hw * 2 + 8, b.hh * 2 + 8, 6); ctx.stroke(); ctx.setLineDash([]); }
+    return;
+  }
+  if (b.wall) {
+    drawWall(b, x, y);
+    if (selBld === b) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); rrect(x - b.hw - 4, y - b.hh - 4, b.hw * 2 + 8, b.hh * 2 + 8, 6); ctx.stroke(); ctx.setLineDash([]); }
+    if (b.hp < b.maxHp) barAt(x, y + b.hh + 6, b.hw * 2, b.hp / b.maxHp, "#2e7d32");
     return;
   }
   const c = COL[b.faction], tint = ageOf(b.faction).tint;
@@ -1371,7 +1486,7 @@ function buildingAt(x, y) { for (const b of buildings) if (x >= b.x - b.hw && x 
 function nodeAt(x, y) { let best = null, bd = Infinity; for (const n of nodes) { const r = n.r + 6; const d = dist2(x, y, n.x, n.y); if (d < r * r && d < bd) { bd = d; best = n; } } return best; }
 
 /* ===== BARRE DE COMMANDE (DOM) =========================================== */
-const bldName = t => ({ cite: "Cité", maison: "Maison", caserne: "Caserne", marche: "Marché", tour: "Tour de guet", champ: "Champ", atelier: "Atelier de bois", baie: "Baie aux pirogues", tamtam: "Tam-tam parleur" }[t] || t);
+const bldName = t => ({ cite: "Cité", maison: "Maison", caserne: "Caserne", marche: "Marché", tour: "Tour de guet", champ: "Champ", atelier: "Atelier de bois", baie: "Baie aux pirogues", tamtam: "Tam-tam parleur", foret: "Forêt plantée", cloture: "Clôture" }[t] || t);
 const unitName = t => ({ villager: "Caravanier", lancier: "Lancier", archer: "Archer", cavalier: "Cavalier", commandant: "Commandant", feticheur: "Féticheur", sorcier: "Sorcier volant" }[t] || t);
 function costStr(c) { return Object.keys(c).map(k => RES_ICON[k] + c[k]).join(" "); }
 function actBtn(label, cost, onclick, enabled, cls) {
@@ -1392,7 +1507,7 @@ function refreshCmd() {
   if (buildMode) { info2 = `<b>Construire ${bldName(buildMode)}</b><br><span class="mini">Clique sur le sol pour bâtir. Clic droit = annuler.</span>`; act.innerHTML = `<button class="act" onclick="cancelBuild()">✖ Annuler</button>`; info.innerHTML = info2; return; }
   if (selBld) {
     const b = selBld;
-    info2 = `<b>${bldName(b.type)}</b> <span class="mini">(${b.faction === "player" ? "à toi" : "rival"})</span><br><span class="mini">PV ${Math.round(b.hp)}/${b.maxHp}${b.progress < 1 ? " · chantier " + Math.round(b.progress * 100) + "%" : ""}${b.queue.length ? " · file: " + b.queue.length : ""}${b.farm && b.foodNode ? " · vivres " + Math.round(b.foodNode.amount) + "/" + b.foodNode.maxAmount : ""}</span>`;
+    info2 = `<b>${bldName(b.type)}</b> <span class="mini">(${b.faction === "player" ? "à toi" : "rival"})</span><br><span class="mini">PV ${Math.round(b.hp)}/${b.maxHp}${b.progress < 1 ? " · chantier " + Math.round(b.progress * 100) + "%" : ""}${b.queue.length ? " · file: " + b.queue.length : ""}${b.farm && b.foodNode ? " · vivres " + Math.round(b.foodNode.amount) + "/" + b.foodNode.maxAmount : ""}${b.forest ? (b.matured ? " · bois " + Math.round(b.woodNode ? b.woodNode.amount : 0) : " · maturation " + Math.round((1 - b.matureT / CFG.BLD.foret.mature) * 100) + "%") : ""}${b.wall ? " · clôture niv " + (clotureLevel[b.faction] || 0) : ""}</span>`;
     if (b.faction === "player" && b.progress >= 1) {
       if (b.type === "cite") {
         html += trainBtn("➕ Caravanier", "villager");
@@ -1400,6 +1515,7 @@ function refreshCmd() {
         html += trainBtn("🔮 Féticheur", "feticheur");
         const next = CFG.AGE[age.player + 1];
         if (next) { const c = canAdvance("player"); html += actBtn("▲ Empire : " + next.name, c.ok ? costStr(next.cost) : c.reason, "advanceSel()", c.ok, "adv"); }
+        const wl = clotureLevel.player; html += actBtn("🧱 Clôture +résist." + (wl ? " (niv " + wl + ")" : ""), wl >= CFG.WALL_UP.max ? "max" : costStr(CFG.WALL_UP.cost), "upgradeWallSel()", wl < CFG.WALL_UP.max && canAfford("player", CFG.WALL_UP.cost), "adv");
       }
       if (b.type === "caserne") { html += trainBtn("🗡️ Lancier", "lancier"); html += trainBtn("🏹 Archer", "archer"); html += trainBtn("🐎 Cavalier", "cavalier"); }
       if (b.type === "tamtam") html += actBtn("🥁 Chant des esprits", b.cd > 0 ? "⏳ " + Math.ceil(b.cd) + "s" : CFG.CHANT.per + " esprits / soldat", "chantSel()", b.cd <= 0, "adv");
@@ -1410,7 +1526,7 @@ function refreshCmd() {
     const vills = us.filter(u => u.type === "villager").length;
     const counts = {}; us.forEach(u => counts[u.type] = (counts[u.type] || 0) + 1);
     info2 = `<b>${us.length} unité${us.length > 1 ? "s" : ""}</b><br><span class="mini">${Object.keys(counts).map(t => counts[t] + " " + unitName(t)).join(", ")}</span>`;
-    if (vills > 0) { html += buildBtn("🏠 Maison", "maison"); html += buildBtn("🌾 Champ", "champ"); html += buildBtn("🏛️ Caserne", "caserne"); html += buildBtn("⚖️ Marché", "marche"); html += buildBtn("🗼 Tour", "tour"); html += buildBtn("🪵 Atelier", "atelier"); html += buildBtn("🛶 Baie", "baie"); html += buildBtn("🥁 Tam-tam", "tamtam"); }
+    if (vills > 0) { html += buildBtn("🏠 Maison", "maison"); html += buildBtn("🌾 Champ", "champ"); html += buildBtn("🌳 Forêt", "foret"); html += buildBtn("🧱 Clôture", "cloture"); html += buildBtn("🏛️ Caserne", "caserne"); html += buildBtn("⚖️ Marché", "marche"); html += buildBtn("🗼 Tour", "tour"); html += buildBtn("🪵 Atelier", "atelier"); html += buildBtn("🛶 Baie", "baie"); html += buildBtn("🥁 Tam-tam", "tamtam"); }
     if (us.some(u => u.commander)) {
       html += `<button class="act ${armyStance === 'guard' ? 'adv' : ''}" onclick="setStance('guard')">🛡️ Garder<span class="c">encercler le village</span></button>`;
       html += `<button class="act ${armyStance === 'patrol' ? 'adv' : ''}" onclick="setStance('patrol')">🥾 Patrouille<span class="c">tourner autour</span></button>`;
@@ -1481,10 +1597,16 @@ function toggleCodex() {
 
 /* ===== CARTE & PARTIE ===================================================== */
 function scatterNodes(cx, cy, type, n, spread, amount) {
-  for (let i = 0; i < n; i++) { const a = rand(0, TAU), r = rand(40, spread); nodes.push(makeNode(type, clamp(cx + Math.cos(a) * r, 30, worldW() - 30), clamp(cy + Math.sin(a) * r, 30, worldH() - 30), amount)); }
+  for (let i = 0; i < n; i++) {
+    const a = rand(0, TAU), r = rand(40, spread);
+    const x = clamp(cx + Math.cos(a) * r, 30, worldW() - 30), y = clamp(cy + Math.sin(a) * r, 30, worldH() - 30);
+    if (onLake(x, y)) continue;                          // pas de ressource sur l'eau (inatteignable)
+    nodes.push(makeNode(type, x, y, amount));
+  }
 }
 function startGame(diff, spec) {
-  units = []; buildings = []; nodes = []; floats = []; parts = []; projectiles = []; corpses = []; rubble = []; birds = []; animals = []; spirits = []; sel = new Set(); selBld = null; buildMode = null; armyStance = "free";
+  units = []; buildings = []; nodes = []; floats = []; parts = []; projectiles = []; corpses = []; rubble = []; birds = []; animals = []; spirits = []; fish = []; pirogues = []; sel = new Set(); selBld = null; buildMode = null; armyStance = "free";
+  clotureLevel = { player: 0, enemy: 0 };
   for (const k in AI_STATE) delete AI_STATE[k];   // réinitialise l'état tactique des deux IA
   for (const k in groups) delete groups[k];
   res = { player: { ...CFG.START }, enemy: { ...CFG.START } };
@@ -1492,6 +1614,7 @@ function startGame(diff, spec) {
   running = true; over = false; won = false; gameT = 0; nextId = 1; aiTimer = 0.5; tipTimer = 14; codexOpen = false; spectator = !!spec;
   DIFFICULTY = CFG.DIFF[diff] || CFG.DIFF[lastDiff] || CFG.DIFF.normal; if (CFG.DIFF[diff]) lastDiff = diff;   // niveau choisi (en observation, les 2 IA partagent ce réglage)
   if (!terrain) buildTerrain();
+  fish = []; for (const L of lakes) for (let i = 0; i < 7; i++) fish.push(makeFish(L));   // bancs de poissons animés
 
   const W = worldW(), H = worldH();
   const pCite = makeBuilding("player", "cite", W * 0.16, H * 0.5, true); buildings.push(pCite);

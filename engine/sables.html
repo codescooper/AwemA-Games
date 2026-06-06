@@ -198,7 +198,7 @@ const CFG = {
   // Âge minimal requis pour débloquer chaque unité / bâtiment
   UNLOCK: { villager: 0, maison: 0, champ: 0, caserne: 0, marche: 0, lancier: 0, archer: 1, tour: 1, cavalier: 2, commandant: 0, feticheur: 1, sorcier: 1, atelier: 0, baie: 0, tamtam: 1, foret: 0, cloture: 0 },
   WALL_UP: { max: 3, mult: 0.85, cost: { wood: 120, gold: 60 } },   // clôture : niveaux de résistance (×PV cumulés)
-  PROJ_SPEED: 330, AGGRO: 130, VISION: 300, LEASH: 240, RESEED_TIME: 4, RESEED_COST: { wood: 12 },
+  PROJ_SPEED: 330, AGGRO: 130, VISION: 300, LEASH: 240, RESEED_TIME: 4, RESEED_COST: { wood: 12 }, ESCORT_DIST: 420, THREAT: 95,
   RETINUE: 6, VDEF: 52,                          // escorte du commandant ; portée d'auto-défense des villageois
   FETICH_MULT: 2, CONVERT_MULT: 0.5, CONVERT: { range: 95, cd: 4 }, SORCIER_CD: 3,    // féticheur : ×2 allié ; conversion (÷2) ; invocation sorcier
   CHANT: { cd: 40, duration: 25, per: 2 }, SPIRIT: { atk: 5, cd: 1.0, range: 42, orbitR: 22 },  // tam-tam : 2 esprits gardiens / soldat
@@ -254,6 +254,7 @@ let armyStance = "free";                           // ordre du commandant : 'fre
 let spectator = false;                             // mode observation : les deux camps pilotés par l'IA
 let aiFlip = false;                                // alterne l'ordre des 2 IA en observation (équité : pas d'avantage du 1er coup)
 let clotureLevel = { player: 0, enemy: 0 };        // niveau de résistance des clôtures par camp
+let escortTimer = 0;                               // cadence d'assignation des escortes de villageois
 let DIFFICULTY = CFG.DIFF.normal;                  // niveau courant (règle l'IA ennemie)
 let lastDiff = "normal";                           // dernier niveau choisi (pour Rejouer)
 const groups = {};                                 // groupes de contrôle 1..9 -> [ids]
@@ -337,9 +338,11 @@ function nearestNode(type, x, y) {
   return best;
 }
 // choisit une ressource en tournant les types → répartit les caravaniers
-function balancedNode(u) {
-  const order = ["food", "wood", "gold"];
-  for (let i = 0; i < 3; i++) { const t = order[(_balRot + i) % 3]; const n = nearestNode(t, u.x, u.y); if (n) { _balRot++; return n; } }
+function balancedNode(u) {                 // répartition ÉQUITABLE : envoie le caravanier vers la ressource la moins couverte
+  const cnt = { food: 0, wood: 0, gold: 0 };
+  for (const o of units) if (o.faction === u.faction && o.type === "villager" && o.gNode && o.gNode.amount > 0 && (o.state === "gather" || o.state === "return")) cnt[o.gNode.type]++;
+  const avail = ["food", "wood", "gold"].filter(t => nearestNode(t, u.x, u.y)).sort((a, b) => cnt[a] - cnt[b]);
+  for (const t of avail) { const n = nearestNode(t, u.x, u.y); if (n) return n; }
   return nearestNode(null, u.x, u.y);
 }
 function nodeAtPoint(x, y, r) { for (const n of nodes) if (n.amount > 0 && dist(x, y, n.x, n.y) <= n.r + r) return n; return null; }
@@ -399,6 +402,22 @@ function callRetinue(cmd) {
     .sort((a, b) => dist2(a.x, a.y, cmd.x, cmd.y) - dist2(b.x, b.y, cmd.x, cmd.y)).slice(0, CFG.RETINUE);
   for (const u of soldiers) { u.follow = cmd.id; u.order = null; u.state = "escort"; }
   if (cmd.faction === "player") tip(soldiers.length ? "📯 " + soldiers.length + " soldats rejoignent le commandant" : "Aucun soldat à rallier");
+}
+// escorte AUTO : 2 soldats oisifs pour chaque villageois éloigné du village ; libérée au retour
+function assignVillagerEscorts(f) {
+  const c = buildings.find(b => b.faction === f && b.type === "cite"); if (!c) return;
+  for (const u of units) if (u.follow != null && u.state === "escort") {
+    const host = units.find(x => x.id === u.follow && x.hp > 0);
+    if (!host || (host.type === "villager" && dist(host.x, host.y, c.x, c.y) < CFG.ESCORT_DIST - 70)) { u.follow = null; u.state = "idle"; }
+  }
+  const free = units.filter(u => u.faction === f && (u.type === "lancier" || u.type === "archer" || u.type === "cavalier") && u.state === "idle" && !u.follow && !u.order && u.hp > 0);
+  for (const v of units) {
+    if (!free.length) break;
+    if (v.faction !== f || v.type !== "villager" || v.hp <= 0) continue;
+    if (dist(v.x, v.y, c.x, c.y) < CFG.ESCORT_DIST) continue;
+    const have = units.filter(u => u.follow === v.id && u.hp > 0).length;
+    for (let k = have; k < 2 && free.length; k++) { const s = free.shift(); s.follow = v.id; s.order = null; s.state = "escort"; }
+  }
 }
 
 /* ===== COMMANDES ========================================================== */
@@ -531,7 +550,7 @@ function updateUnit(u, dt) {
   const U = CFG.UNIT[u.type];
 
   // auto-défense des villageois : ripostent si un soldat ennemi est au contact
-  if (u.type === "villager" && u.state !== "attack") { const foe = nearestEnemyUnit(u.x, u.y, u.faction, CFG.VDEF, u.type); if (foe && isMil(foe)) commandAttack(u, foe); }
+  if (u.type === "villager" && u.state !== "flee") { const foe = nearestEnemyUnit(u.x, u.y, u.faction, CFG.THREAT, u.type); if (foe && isMil(foe)) { u.state = "flee"; u.target = null; u.gNode = null; } }   // menace → le villageois fuit (l'escorte défend)
   // féticheur : convertit lentement un ennemi qui l'approche
   if (u.type === "feticheur") { u.cd2 = Math.max(0, (u.cd2 || 0) - dt); u.cd3 = Math.max(0, (u.cd3 || 0) - dt); if (u.cd2 <= 0) { const foe = nearestEnemyUnit(u.x, u.y, u.faction, CFG.CONVERT.range); if (foe && !foe.commander && foe.type !== "feticheur" && foe.type !== "sorcier") { convertUnit(foe, u.faction); u.cd2 = CFG.CONVERT.cd; } } }
 
@@ -619,7 +638,7 @@ function updateUnit(u, dt) {
         u.target = null;
         if (u.order === "towers") { const tw = nearestEnemyTower(u); if (tw) { commandAttack(u, tw); break; } u.order = null; }   // toutes les tours rasées → on revient
         if (u.order === "agro") { const e = nearestEnemyWithin(u, CFG.VISION); if (e) commandAttack(u, e); else u.state = "idle"; break; }  // enchaîne dans le champ de vision, jusqu'au rappel
-        if (u.follow && units.some(x => x.id === u.follow && x.commander && x.hp > 0)) { u.state = "escort"; break; }   // soldat d'escorte → revient près du commandant
+        if (u.follow && units.some(x => x.id === u.follow && x.hp > 0)) { u.state = "escort"; break; }   // soldat d'escorte → revient près de son protégé
         if (u.faction === "player" && isMil(u) && !u.commander && u.type !== "feticheur" && armyStance !== "free") { u.state = "guard"; break; }
         if (isMil(u) && u.post && dist(u.x, u.y, u.post.x, u.post.y) > 40) { u.state = "move"; u.tx = u.post.x; u.ty = u.post.y; }
         else u.state = "idle";
@@ -648,13 +667,23 @@ function updateUnit(u, dt) {
       if (p) { u.post = p; if (dist(u.x, u.y, p.x, p.y) > (armyStance === "patrol" ? 6 : 11)) stepTo(u, p.x, p.y, dt); else u.swing = 0; }
       break;
     }
-    case "escort": {                                      // soldat de l'escorte : se groupe autour du commandant et combat à ses côtés
-      const cmd = units.find(x => x.id === u.follow && x.commander && x.hp > 0);
-      if (!cmd) { u.follow = null; u.state = "idle"; break; }
+    case "escort": {                                      // soldat d'escorte : se groupe autour de son protégé (commandant OU villageois) et combat
+      const host = units.find(x => x.id === u.follow && x.hp > 0);
+      if (!host) { u.follow = null; u.state = "idle"; break; }
       const e = nearestEnemyWithin(u, CFG.AGGRO);
       if (e) { commandAttack(u, e); break; }
-      const s2 = escortSlot(u, cmd);
+      const s2 = escortSlot(u, host);
       if (dist(u.x, u.y, s2.x, s2.y) > 14) stepTo(u, s2.x, s2.y, dt); else u.swing = 0;
+      break;
+    }
+    case "flee": {                                        // villageois qui FUIT vers la Cité tant qu'une menace militaire rôde
+      const foe = nearestEnemyUnit(u.x, u.y, u.faction, CFG.THREAT + 45, u.type);
+      if (!foe || !isMil(foe)) { u.state = "idle"; break; }   // plus de menace → reprend le travail
+      const c = buildings.find(b => b.faction === u.faction && b.type === "cite");
+      let tx, ty;
+      if (c && dist(u.x, u.y, c.x, c.y) > c.hw + 70) { tx = c.x; ty = c.y; }   // courir s'abriter à la Cité
+      else { tx = u.x + (u.x - foe.x); ty = u.y + (u.y - foe.y); }             // déjà à l'abri : s'écarter de l'ennemi
+      stepTo(u, tx, ty, dt); u.swing = 0;
       break;
     }
   }
@@ -1024,6 +1053,7 @@ function update(dt) {
     if (spectator) { if (aiFlip) { aiUpdate("player"); aiUpdate("enemy"); } else { aiUpdate("enemy"); aiUpdate("player"); } aiFlip = !aiFlip; }   // ordre alterné = équité
     else aiUpdate("enemy");
   } }
+  if (!over && !spectator) { escortTimer -= dt; if (escortTimer <= 0) { escortTimer = 1.5; assignVillagerEscorts("player"); } }   // escorte auto des villageois éloignés
 
   // projectiles (flèches) — vol en arc + impact
   for (const p of projectiles) {

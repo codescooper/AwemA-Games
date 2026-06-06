@@ -98,8 +98,14 @@
     </ul>
     <p class="mini" style="margin-top:.7rem">🖱️ <b>Clic gauche</b> : sélectionner (glisser = cadre, double-clic = tout le même type) · <b>Clic droit</b> : déplacer / récolter / construire / attaquer / ralliement · <b>Ctrl+chiffre</b> : créer un groupe, <b>chiffre</b> : le rappeler · <b>.</b> villageois oisif · <b>H</b> cité · <b>Z Q S D</b> / flèches : vue · clic <b>minicarte</b>.</p>
     <div class="row">
-      <button class="btn primary" onclick="startGame()">Fonder la cité ▶</button>
-      <button class="btn ghost" onclick="startGame(true)">👁️ Observer (IA vs IA)</button>
+      <button class="btn ghost" onclick="startGame('paisible')">🕊️ Paisible</button>
+      <button class="btn primary" onclick="startGame('facile')">🙂 Facile ▶</button>
+      <button class="btn ghost" onclick="startGame('normal')">⚔️ Normal</button>
+      <button class="btn ghost" onclick="startGame('difficile')">🔥 Difficile</button>
+    </div>
+    <p class="mini" style="margin:.5rem 0 .1rem;text-align:center">🕊️ Paisible : l'IA ne t'attaque pas · 🙂 Facile · ⚔️ Normal · 🔥 Difficile (héros, sorciers, esprits, vagues rapides)</p>
+    <div class="row">
+      <button class="btn ghost" onclick="startGame('spectacle', true)">👁️ Observer (IA vs IA)</button>
       <button class="btn ghost" onclick="toggleCodex()">📖 Le saviez-vous ?</button>
     </div>
   </div>
@@ -192,6 +198,16 @@ const CFG = {
   RETINUE: 6, VDEF: 52,                          // escorte du commandant ; portée d'auto-défense des villageois
   FETICH_MULT: 2, CONVERT_MULT: 0.5, CONVERT: { range: 95, cd: 4 }, SORCIER_CD: 3,    // féticheur : ×2 allié ; conversion (÷2) ; invocation sorcier
   CHANT: { cd: 40, duration: 25, per: 2 }, SPIRIT: { atk: 5, cd: 1.0, range: 42, orbitR: 22 },  // tam-tam : 2 esprits gardiens / soldat
+  // ── NIVEAUX DE DIFFICULTÉ (règlent l'IA ennemie) ──────────────────────────
+  // firstWave: temps min (s) avant le 1er assaut · waveGap: secondes entre vagues · army: combattants requis pour attaquer
+  // vills/soldiers/sorc: plafonds · tech: utilise féticheur/commandant/tam-tam/sorciers · power: × dégâts de l'IA
+  DIFF: {
+    paisible:  { name: "Paisible",  firstWave: 9999, waveGap: 150, army: 20, vills: 8,  soldiers: 6,  sorc: 0, tech: false, power: 0.55 },
+    facile:    { name: "Facile",    firstWave: 240,  waveGap: 80,  army: 12, vills: 10, soldiers: 12, sorc: 0, tech: false, power: 0.75 },
+    normal:    { name: "Normal",    firstWave: 120,  waveGap: 50,  army: 11, vills: 12, soldiers: 18, sorc: 3, tech: true,  power: 1 },
+    difficile: { name: "Difficile", firstWave: 70,   waveGap: 38,  army: 10, vills: 14, soldiers: 24, sorc: 5, tech: true,  power: 1.25 },
+    spectacle: { name: "Spectacle", firstWave: 175,  waveGap: 38,  army: 9,  vills: 11, soldiers: 24, sorc: 6, tech: true,  power: 1 },   // observation : les 2 IA se développent à fond puis s'affrontent en vagues
+  },
 };
 const RES_ICON = { food: "🌾", wood: "🌴", gold: "✦" };
 const RES_NAME = { food: "vivres", wood: "bois", gold: "or" };
@@ -232,6 +248,9 @@ let advancing = { player: null, enemy: null };     // {t,time} pendant une trans
 let autoEmploy = true;                             // auto-emploi des villageois oisifs (joueur)
 let armyStance = "free";                           // ordre du commandant : 'free' | 'guard' | 'patrol'
 let spectator = false;                             // mode observation : les deux camps pilotés par l'IA
+let aiFlip = false;                                // alterne l'ordre des 2 IA en observation (équité : pas d'avantage du 1er coup)
+let DIFFICULTY = CFG.DIFF.normal;                  // niveau courant (règle l'IA ennemie)
+let lastDiff = "normal";                           // dernier niveau choisi (pour Rejouer)
 const groups = {};                                 // groupes de contrôle 1..9 -> [ids]
 const cam = { x: 0, y: 0 };
 let sel = new Set();                 // unités joueur sélectionnées
@@ -267,8 +286,9 @@ function canAfford(f, cost) { for (const k in cost) if (res[f][k] < cost[k]) ret
 function pay(f, cost) { for (const k in cost) res[f][k] -= cost[k]; }
 const ageOf = f => CFG.AGE[age[f]];
 const fetichMult = f => units.some(u => u.faction === f && u.type === "feticheur" && u.hp > 0) ? CFG.FETICH_MULT : 1;   // ×2 si un féticheur du camp est présent
+const diffPower = f => (spectator || f !== "enemy") ? 1 : DIFFICULTY.power;   // handicap de puissance de l'IA selon la difficulté
 const gatherRate = u => CFG.GATHER_RATE * ageOf(u.faction).gather * fetichMult(u.faction) * (u.converted ? CFG.CONVERT_MULT : 1);
-const effAtk = u => CFG.UNIT[u.type].atk * ageOf(u.faction).atk * fetichMult(u.faction) * (u.converted ? CFG.CONVERT_MULT : 1);
+const effAtk = u => CFG.UNIT[u.type].atk * ageOf(u.faction).atk * fetichMult(u.faction) * diffPower(u.faction) * (u.converted ? CFG.CONVERT_MULT : 1);
 const unlocked = (f, type) => age[f] >= (CFG.UNLOCK[type] || 0);
 
 function canAdvance(f) {
@@ -835,35 +855,30 @@ function aiUpdate(f) {
   // 3) avancer d'Âge dès que les conditions sont remplies (sans attendre)
   if (!advancing[f]) { const c = canAdvance(f); if (c.ok) startAdvance(f); }
 
-  // 4) économie — maisons, champs, atelier, baie
-  if (!chantier && popFull && canAfford(f, CFG.COST.maison)) aiBuild(f, "maison", myCite);
-  if (!chantier && canAfford(f, CFG.COST.champ)  && myBld("champ").length  < 3) aiBuild(f, "champ", myCite, 30, 85);
-  if (!chantier && !hasAtelier && vills.length >= 7 && canAfford(f, CFG.COST.atelier)) aiBuild(f, "atelier", myCite, 50, 110);
-  if (!chantier && hasAtelier && !hasBld("baie") && canAfford(f, CFG.COST.baie)) {
-    for (const L of lakes) {
-      const bx = clamp(L.x + rand(-20,20), 80, worldW()-80);
-      const by = clamp(L.y + L.rh + 18, 80, worldH()-80);
-      if (buildFootprintOK("baie", bx, by)) {
-        pay(f, CFG.COST.baie); const nb = makeBuilding(f,"baie",bx,by,false); buildings.push(nb);
-        const v = (units.find(u => u.faction===f && u.type==="villager" && u.state!=="build")) || vills[0];
-        if (v) commandBuild(v, nb); break;
+  // 4) CONSTRUCTION — un seul chantier à la fois, par PRIORITÉ : chemin militaire/âge d'abord, éco de confort ensuite
+  if (!chantier) {
+    if (popFull && canAfford(f, CFG.COST.maison)) aiBuild(f, "maison", myCite);                                          // débloquer la population
+    else if (!hasBld("caserne") && vills.length >= 5 && canAfford(f, CFG.COST.caserne)) aiBuild(f, "caserne", myCite);   // armée
+    else if (!hasBld("marche")  && hasCaserne && canAfford(f, CFG.COST.marche)) aiBuild(f, "marche", myCite);            // → permet le Mali
+    else if (DIFFICULTY.tech && age[f] >= 1 && !hasTamtam && hasCaserne && canAfford(f, CFG.COST.tamtam)) aiBuild(f, "tamtam", myCite, 40, 90);
+    else if (age[f] >= 1 && myTourN < 3 && canAfford(f, CFG.COST.tour)) aiBuild(f, "tour", myCite, 55, 105);
+    else if (vills.length >= 8  && myBld("champ").length < 2 && canAfford(f, CFG.COST.champ)) aiBuild(f, "champ", myCite, 30, 85);
+    else if (vills.length >= 10 && !hasAtelier && canAfford(f, CFG.COST.atelier)) aiBuild(f, "atelier", myCite, 50, 110);
+    else if (hasAtelier && !hasBld("baie") && canAfford(f, CFG.COST.baie)) {
+      for (const L of lakes) {
+        const bx = clamp(L.x + rand(-20,20), 80, worldW()-80), by = clamp(L.y + L.rh + 18, 80, worldH()-80);
+        if (buildFootprintOK("baie", bx, by)) { pay(f, CFG.COST.baie); const nb = makeBuilding(f,"baie",bx,by,false); buildings.push(nb); const v = (units.find(u => u.faction===f && u.type==="villager" && u.state!=="build")) || vills[0]; if (v) commandBuild(v, nb); break; }
       }
     }
   }
-  // caravaniers jusqu'à 14
-  if (!popFull && myCite.queue.length === 0 && vills.length < 14 && canAfford(f, CFG.COST.villager)) trainAt(myCite, "villager");
-
-  // 5) infrastructure militaire
-  if (!chantier && !hasBld("caserne") && vills.length >= 6 && canAfford(f, CFG.COST.caserne)) aiBuild(f, "caserne", myCite);
-  if (!chantier && !hasBld("marche") && hasCaserne && canAfford(f, CFG.COST.marche)) aiBuild(f, "marche", myCite);
-  if (!chantier && age[f] >= 1) {
-    if (myTourN < 3 && canAfford(f, CFG.COST.tour)) aiBuild(f, "tour", myCite, 55, 105);
-    if (!hasTamtam && hasCaserne && canAfford(f, CFG.COST.tamtam)) aiBuild(f, "tamtam", myCite, 40, 90);
-  }
+  // file de la Cité : caravaniers, en cédant la place à un féticheur/commandant dès qu'on peut se l'offrir
+  const prefSpecial = DIFFICULTY.tech && age[f] >= 1 && vills.length >= 8 &&
+    ((!hasFet && canAfford(f, CFG.COST.feticheur)) || (!hasCmd && canAfford(f, CFG.COST.commandant)));
+  if (!popFull && myCite.queue.length === 0 && vills.length < DIFFICULTY.vills && !prefSpecial && canAfford(f, CFG.COST.villager)) trainAt(myCite, "villager");
 
   // 6) armée — composition adaptée (contre-pick vs sorciers ennemis)
   const caserne = buildings.find(b => b.faction===f && b.type==="caserne" && b.progress>=1);
-  if (caserne && caserne.queue.length === 0 && soldats.filter(u=>u.type!=="commandant").length < 22) {
+  if (caserne && caserne.queue.length === 0 && soldats.filter(u=>u.type!=="commandant").length < DIFFICULTY.soldiers) {
     const roll = Math.random();
     if (foeSorcN >= 2 && myArchN < foeSorcN + 2 && canAfford(f, CFG.COST.archer)) trainAt(caserne, "archer");  // anti-vol
     else if (age[f] >= 2 && roll < 0.28 && canAfford(f, CFG.COST.cavalier)) trainAt(caserne, "cavalier");
@@ -872,12 +887,12 @@ function aiUpdate(f) {
   }
 
   // 7) unités spéciales (féticheur, commandant, sorciers)
-  if (myCite.queue.length === 0) {
+  if (DIFFICULTY.tech && myCite.queue.length === 0) {
     if (age[f] >= 1 && !hasFet && canAfford(f, CFG.COST.feticheur)) trainAt(myCite, "feticheur");
     else if (!hasCmd && vills.length >= 8 && canAfford(f, CFG.COST.commandant)) trainAt(myCite, "commandant");
   }
   const fet = myUnits.find(u => u.type === "feticheur");
-  if (fet && (fet.cd3||0) <= 0 && myUnits.filter(u=>u.type==="sorcier").length < 5 && canAfford(f, CFG.COST.sorcier)) summonSorcier(fet);
+  if (fet && (fet.cd3||0) <= 0 && myUnits.filter(u=>u.type==="sorcier").length < DIFFICULTY.sorc && canAfford(f, CFG.COST.sorcier)) summonSorcier(fet);
 
   // 8) tam-tam : chanter dès qu'une armée se forme
   const tam = buildings.find(b => b.faction===f && b.type==="tamtam" && b.progress>=1);
@@ -888,27 +903,27 @@ function aiUpdate(f) {
 
   // RETRAITE si < 40% du pic d'armée (regroupement avant prochaine vague)
   const ratio = st.peakArmy > 3 ? fightLines.length / st.peakArmy : 1;
-  if (!st.retreating && ratio < 0.4 && fightLines.length > 0) {
-    st.retreating = true; st.waveT = 35;
+  if (!st.retreating && ratio < 0.18 && fightLines.length > 0) {   // on ne se replie qu'à la quasi-déroute → assauts décisifs
+    st.retreating = true; st.waveT = 30;
     for (const u of fightLines) { u.state="move"; u.tx=myCite.x+rand(-55,55); u.ty=myCite.y+rand(-55,55); u.target=null; u.order=null; u.follow=null; }
   }
-  if (st.retreating && ratio > 0.65) { st.retreating = false; st.peakArmy = fightLines.length; }
+  if (st.retreating && ratio > 0.5) { st.retreating = false; st.peakArmy = fightLines.length; }
 
   // ASSAUT : ≥ 10 combattants, timer à 0, pas en retraite, ≥ 60 s de jeu
-  if (!st.retreating && foeCite && fightLines.length >= 10 && st.waveT <= 0 && gameT > 60) {
-    st.waveT = 45; st.waves++;
+  if (!st.retreating && foeCite && fightLines.length >= DIFFICULTY.army && st.waveT <= 0 && gameT > DIFFICULTY.firstWave) {
+    st.waveT = DIFFICULTY.waveGap; st.waves++;
     // Chant des esprits avant chaque vague
     if (tam && (tam.cd||0) <= 0) chantSpirits(tam);
     // Commandant mène la retinue
     const cmd = myUnits.find(u => u.commander);
     if (cmd) callRetinue(cmd);
-    // Féticheur repositionné au milieu de la carte pour bufffer l'armée
-    if (fet) { commandMove(fet, (myCite.x+foeCite.x)*0.44, (myCite.y+foeCite.y)*0.44); }
+    // Féticheur gardé à l'abri près de la Cité : son buff ×2 est GLOBAL, inutile de l'exposer
+    if (fet) commandMove(fet, myCite.x + rand(-50, 50), myCite.y + rand(-50, 50));
     // Toutes les forces à l'assaut en mode agressif (enchaînent les cibles en vue)
     for (const u of fightLines) {
       if (u.state === "escort") continue;   // l'escorte suit le commandant
-      const tgt = nearestEnemy(u.x, u.y, f, 1e9, u.type) || foeCite;
-      commandAttack(u, tgt); u.order = "agro";
+      if (u.type === "sorcier") { commandAttack(u, foeCite); u.order = null; }   // les volants harcèlent la Cité par-dessus l'armée
+      else { commandAttack(u, nearestEnemy(u.x, u.y, f, 1e9, u.type) || foeCite); u.order = "agro"; }   // commandant + infanterie : bataille rangée (enchaînent les cibles)
     }
   }
 }
@@ -943,7 +958,10 @@ function update(dt) {
   for (const u of units) { if (u.flash) u.flash = Math.max(0, u.flash - dt); updateUnit(u, dt); }
   for (const a of animals) updateAnimal(a, dt);
   for (const s of spirits) updateSpirit(s, dt);
-  if (!over) { aiTimer -= dt; if (aiTimer <= 0) { aiTimer = 1.0; aiUpdate("enemy"); if (spectator) aiUpdate("player"); } }   // IA ; en observation, les deux camps
+  if (!over) { aiTimer -= dt; if (aiTimer <= 0) { aiTimer = 1.0;
+    if (spectator) { if (aiFlip) { aiUpdate("player"); aiUpdate("enemy"); } else { aiUpdate("enemy"); aiUpdate("player"); } aiFlip = !aiFlip; }   // ordre alterné = équité
+    else aiUpdate("enemy");
+  } }
 
   // projectiles (flèches) — vol en arc + impact
   for (const p of projectiles) {
@@ -1460,13 +1478,14 @@ function toggleCodex() {
 function scatterNodes(cx, cy, type, n, spread, amount) {
   for (let i = 0; i < n; i++) { const a = rand(0, TAU), r = rand(40, spread); nodes.push(makeNode(type, clamp(cx + Math.cos(a) * r, 30, worldW() - 30), clamp(cy + Math.sin(a) * r, 30, worldH() - 30), amount)); }
 }
-function startGame(spec) {
+function startGame(diff, spec) {
   units = []; buildings = []; nodes = []; floats = []; parts = []; projectiles = []; corpses = []; rubble = []; birds = []; animals = []; spirits = []; sel = new Set(); selBld = null; buildMode = null; armyStance = "free";
   for (const k in AI_STATE) delete AI_STATE[k];   // réinitialise l'état tactique des deux IA
   for (const k in groups) delete groups[k];
   res = { player: { ...CFG.START }, enemy: { ...CFG.START } };
   age = { player: 0, enemy: 0 }; advancing = { player: null, enemy: null };
   running = true; over = false; won = false; gameT = 0; nextId = 1; aiTimer = 0.5; tipTimer = 14; codexOpen = false; spectator = !!spec;
+  DIFFICULTY = CFG.DIFF[diff] || CFG.DIFF[lastDiff] || CFG.DIFF.normal; if (CFG.DIFF[diff]) lastDiff = diff;   // niveau choisi (en observation, les 2 IA partagent ce réglage)
   if (!terrain) buildTerrain();
 
   const W = worldW(), H = worldH();
@@ -1486,6 +1505,7 @@ function startGame(spec) {
   document.getElementById("codex").classList.add("hidden");
   document.getElementById("autoBtn").classList.toggle("on", autoEmploy);
   refreshCmd(); syncTop();
+  tip(spectator ? "👁️ Observation — deux IA s'affrontent" : "⚔️ Difficulté : " + DIFFICULTY.name);
   lastT = performance.now(); requestAnimationFrame(frame);
 }
 

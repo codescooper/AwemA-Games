@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lignées — moteur local (test)</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, sans-serif; max-width: 760px; margin: 1rem auto; padding: 0 1rem; line-height: 1.4; }
+  h1 { font-size: 1.3rem; } h2 { font-size: 1.05rem; margin-top: 1.4rem; border-bottom: 1px solid #8884; padding-bottom: .2rem; }
+  table { border-collapse: collapse; width: 100%; font-size: .85rem; }
+  th, td { text-align: left; padding: .2rem .5rem; border-bottom: 1px solid #8883; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ok { color: #1a7f37; } .ko { color: #cf222e; font-weight: bold; }
+  .banner { font-size: 1.1rem; font-weight: bold; padding: .6rem; border-radius: .4rem; margin-top: .8rem; }
+  .banner.ok { background: #1a7f3722; } .banner.ko { background: #cf222e22; }
+  ul { padding-left: 1.1rem; } li { margin: .15rem 0; font-size: .85rem; }
+  small { opacity: .7; }
+</style>
+</head>
+<body>
+<h1>« Lignées » — moteur local <small>(aucune installation, 100 % dans ton navigateur)</small></h1>
+<div id="app">…</div>
+
+<script>
+// ===== CONFIG ===============================================================
+const CONFIG = {
+  START: { gold: 100, grain: 100, soldiers: 50 },
+  INCOME: { city: { gold: 20, grain: 0 }, oasis: { gold: 0, grain: 20 }, port: { gold: 15, grain: 10 } },
+  DEV_COST: 40, DEV_INCOME_BONUS: 5,
+  CARAVANE_PROFIT_RATE: 0.5, FORTIFIE_COST: 40, FORTIFY_DEF_MULT: 0.25,
+  COMBAT: { winnerLossRate: 0.3, loserLossRate: 0.8 },
+  MUTUAL_DEFENSE_REINFORCE_RATE: 0.25, TREATY_BREAK_REP_PENALTY: 10,
+  PRESTIGE: { perHoldingPerTick: 2, tradeProfitDivisor: 20, defenseWon: 8, capture: 12, repHigh: 2, repLow: 2 },
+  REP: { start: 50, min: 0, max: 100 },
+};
+
+// ===== HELPERS ==============================================================
+const clampRep = h => { h.reputation = Math.max(CONFIG.REP.min, Math.min(CONFIG.REP.max, h.reputation)); };
+function neighbors(state, id) { const out = []; for (const [a, b] of state.edges) { if (a === id) out.push(b); else if (b === id) out.push(a); } return out.sort(); }
+function shortestPath(state, from, to) {
+  if (from === to) return [from];
+  const q = [from], prev = { [from]: null };
+  while (q.length) { const cur = q.shift();
+    for (const n of neighbors(state, cur)) { if (!(n in prev)) { prev[n] = cur; if (n === to) { const p = [n]; let c = cur; while (c != null) { p.unshift(c); c = prev[c]; } return p; } q.push(n); } } }
+  return null;
+}
+const hasActiveTreaty = (s, a, b) => s.treaties.some(t => t.status === "active" && ((t.a === a && t.b === b) || (t.a === b && t.b === a)));
+const isMutualDefense = (s, a, b) => s.treaties.some(t => t.status === "active" && t.type === "mutual_defense" && ((t.a === a && t.b === b) || (t.a === b && t.b === a)));
+const holdingsOf = (s, id) => Object.values(s.holdings).filter(h => h.ownerHouseId === id).sort((x, y) => x.id < y.id ? -1 : 1);
+const totalSoldiers = (s, id) => holdingsOf(s, id).reduce((n, h) => n + h.soldiers, 0);
+
+// ===== ÉVÉNEMENTS ===========================================================
+const EVENTS = {
+  harmattan: { name: "L'Harmattan (sécheresse)",
+    apply: (h, c) => { if (c === "partager") { h.reputation += 10; h.grain -= 30; } else if (c === "speculer") { h.gold += 40; h.reputation -= 15; } clampRep(h); },
+    aggregate: (s, choices, log) => { const v = Object.values(choices); const hoard = v.filter(c => c === "thesauriser").length;
+      if (hoard * 2 > v.length) { for (const h of Object.values(s.houses)) h.grain -= 10; log.push({ tick: s.tick, text: "La majorité a thésaurisé : la famine s'aggrave (−10 grain pour tous).", public: true }); } } },
+  foire: { name: "Grande Foire de Tombouctou",
+    apply: (h, c) => { if (c === "investir") h.gold += 50; else if (c === "parader") { h.gold -= 40; h.prestige += 15; } else if (c === "mercenaires") h.gold -= 60; } },
+};
+
+// ===== VALIDATION ===========================================================
+function isOrderValid(s, o) {
+  const h = s.houses[o.houseId]; if (!h || !h.alive) return false; const p = o.params || {};
+  switch (o.type) {
+    case "DEV": return !!s.holdings[p.holding] && s.holdings[p.holding].ownerHouseId === h.id && h.gold >= CONFIG.DEV_COST;
+    case "FORTIFIE": return !!s.holdings[p.holding] && s.holdings[p.holding].ownerHouseId === h.id && h.gold >= CONFIG.FORTIFIE_COST;
+    case "LEVEE": return p.count > 0 && h.grain >= p.count && h.gold >= p.count;
+    case "CARAVANE": return p.gold > 0 && h.gold >= p.gold && !!s.holdings[p.from] && s.holdings[p.from].ownerHouseId === h.id && !!s.holdings[p.to];
+    case "MARCHE": { const f = s.holdings[p.from]; return !!f && f.ownerHouseId === h.id && p.soldiers > 0 && f.soldiers >= p.soldiers && neighbors(s, p.from).includes(p.to); }
+    case "EMISSAIRE": return !!s.houses[p.target] && p.target !== h.id;
+    default: return false;
+  }
+}
+
+// ===== MOTEUR ===============================================================
+function resolveTick(input0, tickInput) {
+  const state = structuredClone(input0); const log = [];
+  const acc = { tradeProfit: {}, defensesWon: {}, captures: {} };
+  const orders = [...tickInput.orders]; const choices = { ...tickInput.eventChoices };
+  generateAIOrders(state, orders, choices);
+  const valid = orders.filter(o => { const ok = isOrderValid(state, o); o.status = ok ? "pending" : "invalid"; return ok; });
+
+  // 1. Revenus
+  for (const hd of Object.values(state.holdings)) { if (!hd.ownerHouseId) continue; const o = state.houses[hd.ownerHouseId]; if (!o) continue;
+    const inc = CONFIG.INCOME[hd.type]; o.gold += inc.gold + (hd.type !== "oasis" ? hd.incomeBonus : 0); o.grain += inc.grain + (hd.type === "oasis" ? hd.incomeBonus : 0); }
+
+  // 2. Événement
+  const ev = EVENTS[tickInput.eventId];
+  if (ev) { for (const h of Object.values(state.houses)) { const c = choices[h.id]; if (c) ev.apply(h, c); }
+    if (tickInput.eventId === "foire") for (const h of Object.values(state.houses)) if (choices[h.id] === "mercenaires") state.holdings[h.capitalHoldingId].soldiers += 20;
+    if (ev.aggregate) ev.aggregate(state, choices, log); }
+
+  // 3. Caravanes
+  for (const o of valid.filter(o => o.type === "CARAVANE")) { const h = state.houses[o.houseId]; const path = shortestPath(state, o.params.from, o.params.to);
+    if (h.gold < o.params.gold) { o.status = "invalid"; continue; } h.gold -= o.params.gold; let interceptor = null;
+    if (path) for (const hid of path.slice(1)) { const hd = state.holdings[hid]; if (hd.ownerHouseId && hd.ownerHouseId !== h.id && !hasActiveTreaty(state, h.id, hd.ownerHouseId) && hd.soldiers > 0) { interceptor = hd.ownerHouseId; break; } }
+    if (interceptor) { state.houses[interceptor].gold += o.params.gold; log.push({ tick: state.tick, text: `Caravane de ${h.name} interceptée par ${state.houses[interceptor].name} (−${o.params.gold} or).`, public: false }); }
+    else { const profit = Math.floor(o.params.gold * CONFIG.CARAVANE_PROFIT_RATE); h.gold += o.params.gold + profit; acc.tradeProfit[h.id] = (acc.tradeProfit[h.id] || 0) + profit; log.push({ tick: state.tick, text: `Caravane de ${h.name} arrivée (+${profit} or de profit).`, public: false }); } }
+
+  // 4. Combats
+  const marches = valid.filter(o => o.type === "MARCHE");
+  for (const o of marches) { const f = state.holdings[o.params.from]; const n = Math.min(o.params.soldiers, f.soldiers); o.params.soldiers = n; f.soldiers -= n; }
+  const byTarget = {}; for (const o of marches) (byTarget[o.params.to] || (byTarget[o.params.to] = [])).push(o);
+  for (const target of Object.keys(byTarget).sort()) {
+    const hd = state.holdings[target]; const attackers = byTarget[target]; const attackTotal = attackers.reduce((n, o) => n + o.params.soldiers, 0); const defenderId = hd.ownerHouseId;
+    const reinforcements = [];
+    if (defenderId) for (const ah of Object.values(state.holdings)) { if (ah.ownerHouseId && ah.ownerHouseId !== defenderId && isMutualDefense(state, defenderId, ah.ownerHouseId) && neighbors(state, target).includes(ah.id)) { const amt = Math.floor(ah.soldiers * CONFIG.MUTUAL_DEFENSE_REINFORCE_RATE); if (amt > 0) reinforcements.push({ hid: ah.id, amount: amt }); } }
+    const reinforceTotal = reinforcements.reduce((n, r) => n + r.amount, 0);
+    const defensePower = Math.floor(hd.soldiers * (1 + CONFIG.FORTIFY_DEF_MULT * hd.fortification)) + reinforceTotal;
+    if (attackTotal > defensePower) {
+      const defLoss = Math.floor(hd.soldiers * CONFIG.COMBAT.loserLossRate); hd.soldiers -= defLoss;
+      for (const r of reinforcements) state.holdings[r.hid].soldiers -= Math.floor(r.amount * CONFIG.COMBAT.loserLossRate);
+      const biggest = [...attackers].sort((a, b) => b.params.soldiers - a.params.soldiers || (a.houseId < b.houseId ? -1 : 1))[0];
+      for (const o of attackers) { const surv = o.params.soldiers - Math.floor(o.params.soldiers * CONFIG.COMBAT.winnerLossRate);
+        if (hd.soldiers === 0 && o === biggest) { hd.ownerHouseId = o.houseId; hd.fortification = 0; hd.soldiers = surv; acc.captures[o.houseId] = (acc.captures[o.houseId] || 0) + 1; log.push({ tick: state.tick, text: `${state.houses[o.houseId].name} a capturé ${hd.name} !`, public: true }); }
+        else state.holdings[o.params.from].soldiers += surv; }
+      if (defenderId) log.push({ tick: state.tick, text: `${hd.name} (${state.houses[defenderId].name}) razzié : −${defLoss} guerriers.`, public: false });
+    } else {
+      for (const o of attackers) { const surv = o.params.soldiers - Math.floor(o.params.soldiers * CONFIG.COMBAT.loserLossRate); state.holdings[o.params.from].soldiers += surv; }
+      const defLoss = Math.floor(hd.soldiers * CONFIG.COMBAT.winnerLossRate); hd.soldiers -= defLoss;
+      for (const r of reinforcements) state.holdings[r.hid].soldiers -= Math.floor(r.amount * CONFIG.COMBAT.winnerLossRate);
+      if (defenderId) { acc.defensesWon[defenderId] = (acc.defensesWon[defenderId] || 0) + 1; log.push({ tick: state.tick, text: `${hd.name} (${state.houses[defenderId].name}) a repoussé l'assaut.`, public: true }); }
+    }
+  }
+
+  // 5. Économie
+  for (const o of valid.filter(o => ["DEV", "LEVEE", "FORTIFIE"].includes(o.type))) { const h = state.houses[o.houseId]; const p = o.params;
+    if (o.type === "DEV" && h.gold >= CONFIG.DEV_COST) { h.gold -= CONFIG.DEV_COST; state.holdings[p.holding].incomeBonus += CONFIG.DEV_INCOME_BONUS; }
+    else if (o.type === "FORTIFIE" && h.gold >= CONFIG.FORTIFIE_COST) { h.gold -= CONFIG.FORTIFIE_COST; state.holdings[p.holding].fortification += 1; }
+    else if (o.type === "LEVEE" && h.grain >= p.count && h.gold >= p.count) { h.grain -= p.count; h.gold -= p.count; state.holdings[h.capitalHoldingId].soldiers += p.count; } }
+
+  // 6. Traités
+  for (const o of valid.filter(o => o.type === "EMISSAIRE")) { const h = state.houses[o.houseId]; const p = o.params;
+    if (p.action === "propose") { if (!state.treaties.some(t => t.status !== "broken" && t.type === p.treaty && ((t.a === h.id && t.b === p.target) || (t.a === p.target && t.b === h.id)))) state.treaties.push({ a: h.id, b: p.target, type: p.treaty, status: "proposed", proposedBy: h.id }); }
+    else if (p.action === "accept") { const t = state.treaties.find(t => t.status === "proposed" && ((t.a === p.target && t.b === h.id) || (t.a === h.id && t.b === p.target))); if (t) { t.status = "active"; log.push({ tick: state.tick, text: `Traité ${t.type} actif entre ${state.houses[t.a].name} et ${state.houses[t.b].name}.`, public: true }); } }
+    else if (p.action === "break") { const t = state.treaties.find(t => t.status === "active" && ((t.a === h.id && t.b === p.target) || (t.a === p.target && t.b === h.id))); if (t) { t.status = "broken"; h.reputation -= CONFIG.TREATY_BREAK_REP_PENALTY; clampRep(h); log.push({ tick: state.tick, text: `${h.name} a ROMPU son traité avec ${state.houses[p.target].name} ! (−${CONFIG.TREATY_BREAK_REP_PENALTY} réputation)`, public: true }); } } }
+
+  // 7. Prestige + réputation
+  for (const h of Object.values(state.houses)) { const nb = holdingsOf(state, h.id).length; h.alive = nb > 0;
+    let d = nb * CONFIG.PRESTIGE.perHoldingPerTick + Math.floor((acc.tradeProfit[h.id] || 0) / CONFIG.PRESTIGE.tradeProfitDivisor) + (acc.defensesWon[h.id] || 0) * CONFIG.PRESTIGE.defenseWon + (acc.captures[h.id] || 0) * CONFIG.PRESTIGE.capture;
+    if (h.reputation >= 70) d += CONFIG.PRESTIGE.repHigh; else if (h.reputation <= 30) d -= CONFIG.PRESTIGE.repLow; h.prestige += d; }
+
+  state.tick += 1; return { state, log };
+}
+
+// ===== FACTIONS IA ==========================================================
+function generateAIOrders(state, orders, choices) {
+  const hasOrders = id => orders.some(o => o.houseId === id);
+  for (const h of Object.values(state.houses).sort((a, b) => a.id < b.id ? -1 : 1)) {
+    if (!h.isAI || !h.alive) continue;
+    if (choices[h.id] === undefined) choices[h.id] = h.reputation < 50 ? "partager" : "thesauriser";
+    if (hasOrders(h.id)) continue;
+    const mine = holdingsOf(state, h.id); if (mine.length === 0) continue; const slots = [];
+    if (h.gold > 80) slots.push({ type: "DEV", params: { holding: mine[0].id } }); else slots.push({ type: "LEVEE", params: { count: Math.min(20, h.grain) } });
+    const nh = new Set(); for (const hd of mine) for (const n of neighbors(state, hd.id)) { const o = state.holdings[n].ownerHouseId; if (o && o !== h.id) nh.add(o); }
+    const target = [...nh].sort().find(o => !hasActiveTreaty(state, h.id, o));
+    if (target) slots.push({ type: "EMISSAIRE", params: { action: "propose", target, treaty: "non_aggression" } });
+    if (totalSoldiers(state, h.id) > 70) { let best = null; for (const hd of mine) for (const n of neighbors(state, hd.id)) { const t = state.holdings[n]; if (t.ownerHouseId && t.ownerHouseId !== h.id && !hasActiveTreaty(state, h.id, t.ownerHouseId)) { if (!best || t.soldiers < best.def) best = { from: hd.id, to: n, def: t.soldiers }; } } if (best) slots.push({ type: "MARCHE", params: { from: best.from, to: best.to, soldiers: Math.floor(state.holdings[best.from].soldiers * 0.8) } }); }
+    slots.slice(0, 3).forEach((s, i) => orders.push({ houseId: h.id, slot: i, type: s.type, params: s.params }));
+  }
+}
+
+// ===== SCÉNARIO =============================================================
+function buildScenario() {
+  const H = (id, name, type, owner, soldiers) => [id, { id, name, type, ownerHouseId: owner, fortification: 0, soldiers, incomeBonus: 0 }];
+  const holdings = Object.fromEntries([
+    H("aoudaghost", "Aoudaghost", "oasis", "aissata", 70), H("goundam", "Goundam", "oasis", "aissata", 10),
+    H("tinduk", "Tindûk", "oasis", "tinduk", 40), H("koumbi", "Koumbi", "city", "tinduk", 50),
+    H("zalimba", "Zalimba", "port", "zalimba", 50), H("djenne", "Djenné", "city", "djenne", 50),
+    H("tombouctou", "Tombouctou", "city", "tombouctou", 50), H("gao", "Gao", "city", "gao", 50),
+  ]);
+  const mk = (id, name, isAI, capital) => [id, { id, name, isAI, gold: CONFIG.START.gold, grain: CONFIG.START.grain, prestige: 0, reputation: CONFIG.REP.start, capitalHoldingId: capital, alive: true }];
+  const houses = Object.fromEntries([
+    mk("aissata", "Maison d'Aïssata", false, "aoudaghost"), mk("tinduk", "Maison Tindûk", true, "tinduk"),
+    mk("zalimba", "Maison Zalimba", true, "zalimba"), mk("djenne", "Maison Djenné", true, "djenne"),
+    mk("tombouctou", "Maison Tombouctou", true, "tombouctou"), mk("gao", "Maison Gao", true, "gao"),
+  ]);
+  const edges = [["tombouctou","gao"],["gao","koumbi"],["tombouctou","djenne"],["gao","aoudaghost"],["koumbi","tinduk"],["djenne","aoudaghost"],["aoudaghost","tinduk"],["aoudaghost","zalimba"],["djenne","goundam"]];
+  const treaties = [{ a: "aissata", b: "djenne", type: "trade_pact", status: "active", proposedBy: "djenne" }];
+  return { tick: 0, holdings, houses, edges, treaties };
+}
+
+// ===== RENDU / HARNAIS ======================================================
+function houseRows(s) { return Object.values(s.houses).map(h => `<tr><td>${h.name}</td><td class="num">${h.gold}</td><td class="num">${h.grain}</td><td class="num">${h.prestige}</td><td class="num">${h.reputation}</td></tr>`).join(""); }
+function holdRows(s) { return Object.values(s.holdings).map(h => `<tr><td>${h.name}</td><td>${h.type}</td><td>${h.ownerHouseId || "—"}</td><td class="num">${h.soldiers}</td><td class="num">${h.fortification}</td></tr>`).join(""); }
+const houseTable = s => `<table><tr><th>Maison</th><th class="num">Or</th><th class="num">Grain</th><th class="num">Prestige</th><th class="num">Rép.</th></tr>${houseRows(s)}</table>`;
+const holdTable = s => `<table><tr><th>Lieu</th><th>Type</th><th>Propriétaire</th><th class="num">Garnison</th><th class="num">Fort.</th></tr>${holdRows(s)}</table>`;
+
+function run() {
+  const s0 = buildScenario();
+  const input = {
+    eventId: "harmattan",
+    eventChoices: { aissata: "partager", tinduk: "speculer", zalimba: "thesauriser", djenne: "thesauriser", tombouctou: "thesauriser", gao: "thesauriser" },
+    orders: [
+      { houseId: "aissata", slot: 0, type: "MARCHE", params: { from: "aoudaghost", to: "tinduk", soldiers: 60 } },
+      { houseId: "aissata", slot: 1, type: "CARAVANE", params: { from: "aoudaghost", to: "goundam", gold: 50 } },
+      { houseId: "aissata", slot: 2, type: "DEV", params: { holding: "goundam" } },
+      { houseId: "tinduk", slot: 0, type: "FORTIFIE", params: { holding: "tinduk" } },
+    ],
+  };
+  const { state, log } = resolveTick(s0, input);
+
+  const checks = [
+    ["Tindûk garnison 40 → 8 (−80%)", state.holdings.tinduk.soldiers, 8],
+    ["Aoudaghost 70 −60 +42 survivants = 52", state.holdings.aoudaghost.soldiers, 52],
+    ["Aïssata or = 85 (100 −50 caravane +75 retour −40 DEV)", state.houses.aissata.gold, 85],
+    ["Aïssata grain = 100 (+40 revenu −30 partage −10 famine)", state.houses.aissata.grain, 100],
+    ["Aïssata réputation = 60 (+10 partage)", state.houses.aissata.reputation, 60],
+    ["Aïssata prestige = 5 (2 lieux×2 + profit 25÷20)", state.houses.aissata.prestige, 5],
+    ['Tindûk garde son lieu (non capturé)', state.holdings.tinduk.ownerHouseId, "tinduk"],
+  ];
+  let pass = 0; const items = checks.map(([label, got, want]) => { const ok = got === want; if (ok) pass++; return `<li class="${ok ? "ok" : "ko"}">${ok ? "✅" : "❌"} ${label} → <b>${got}</b>${ok ? "" : ` (attendu ${want})`}</li>`; }).join("");
+  const all = pass === checks.length;
+
+  document.getElementById("app").innerHTML =
+    `<h2>État initial (tick 0)</h2>${houseTable(s0)}${holdTable(s0)}
+     <h2>Après la nuit (tick ${state.tick})</h2>${houseTable(state)}${holdTable(state)}
+     <h2>Chronique</h2><ul>${log.map(e => `<li>${e.text}</li>`).join("") || "<li><small>(rien)</small></li>"}</ul>
+     <h2>Contrôles (le code doit reproduire les calculs papier)</h2><ul>${items}</ul>
+     <div class="banner ${all ? "ok" : "ko"}">${all ? "✅ TOUS LES CONTRÔLES PASSENT" : "❌ ÉCHEC"} (${pass}/${checks.length})</div>
+     <p><small>Pour expérimenter : ouvre ce fichier dans un éditeur, modifie les <code>orders</code> dans la fonction <code>run()</code>, recharge la page.</small></p>`;
+}
+run();
+</script>
+</body>
+</html>

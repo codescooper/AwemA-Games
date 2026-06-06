@@ -1,0 +1,14 @@
+{
+  "name": "lignees-prototype",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Lignées — prototype local-first (moteur pur, déterministe). Voir docs/.",
+  "scripts": {
+    "play": "tsx engine/prototype.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

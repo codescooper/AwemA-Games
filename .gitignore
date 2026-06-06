@@ -1,0 +1,13 @@
+# Dépendances
+node_modules/
+
+# Config locale Claude (machine-spécifique, peut contenir des autorisations propres au poste)
+.claude/settings.local.json
+
+# Fichiers temporaires / OS / éditeurs
+_check.cjs
+*.log
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp

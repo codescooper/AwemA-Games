@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AwemA — Choisis ton jeu</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; min-height: 100vh; color: #eee;
+         background: radial-gradient(1200px 600px at 50% -10%, #1c2b3a, #0c1118 60%); display: flex; flex-direction: column; align-items: center; padding: 1.4rem 1rem 2.4rem; }
+  header { text-align: center; margin: 1rem 0 1.6rem; }
+  header h1 { font-size: clamp(1.6rem, 5vw, 2.4rem); margin: .2rem 0; letter-spacing: .5px; }
+  header p { opacity: .72; margin: .2rem 0; font-size: .95rem; }
+  .grid { display: grid; gap: 1.1rem; width: 100%; max-width: 880px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .card { position: relative; border-radius: 1rem; padding: 1.4rem 1.3rem 1.2rem; text-decoration: none; color: inherit;
+          border: 1px solid #ffffff1f; overflow: hidden; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+          display: flex; flex-direction: column; min-height: 230px; }
+  .card:hover { transform: translateY(-4px); box-shadow: 0 14px 40px #0008; }
+  .card .emoji { font-size: 2.6rem; line-height: 1; }
+  .card h2 { margin: .7rem 0 .2rem; font-size: 1.3rem; }
+  .card .tag { font-size: .78rem; text-transform: uppercase; letter-spacing: 1.5px; opacity: .7; }
+  .card p { font-size: .9rem; line-height: 1.45; opacity: .9; margin: .55rem 0 1rem; flex: 1; }
+  .card .cta { align-self: flex-start; font-weight: 700; padding: .5rem .95rem; border-radius: .55rem; font-size: .95rem; }
+  /* Lignées — sable chaud */
+  .lignees { background: linear-gradient(160deg, #3a2f1d, #241b10); border-color: #c8941f44; }
+  .lignees:hover { border-color: #c8941f; }
+  .lignees .cta { background: #c8941f; color: #221a0c; }
+  .lignees .tag { color: #e8b75a; }
+  /* Voraces — vivier néon */
+  .voraces { background: linear-gradient(160deg, #0e2b2a, #07181c); border-color: #2fd6a644; }
+  .voraces:hover { border-color: #2fd6a6; }
+  .voraces .cta { background: #2fd6a6; color: #04231d; }
+  .voraces .tag { color: #6fe7c4; }
+  /* L'Âge des Sables — banco / terre cuite */
+  .sables { background: linear-gradient(160deg, #3a2a18, #241710); border-color: #a8631f55; }
+  .sables:hover { border-color: #a8631f; }
+  .sables .cta { background: #a8631f; color: #fff2e0; }
+  .sables .tag { color: #e0975a; }
+  .new { position: absolute; top: .9rem; right: .9rem; background: #ff5b6e; color: #fff; font-size: .68rem;
+         font-weight: 800; padding: .2rem .5rem; border-radius: 1rem; letter-spacing: .5px; }
+  footer { margin-top: 1.8rem; text-align: center; font-size: .82rem; opacity: .6; line-height: 1.7; }
+  footer a { color: #9fd0ff; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>🎮 AwemA — TheGame</h1>
+    <p>Choisis ton jeu. Tout tourne <b>en local, hors-ligne</b> — aucune installation.</p>
+  </header>
+
+  <main class="grid">
+    <a class="card lignees" href="conseil.html">
+      <div class="emoji">👑</div>
+      <div class="tag">Stratégie · tour par tour</div>
+      <h2>Lignées — Le Conseil</h2>
+      <p>Dirige une dynastie marchande au Carrefour des Sables. Commerce, alliances et ruse contre 5 Maisons rivales. Jouable au rythme qui te plaît : dormir ne fait jamais perdre.</p>
+      <span class="cta">Jouer ▶</span>
+    </a>
+
+    <a class="card sables" href="sables.html">
+      <span class="new">NOUVEAU</span>
+      <div class="emoji">🏜️</div>
+      <div class="tag">Stratégie · temps réel (RTS)</div>
+      <h2>L'Âge des Sables</h2>
+      <p>Bâtis ta cité de terre crue au Sahel et traverse trois empires&nbsp;: Ghana, Mali, Songhaï. Récolte, construis, entraîne lanciers, archers et cavaliers, et détruis la Cité rivale. Façon Age of Empires — caravaniers qui s'emploient seuls. IA adverse.</p>
+      <span class="cta">Jouer ▶</span>
+    </a>
+
+    <a class="card voraces" href="voraces.html">
+      <div class="emoji">🦠</div>
+      <div class="tag">Arcade · temps réel</div>
+      <h2>Voraces — Le Vivier</h2>
+      <p>Incarne une créature façon serpent dans un vivier grouillant. Gobe des fruits pour évoluer, dévore les plus petits, noue des alliances… et fuis les géants. Plus tu grossis, plus tu ralentis. Adversaires&nbsp;IA (multijoueur à venir).</p>
+      <span class="cta">Jouer ▶</span>
+    </a>
+  </main>
+
+  <footer>
+    🔧 Outils&nbsp;: <a href="prototype.html">vérifier le moteur de Lignées</a> (7 contrôles)<br>
+    <small>AwemA · prototypes locaux — voir <code>docs/</code></small>
+  </footer>
+</body>
+</html>

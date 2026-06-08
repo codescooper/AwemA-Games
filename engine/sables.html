@@ -156,10 +156,10 @@ const CFG = {
     lancier: { food: 45, wood: 20 }, archer: { food: 40, gold: 25 }, cavalier: { food: 60, gold: 45 },
     commandant: { food: 80, gold: 40 }, feticheur: { food: 80, gold: 60 }, sorcier: { food: 60, gold: 70 },
     atelier: { wood: 50 }, baie: { wood: 80 }, tamtam: { wood: 70, gold: 40 },
-    foret: { food: 20 }, cloture: { wood: 15 },
+    foret: { food: 20 }, cloture: { wood: 15 }, portail: { wood: 30, gold: 10 },
   },
   TRAIN_TIME: { villager: 6, lancier: 9, archer: 11, cavalier: 14, commandant: 12, feticheur: 14 },
-  BUILD_WORK: { maison: 16, caserne: 28, marche: 22, tour: 22, champ: 12, atelier: 16, baie: 22, tamtam: 24, foret: 5, cloture: 6 },   // secondes-ouvrier
+  BUILD_WORK: { maison: 16, caserne: 28, marche: 22, tour: 22, champ: 12, atelier: 16, baie: 22, tamtam: 24, foret: 5, cloture: 6, portail: 9 },   // secondes-ouvrier
   UNIT: {
     villager: { hp: 28, speed: 62, atk: 3, range: 16, cd: 1.1, r: 9 },
     lancier:  { hp: 52, speed: 56, atk: 7, range: 18, cd: 1.0, r: 10 },
@@ -183,7 +183,8 @@ const CFG = {
     baie:    { hp: 150, hw: 30, hh: 16, food: 2.2 },                                 // baie aux pirogues : pêche (vivres/sec) près d'un lac
     tamtam:  { hp: 170, hw: 20, hh: 26 },                                            // tam-tam parleur : chant des esprits
     foret:   { hp: 60, hw: 22, hh: 18, forest: true, wood: 320, mature: 35 },        // forêt plantée : mûrit (~35 s) puis bois récoltable
-    cloture: { hp: 160, hw: 18, hh: 11, wall: true },                                // clôture : bloque l'ennemi, PV évolutifs (laisse passer les siens)
+    cloture: { hp: 160, hw: 18, hh: 11, wall: true },                                // clôture : maillon de mur, PV évolutifs
+    portail: { hp: 210, hw: 22, hh: 12, wall: true, gate: true },                    // portail : s'ouvre à l'approche d'un habitant, bloque l'ennemi
   },
   // ── LES TROIS EMPIRES (façon « Âges » d'AoE) ──────────────────────────────
   AGE: [
@@ -196,9 +197,9 @@ const CFG = {
       codex: ["La puissance du Songhaï", "Aux XVᵉ–XVIᵉ siècles, l'empire Songhaï, depuis Gao, devient le plus vaste d'Afrique de l'Ouest : Sonni Ali et les Askia bâtissent une puissante cavalerie et une flotte sur le Niger."] },
   ],
   // Âge minimal requis pour débloquer chaque unité / bâtiment
-  UNLOCK: { villager: 0, maison: 0, champ: 0, caserne: 0, marche: 0, lancier: 0, archer: 1, tour: 1, cavalier: 2, commandant: 0, feticheur: 1, sorcier: 1, atelier: 0, baie: 0, tamtam: 1, foret: 0, cloture: 0 },
+  UNLOCK: { villager: 0, maison: 0, champ: 0, caserne: 0, marche: 0, lancier: 0, archer: 1, tour: 1, cavalier: 2, commandant: 0, feticheur: 1, sorcier: 1, atelier: 0, baie: 0, tamtam: 1, foret: 0, cloture: 0, portail: 0 },
   WALL_UP: { max: 3, mult: 0.85, cost: { wood: 120, gold: 60 } },   // clôture : niveaux de résistance (×PV cumulés)
-  PROJ_SPEED: 330, AGGRO: 130, VISION: 300, LEASH: 240, RESEED_TIME: 4, RESEED_COST: { wood: 12 }, ESCORT_DIST: 420, THREAT: 95,
+  PROJ_SPEED: 330, AGGRO: 130, VISION: 300, LEASH: 240, RESEED_TIME: 4, RESEED_COST: { wood: 12 }, ESCORT_DIST: 420, THREAT: 95, GATE_OPEN: 58,
   RETINUE: 6, VDEF: 52,                          // escorte du commandant ; portée d'auto-défense des villageois
   FETICH_MULT: 2, CONVERT_MULT: 0.5, CONVERT: { range: 95, cd: 4 }, SORCIER_CD: 3,    // féticheur : ×2 allié ; conversion (÷2) ; invocation sorcier
   CHANT: { cd: 40, duration: 25, per: 2 }, SPIRIT: { atk: 5, cd: 1.0, range: 42, orbitR: 22 },  // tam-tam : 2 esprits gardiens / soldat
@@ -255,6 +256,7 @@ let spectator = false;                             // mode observation : les deu
 let aiFlip = false;                                // alterne l'ordre des 2 IA en observation (équité : pas d'avantage du 1er coup)
 let clotureLevel = { player: 0, enemy: 0 };        // niveau de résistance des clôtures par camp
 let escortTimer = 0;                               // cadence d'assignation des escortes de villageois
+let gateFlag = { player: false, enemy: false };    // un portail existe-t-il pour ce camp ? (active l'enceinte)
 let DIFFICULTY = CFG.DIFF.normal;                  // niveau courant (règle l'IA ennemie)
 let lastDiff = "normal";                           // dernier niveau choisi (pour Rejouer)
 const groups = {};                                 // groupes de contrôle 1..9 -> [ids]
@@ -283,7 +285,7 @@ function makeBuilding(faction, type, x, y, complete) {
   if (b.wall) maxHp = Math.round(b.hp * (1 + (clotureLevel[faction] || 0) * CFG.WALL_UP.mult));   // PV de clôture selon le niveau
   return { id: nextId++, kind: "building", faction, type, x, y, hw: b.hw, hh: b.hh,
     maxHp: maxHp, hp: complete ? maxHp : Math.max(1, maxHp * 0.15), progress: complete ? 1 : 0,
-    dropoff: !!b.dropoff, farm: !!b.farm, forest: !!b.forest, wall: !!b.wall, foodNode: null, woodNode: null, matured: false, matureT: 0,
+    dropoff: !!b.dropoff, farm: !!b.farm, forest: !!b.forest, wall: !!b.wall, gate: !!b.gate, open: false, foodNode: null, woodNode: null, matured: false, matureT: 0,
     queue: [], trainT: 0, cd: 0, smokeT: 0, rally: { x: x, y: y + b.hh + 28 } };
 }
 function makeNode(type, x, y, amount) { return { id: nextId++, kind: "node", type, x, y, r: 15, amount, maxAmount: amount }; }
@@ -433,15 +435,24 @@ function blockedAt(u, x, y) {            // la position (x,y) est-elle infranchi
   const r = CFG.UNIT[u.type].r - 2;
   for (const b of buildings) {
     if (b.hp <= 0 || b.farm || b.forest) continue;                              // champs & forêts franchissables (on y récolte)
-    if (b.wall && b.faction === u.faction) continue;                            // on passe ses propres clôtures
+    if (b.gate) { if (b.faction === u.faction) continue; }                      // portail ami : ouvert → on passe (l'ennemi est bloqué)
+    else if (b.wall && b.faction === u.faction && !gateFlag[u.faction]) continue; // mur ami franchissable tant qu'aucun portail (anti-piège)
     if ((u.state === "build" || u.state === "attack") && u.target === b) continue; // on rejoint sa cible
     if (Math.abs(x - b.x) < b.hw + r && Math.abs(y - b.y) < b.hh + r) return true;
   }
   return false;
 }
+function nearestOwnGate(u) { let best = null, bd = Infinity; for (const b of buildings) if (b.hp > 0 && b.gate && b.faction === u.faction && b.progress >= 1) { const d = dist2(u.x, u.y, b.x, b.y); if (d < bd) { bd = d; best = b; } } return best; }
 function stepTo(u, tx, ty, dt) {        // avance vers (tx,ty) ; détecte le blocage et CONTOURNE l'obstacle
+  if (dist(u.x, u.y, tx, ty) < 2) { u.stuckT = 0; return true; }
+  // ROUTAGE PORTAIL : coincé contre un mur ami + un portail existe → viser l'entrée (le portail)
+  if ((u.stuckT || 0) > 0.35 && !u.flying && gateFlag[u.faction]) {
+    const r0 = CFG.UNIT[u.type].r;
+    let nearOwnWall = false;
+    for (const w of buildings) if (w.hp > 0 && w.wall && !w.gate && w.faction === u.faction && Math.abs(u.x - w.x) < w.hw + r0 + 14 && Math.abs(u.y - w.y) < w.hh + r0 + 14) { nearOwnWall = true; break; }
+    if (nearOwnWall) { const g = nearestOwnGate(u); if (g && dist(u.x, u.y, g.x, g.y) > 16) { tx = g.x; ty = g.y; } }
+  }
   const d = dist(u.x, u.y, tx, ty);
-  if (d < 2) { u.stuckT = 0; return true; }
   const sp = CFG.UNIT[u.type].speed, step = sp * dt;
   const baseAng = Math.atan2(ty - u.y, tx - u.x);
 
@@ -489,7 +500,8 @@ function collideBuildings(u) {          // les bâtiments & lacs repoussent → 
   const r = CFG.UNIT[u.type].r;
   for (const b of buildings) {
     if (b.hp <= 0 || b.farm || b.forest) continue;                                  // champs & forêts franchissables
-    if (b.wall && b.faction === u.faction) continue;                                // ses propres clôtures laissent passer
+    if (b.gate) { if (b.faction === u.faction) continue; }                          // portail ami : ouvert
+    else if (b.wall && b.faction === u.faction && !gateFlag[u.faction]) continue;    // mur ami : solide seulement une fois un portail posé
     if ((u.state === "build" || u.state === "attack") && u.target === b) continue;  // laisser toucher sa cible
     const ex = b.hw + r - 2, ey = b.hh + r - 2;
     const dx = u.x - b.x, dy = u.y - b.y;
@@ -853,6 +865,7 @@ function updateBuilding(b, dt) {
     if (b.type === "marche") res[b.faction].gold += CFG.BLD.marche.gold * dt;
     if (b.type === "baie") res[b.faction].food += CFG.BLD.baie.food * dt;     // pêche aux pirogues
     if (b.forest && !b.matured) { b.matureT -= dt; if (b.matureT <= 0) { b.matured = true; const n = makeNode("wood", b.x, b.y, CFG.BLD.foret.wood); n.r = 16; n.fromForest = b; b.woodNode = n; nodes.push(n); spawnDust(b.x, b.y, 12, "#3f8f5a"); } }   // forêt mûre → bois récoltable
+    if (b.gate) b.open = units.some(u => u.faction === b.faction && u.hp > 0 && dist(u.x, u.y, b.x, b.y) < CFG.GATE_OPEN);   // portail : s'ouvre à l'approche d'un habitant
     if (b.type === "tamtam" && b.cd > 0) b.cd = Math.max(0, b.cd - dt);        // récupération du chant
     if (b.type === "tour") {
       b.cd = Math.max(0, b.cd - dt);
@@ -892,7 +905,16 @@ function placeBuilding(type, x, y) {
   let assigned = 0;
   for (const id of sel) { const u = unitById(id); if (u && u.type === "villager") { commandBuild(u, b); assigned++; } }
   if (assigned === 0) { const v = units.find(u => u.faction === "player" && u.type === "villager"); if (v) commandBuild(v, b); }
-  buildMode = null; refreshCmd(); return b;
+  refreshCmd(); return b;
+}
+function placeChain(type, x1, y1, x2, y2) {        // pose une chaîne de segments du point de départ au point d'arrivée
+  const b = CFG.BLD[type], step = Math.max(20, b.hw * 2 + 2);
+  const n = Math.max(1, Math.round(dist(x1, y1, x2, y2) / step));
+  for (let i = 0; i <= n; i++) {
+    if (!canAfford("player", CFG.COST[type])) break;
+    const t = n ? i / n : 0, gx = Math.round((x1 + (x2 - x1) * t) / 20) * 20, gy = Math.round((y1 + (y2 - y1) * t) / 20) * 20;
+    placeBuilding(type, gx, gy);
+  }
 }
 const unitById = id => units.find(u => u.id === id);
 
@@ -1044,6 +1066,8 @@ function update(dt) {
   for (const fa of ["player", "enemy"]) { const a = advancing[fa]; if (a) { a.t += dt; if (a.t >= a.time) { advancing[fa] = null; age[fa]++; onAgeUp(fa); } } }
 
   for (const b of buildings) if (b.hp > 0) updateBuilding(b, dt);
+  gateFlag.player = buildings.some(b => b.faction === "player" && b.gate && b.progress >= 1);
+  gateFlag.enemy = buildings.some(b => b.faction === "enemy" && b.gate && b.progress >= 1);
   for (const u of units) { if (u.flash) u.flash = Math.max(0, u.flash - dt); updateUnit(u, dt); }
   for (const a of animals) updateAnimal(a, dt);
   for (const s of spirits) updateSpirit(s, dt);
@@ -1179,7 +1203,7 @@ function draw() {
   ctx.globalAlpha = 1; ctx.textAlign = "left";
 
   if (buildMode) drawGhost();
-  if (mouse.dragging && mouse.dragStart) drawSelBox();
+  if (mouse.dragging && mouse.dragStart && !buildMode) drawSelBox();
   drawMinimap();
 }
 
@@ -1223,14 +1247,31 @@ function drawForest(b, x, y) {                     // forêt : pousses (immature
   if (planting) barAt(x, y + b.hh + 6, b.hw * 2, b.progress, "#3a7bd5");
   else if (!b.matured) barAt(x, y + b.hh + 6, b.hw * 2, grow, "#5f8a46");      // jauge de maturation
 }
-function drawWall(b, x, y) {                       // clôture : mur bas banco + pieux ; pastilles = niveau
+function drawWall(b, x, y) {                       // clôture : maillon banco ; connecteurs vers les voisins = clôture continue
   const c = COL[b.faction];
+  ctx.strokeStyle = "#8a6a3a"; ctx.lineWidth = 5;   // poutres reliant les segments voisins du même camp
+  for (const o of buildings) {
+    if (o === b || !o.wall || o.faction !== b.faction || o.hp <= 0) continue;
+    const dd = dist(b.x, b.y, o.x, o.y);
+    if (dd > 1 && dd < (b.hw + o.hw) * 1.7) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(sx(o.x), sy(o.y)); ctx.stroke(); }
+  }
+  if (b.gate) { drawGate(b, x, y); return; }
   ctx.fillStyle = "#0002"; ctx.beginPath(); ctx.ellipse(x, y + b.hh - 1, b.hw, b.hh * 0.4, 0, 0, TAU); ctx.fill();
   const grd = ctx.createLinearGradient(0, y - b.hh, 0, y + b.hh); grd.addColorStop(0, "#c8a878"); grd.addColorStop(1, "#9e784a");
   ctx.fillStyle = grd; rrect(x - b.hw, y - b.hh, b.hw * 2, b.hh * 2, 3); ctx.fill();
   ctx.strokeStyle = "#6a4a28"; ctx.lineWidth = 2; ctx.stroke();
   ctx.fillStyle = "#7a5a30"; for (let i = -1; i <= 1; i++) ctx.fillRect(x + i * (b.hw * 0.7) - 2, y - b.hh - 3, 4, 5);
   ctx.fillStyle = c; for (let i = 0; i <= (clotureLevel[b.faction] || 0); i++) ctx.fillRect(x - b.hw + 2 + i * 5, y + b.hh - 3, 3, 2);
+}
+function drawGate(b, x, y) {                       // portail : battants ouverts (à l'approche d'un ami) ou fermés
+  const c = COL[b.faction];
+  ctx.fillStyle = "#0002"; ctx.beginPath(); ctx.ellipse(x, y + b.hh - 1, b.hw, b.hh * 0.4, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = "#7a5a30"; ctx.fillRect(x - b.hw, y - b.hh - 5, 5, b.hh * 2 + 5); ctx.fillRect(x + b.hw - 5, y - b.hh - 5, 5, b.hh * 2 + 5);   // montants
+  ctx.fillStyle = "#8a6a3a"; ctx.fillRect(x - b.hw, y - b.hh - 7, b.hw * 2, 5);                                                                 // linteau
+  ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(x, y - b.hh - 7); ctx.lineTo(x + 9, y - b.hh - 4); ctx.lineTo(x, y - b.hh - 1); ctx.fill();    // fanion
+  ctx.strokeStyle = "#6a4a28"; ctx.lineWidth = 1.5;
+  if (b.open) { ctx.fillStyle = "#9e784a"; ctx.fillRect(x - b.hw + 5, y - b.hh, 5, b.hh * 1.5); ctx.fillRect(x + b.hw - 10, y - b.hh, 5, b.hh * 1.5); }   // battants repliés (ouvert)
+  else { const grd = ctx.createLinearGradient(0, y - b.hh, 0, y + b.hh); grd.addColorStop(0, "#b89868"); grd.addColorStop(1, "#8a6a3a"); ctx.fillStyle = grd; rrect(x - b.hw + 5, y - b.hh, b.hw * 2 - 10, b.hh * 2, 2); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x, y - b.hh); ctx.lineTo(x, y + b.hh); ctx.stroke(); }   // battants fermés
 }
 function drawBuilding(b) {
   const x = sx(b.x), y = sy(b.y); if (x < -80 || x > CSSW + 80 || y < -80 || y > CSSH + 80) return;
@@ -1423,10 +1464,15 @@ function barAt(cx, y, w, frac, color) { ctx.fillStyle = "#0006"; ctx.fillRect(cx
 function rrect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 
 function drawGhost() {
-  const b = CFG.BLD[buildMode]; const gx = Math.round(wx(mouse.x) / 20) * 20, gy = Math.round(wy(mouse.y) / 20) * 20;
-  const ok = buildFootprintOK(buildMode, gx, gy) && canAfford("player", CFG.COST[buildMode]);
-  ctx.globalAlpha = .6; ctx.fillStyle = ok ? "#3a7bd5" : "#b1432f";
-  rrect(sx(gx) - b.hw, sy(gy) - b.hh, b.hw * 2, b.hh * 2, 5); ctx.fill(); ctx.globalAlpha = 1;
+  const b = CFG.BLD[buildMode];
+  const drawOne = (gx, gy) => { const ok = buildFootprintOK(buildMode, gx, gy); ctx.fillStyle = ok ? "#3a7bd5" : "#b1432f"; rrect(sx(gx) - b.hw, sy(gy) - b.hh, b.hw * 2, b.hh * 2, 5); ctx.fill(); };
+  ctx.globalAlpha = .55;
+  if (mouse.dragging && mouse.dragStart) {          // aperçu de la chaîne pendant le glissé
+    const x1 = mouse.dragStart.x, y1 = mouse.dragStart.y, x2 = wx(mouse.x), y2 = wy(mouse.y), step = Math.max(20, b.hw * 2 + 2);
+    const n = Math.max(1, Math.round(dist(x1, y1, x2, y2) / step));
+    for (let i = 0; i <= n; i++) { const t = n ? i / n : 0; drawOne(Math.round((x1 + (x2 - x1) * t) / 20) * 20, Math.round((y1 + (y2 - y1) * t) / 20) * 20); }
+  } else drawOne(Math.round(wx(mouse.x) / 20) * 20, Math.round(wy(mouse.y) / 20) * 20);
+  ctx.globalAlpha = 1;
 }
 function drawSelBox() { const a = mouse.dragStart, bx = sx(a.x), by = sy(a.y);
   ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]); ctx.strokeRect(bx, by, mouse.x - bx, mouse.y - by); ctx.setLineDash([]);
@@ -1452,19 +1498,26 @@ function evWorld(e) { const rc = cv.getBoundingClientRect(); mouse.x = e.clientX
 function inMinimap(x, y) { const r = mmRect(); return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h; }
 function minimapPan(x, y) { const r = mmRect(); cam.x = (x - r.x) / r.w * worldW() - CSSW / 2; cam.y = (y - r.y) / r.h * worldH() - CSSH / 2; clampCam(); }
 
-cv.addEventListener("mousemove", e => { evWorld(e); if (mouse.down && mouse.dragStart && !buildMode) { if (dist(sx(mouse.dragStart.x), sy(mouse.dragStart.y), mouse.x, mouse.y) > 6) mouse.dragging = true; } });
+cv.addEventListener("mousemove", e => { evWorld(e); if (mouse.down && mouse.dragStart) { if (dist(sx(mouse.dragStart.x), sy(mouse.dragStart.y), mouse.x, mouse.y) > 6) mouse.dragging = true; } });
 cv.addEventListener("mousedown", e => {
   if (!running || over) return; evWorld(e);
   if (e.button === 2) return;
   if (mouse.y < TOP || mouse.y > CSSH - BOT) return;
   if (inMinimap(mouse.x, mouse.y)) { minimapPan(mouse.x, mouse.y); return; }
-  if (buildMode) { placeBuilding(buildMode, Math.round(wx(mouse.x) / 20) * 20, Math.round(wy(mouse.y) / 20) * 20); return; }
   mouse.down = true; mouse.dragStart = { x: wx(mouse.x), y: wy(mouse.y) }; mouse.dragging = false;
 });
 window.addEventListener("mouseup", e => {
   if (!running || over) { mouse.down = false; return; }
   if (e.button === 2) { rightClick(); mouse.down = false; return; }
   if (!mouse.down) return; mouse.down = false; evWorld(e);
+  if (buildMode) {                                  // construction : chaîne si glissé, segment unique sinon
+    const g = v => Math.round(v / 20) * 20;
+    if (mouse.dragging && mouse.dragStart) placeChain(buildMode, mouse.dragStart.x, mouse.dragStart.y, wx(mouse.x), wy(mouse.y));
+    else placeBuilding(buildMode, g(wx(mouse.x)), g(wy(mouse.y)));
+    mouse.dragStart = null; mouse.dragging = false;
+    if (!e.shiftKey) { buildMode = null; refreshCmd(); }   // Maj maintenue = continuer à bâtir
+    return;
+  }
   if (mouse.dragging) {
     const a = mouse.dragStart, x1 = Math.min(a.x, wx(mouse.x)), x2 = Math.max(a.x, wx(mouse.x)), y1 = Math.min(a.y, wy(mouse.y)), y2 = Math.max(a.y, wy(mouse.y));
     if (!e.shiftKey) { sel.clear(); selBld = null; }
@@ -1516,7 +1569,7 @@ function buildingAt(x, y) { for (const b of buildings) if (x >= b.x - b.hw && x 
 function nodeAt(x, y) { let best = null, bd = Infinity; for (const n of nodes) { const r = n.r + 6; const d = dist2(x, y, n.x, n.y); if (d < r * r && d < bd) { bd = d; best = n; } } return best; }
 
 /* ===== BARRE DE COMMANDE (DOM) =========================================== */
-const bldName = t => ({ cite: "Cité", maison: "Maison", caserne: "Caserne", marche: "Marché", tour: "Tour de guet", champ: "Champ", atelier: "Atelier de bois", baie: "Baie aux pirogues", tamtam: "Tam-tam parleur", foret: "Forêt plantée", cloture: "Clôture" }[t] || t);
+const bldName = t => ({ cite: "Cité", maison: "Maison", caserne: "Caserne", marche: "Marché", tour: "Tour de guet", champ: "Champ", atelier: "Atelier de bois", baie: "Baie aux pirogues", tamtam: "Tam-tam parleur", foret: "Forêt plantée", cloture: "Clôture", portail: "Portail" }[t] || t);
 const unitName = t => ({ villager: "Caravanier", lancier: "Lancier", archer: "Archer", cavalier: "Cavalier", commandant: "Commandant", feticheur: "Féticheur", sorcier: "Sorcier volant" }[t] || t);
 function costStr(c) { return Object.keys(c).map(k => RES_ICON[k] + c[k]).join(" "); }
 function actBtn(label, cost, onclick, enabled, cls) {
@@ -1534,7 +1587,7 @@ function refreshCmd() {
   const info = document.getElementById("selInfo"), act = document.getElementById("actions");
   if (spectator) { info.innerHTML = '<span class="mini">👁️ Observation — IA contre IA. Déplace la vue (Z Q S D / flèches / clic minicarte).</span>'; act.innerHTML = ""; return; }
   let html = "", info2 = "";
-  if (buildMode) { info2 = `<b>Construire ${bldName(buildMode)}</b><br><span class="mini">Clique sur le sol pour bâtir. Clic droit = annuler.</span>`; act.innerHTML = `<button class="act" onclick="cancelBuild()">✖ Annuler</button>`; info.innerHTML = info2; return; }
+  if (buildMode) { info2 = `<b>Construire ${bldName(buildMode)}</b><br><span class="mini">Clique pour poser · <b>glisse</b> pour une chaîne (clôtures) · <b>Maj</b> = enchaîner · clic droit = annuler.</span>`; act.innerHTML = `<button class="act" onclick="cancelBuild()">✖ Annuler</button>`; info.innerHTML = info2; return; }
   if (selBld) {
     const b = selBld;
     info2 = `<b>${bldName(b.type)}</b> <span class="mini">(${b.faction === "player" ? "à toi" : "rival"})</span><br><span class="mini">PV ${Math.round(b.hp)}/${b.maxHp}${b.progress < 1 ? " · chantier " + Math.round(b.progress * 100) + "%" : ""}${b.queue.length ? " · file: " + b.queue.length : ""}${b.farm && b.foodNode ? " · vivres " + Math.round(b.foodNode.amount) + "/" + b.foodNode.maxAmount : ""}${b.forest ? (b.matured ? " · bois " + Math.round(b.woodNode ? b.woodNode.amount : 0) : " · maturation " + Math.round((1 - b.matureT / CFG.BLD.foret.mature) * 100) + "%") : ""}${b.wall ? " · clôture niv " + (clotureLevel[b.faction] || 0) : ""}</span>`;
@@ -1556,7 +1609,7 @@ function refreshCmd() {
     const vills = us.filter(u => u.type === "villager").length;
     const counts = {}; us.forEach(u => counts[u.type] = (counts[u.type] || 0) + 1);
     info2 = `<b>${us.length} unité${us.length > 1 ? "s" : ""}</b><br><span class="mini">${Object.keys(counts).map(t => counts[t] + " " + unitName(t)).join(", ")}</span>`;
-    if (vills > 0) { html += buildBtn("🏠 Maison", "maison"); html += buildBtn("🌾 Champ", "champ"); html += buildBtn("🌳 Forêt", "foret"); html += buildBtn("🧱 Clôture", "cloture"); html += buildBtn("🏛️ Caserne", "caserne"); html += buildBtn("⚖️ Marché", "marche"); html += buildBtn("🗼 Tour", "tour"); html += buildBtn("🪵 Atelier", "atelier"); html += buildBtn("🛶 Baie", "baie"); html += buildBtn("🥁 Tam-tam", "tamtam"); }
+    if (vills > 0) { html += buildBtn("🏠 Maison", "maison"); html += buildBtn("🌾 Champ", "champ"); html += buildBtn("🌳 Forêt", "foret"); html += buildBtn("🧱 Clôture", "cloture"); html += buildBtn("🚪 Portail", "portail"); html += buildBtn("🏛️ Caserne", "caserne"); html += buildBtn("⚖️ Marché", "marche"); html += buildBtn("🗼 Tour", "tour"); html += buildBtn("🪵 Atelier", "atelier"); html += buildBtn("🛶 Baie", "baie"); html += buildBtn("🥁 Tam-tam", "tamtam"); }
     if (us.some(u => u.commander)) {
       html += `<button class="act ${armyStance === 'guard' ? 'adv' : ''}" onclick="setStance('guard')">🛡️ Garder<span class="c">encercler le village</span></button>`;
       html += `<button class="act ${armyStance === 'patrol' ? 'adv' : ''}" onclick="setStance('patrol')">🥾 Patrouille<span class="c">tourner autour</span></button>`;

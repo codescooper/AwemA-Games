@@ -10,6 +10,7 @@ Double-clic sur le fichier (ou glisse-le dans un onglet du navigateur — marche
 - **`engine/conseil.html` → JOUER (Lignées).** L'interface « Le Conseil » : tu donnes tes ordres, tu résous la nuit, la partie est sauvegardée en local (localStorage).
 - **`engine/voraces.html` → JOUER (Voraces).** Jeu d'arcade temps réel : une créature façon serpent gobe des fruits pour évoluer, dévore les plus petits, noue des alliances, fuit les géants (plus gros = plus lent). Adversaires IA ; multijoueur prévu plus tard.
 - **`engine/sables.html` → JOUER (L'Âge des Sables).** RTS temps réel façon Age of Empires, dans l'univers du Sahel médiéval : récolte (caravaniers auto-employés), construction, **Âges Ghana→Mali→Songhaï**, combat lancier/archer/cavalier (système de contres), tours de défense. IA adverse ; multijoueur prévu plus tard.
+- **`engine/echecs.html` → JOUER (Échecs à l'Ivoirienne).** Le jeu d'échecs complet (roque, prise en passant, promotion, échec et mat, pat) avec des pièces inspirées de la culture ivoirienne : **Nanan** (roi), **Reine Pokou** (dame), **Tata** (tour), **Komian** (fou), **Dozo** (cavalier), **Planteur** (pion). IA hors-ligne (3 niveaux) ou à 2 joueurs. Moteur validé par perft.
 - **`engine/prototype.html` → VÉRIFIER.** Joue 1 tick de démo de Lignées et affiche les 7 contrôles (doit montrer ✅ 7/7).
 
 ## Lancer — option B : avec Node (pour le futur vrai build)
@@ -52,6 +53,7 @@ Si tous les contrôles passent, **ton moteur est juste** : c'est l'étape 4 du s
 - **`conseil.html`** — *Lignées*, l'**interface jouable** (UI + moteur), zéro install. À ouvrir pour *jouer*.
 - **`voraces.html`** — *Voraces — Le Vivier*, jeu d'arcade temps réel (créatures, fruits, IA, alliances), autonome et hors-ligne. Toute la balance est dans l'objet `CFG` en haut du script.
 - **`sables.html`** — *L'Âge des Sables*, RTS temps réel façon Age of Empires (récolte, Âges Ghana→Mali→Songhaï, combat avec contres, tours, IA), autonome et hors-ligne. Toute la balance est dans l'objet `CFG` en haut du script.
+- **`echecs.html`** — *Échecs à l'Ivoirienne*, jeu d'échecs complet avec pièces inspirées de la culture ivoirienne (Nanan, Reine Pokou, Tata, Komian, Dozo, Planteur) + IA (minimax α-β) hors-ligne. Moteur validé par perft (20/400/8902/197281). Autonome et hors-ligne.
 - **`prototype.html`** — le **harnais de test** de Lignées (moteur + 7 contrôles), zéro install. À ouvrir pour *vérifier*.
 - **`prototype.ts`** — **même moteur** que Lignées, version typée, pour le futur vrai build (via Node, option B).
 

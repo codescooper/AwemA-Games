@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Échecs à l'Ivoirienne</title>
+<style>
+  :root { color-scheme: dark; --o:#e8702a; --v:#0f7a4e; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; min-height: 100vh; color: #f3ece0;
+         background: radial-gradient(1100px 560px at 50% -8%, #2a2014, #100b06 62%);
+         display: flex; flex-direction: column; align-items: center; padding: .8rem 1rem 2rem; }
+  a { color: #ffd9a8; }
+  header { text-align: center; margin: .3rem 0 .9rem; }
+  header h1 { font-size: clamp(1.3rem, 4.5vw, 2rem); margin: .1rem 0; letter-spacing: .5px; }
+  /* bandeau drapeau */
+  .flag { height: 5px; width: 220px; max-width: 70vw; margin: .35rem auto 0; border-radius: 3px;
+          background: linear-gradient(90deg, var(--o) 0 33.3%, #fff 33.3% 66.6%, var(--v) 66.6% 100%); }
+  header p { opacity: .72; margin: .3rem 0 0; font-size: .85rem; }
+  .wrap { display: flex; gap: 1.1rem; align-items: flex-start; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 940px; }
+  .board { width: min(92vw, 60vh, 540px); aspect-ratio: 1; display: grid;
+           grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);
+           border: 7px solid #4e3018; border-radius: 7px; box-shadow: 0 14px 44px #000a, inset 0 0 0 2px #2c1a0c; overflow: hidden; touch-action: manipulation; }
+  .sq { position: relative; display: flex; align-items: center; justify-content: center; }
+  .light { background: #ecd8b6; } .dark { background: #ab7c4f; }
+  .sq.last::before { content: ""; position: absolute; inset: 0; background: #f6e07a55; }
+  .sq.sel::after  { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 4px #ffd54a; }
+  .sq .dot { position: absolute; width: 28%; aspect-ratio: 1; border-radius: 50%; background: #25180c66; pointer-events: none; }
+  .sq.tcap { box-shadow: inset 0 0 0 4px #d23b3baa; }
+  .coord { position: absolute; font-size: 9px; opacity: .5; pointer-events: none; }
+  .coord.f { right: 2px; bottom: 1px; } .coord.r { left: 2px; top: 1px; }
+  .pc { width: 84%; aspect-ratio: 1; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        font-size: clamp(15px, 5.2vmin, 32px); cursor: pointer; user-select: none; -webkit-user-select: none;
+        box-shadow: inset 0 -3px 7px #0004, inset 0 2px 4px #fff3, 0 2px 3px #0006; transition: transform .08s; }
+  .pc.o { background: radial-gradient(circle at 36% 30%, #ffbd7a, var(--o)); border: 2px solid #fff5; }
+  .pc.v { background: radial-gradient(circle at 36% 30%, #3fcf95, var(--v)); border: 2px solid #fff5; }
+  .pc.chk { outline: 3px solid #ff4040; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{ outline-color:#ff4040; } 50%{ outline-color:#ff404033; } }
+  .panel { width: min(92vw, 320px); display: flex; flex-direction: column; gap: .7rem; }
+  .card { background: #ffffff0d; border: 1px solid #ffffff1c; border-radius: .7rem; padding: .7rem .8rem; }
+  .turn { display: flex; align-items: center; gap: .5rem; font-weight: 700; }
+  .pill { width: 16px; height: 16px; border-radius: 50%; box-shadow: inset 0 -2px 3px #0005; }
+  .pill.o { background: var(--o); } .pill.v { background: var(--v); }
+  #status { font-size: .95rem; min-height: 1.3em; }
+  #status.win { color: #ffd54a; font-weight: 800; }
+  .caps { display: flex; flex-wrap: wrap; gap: 1px; font-size: 1rem; min-height: 1.25em; }
+  .btn, select { font: inherit; color: #fff; background: #ffffff14; border: 1px solid #ffffff2e; border-radius: .5rem;
+                 padding: .45rem .6rem; cursor: pointer; }
+  .btn:hover { background: #ffffff24; } .btn:active { transform: translateY(1px); }
+  .btn.main { background: var(--o); color: #2a1604; border-color: transparent; font-weight: 800; }
+  .row { display: flex; gap: .5rem; flex-wrap: wrap; }
+  .row > * { flex: 1; }
+  label.opt { display: flex; align-items: center; gap: .4rem; font-size: .85rem; opacity: .9; cursor: pointer; }
+  .legend { font-size: .82rem; line-height: 1.5; }
+  .legend b { color: #ffd9a8; }
+  .legend .lr { display: flex; align-items: center; gap: .45rem; padding: .12rem 0; }
+  .legend .em { font-size: 1.1rem; width: 1.5rem; text-align: center; }
+  .tag { font-size: .72rem; text-transform: uppercase; letter-spacing: 1.3px; opacity: .65; margin-bottom: .25rem; }
+  /* promotion */
+  .modal { position: fixed; inset: 0; background: #000a; display: none; align-items: center; justify-content: center; z-index: 9; }
+  .modal.show { display: flex; }
+  .promo { background: #1b140c; border: 1px solid #ffffff2e; border-radius: .8rem; padding: 1rem 1.1rem; text-align: center; }
+  .promo h3 { margin: .1rem 0 .7rem; }
+  .promo .opts { display: flex; gap: .5rem; }
+  .promo .po { width: 60px; height: 60px; border-radius: .6rem; border: 1px solid #ffffff2e; background: #ffffff10;
+               font-size: 1.8rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .promo .po small { font-size: .58rem; opacity: .8; }
+  .promo .po:hover { background: #ffffff22; }
+  footer { margin-top: 1rem; font-size: .8rem; opacity: .6; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>♟️ Échecs à l'Ivoirienne</h1>
+    <div class="flag"></div>
+    <p>Le jeu de stratégie millénaire, habillé de la culture ivoirienne. Orange contre Vert.</p>
+  </header>
+
+  <div class="wrap">
+    <div id="board" class="board" aria-label="échiquier"></div>
+
+    <div class="panel">
+      <div class="card">
+        <div class="turn"><span id="turnPill" class="pill o"></span><span id="turnTxt">Aux Orange de jouer</span></div>
+        <div id="status">Bonne partie !</div>
+      </div>
+
+      <div class="card">
+        <div class="tag">Prises</div>
+        <div>Orange : <span id="capO" class="caps"></span></div>
+        <div>Vert : <span id="capV" class="caps"></span></div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <button class="btn main" onclick="newGame()">↻ Nouvelle partie</button>
+          <button class="btn" onclick="undo()">↶ Annuler</button>
+        </div>
+        <div class="row" style="margin-top:.5rem">
+          <select id="diff" title="Niveau de l'IA" onchange="setDiff()">
+            <option value="2">IA — Facile</option>
+            <option value="3" selected>IA — Normal</option>
+            <option value="4">IA — Difficile</option>
+          </select>
+        </div>
+        <label class="opt" style="margin-top:.5rem"><input type="checkbox" id="pvp" onchange="togglePvp()"> 2 joueurs (sans IA)</label>
+      </div>
+
+      <div class="card legend">
+        <div class="tag">Les pièces — équivalents ivoiriens</div>
+        <div class="lr"><span class="em">👑</span><div><b>Nanan</b> — le Roi (chef akan sur son trône)</div></div>
+        <div class="lr"><span class="em">👸</span><div><b>Reine Pokou</b> — la Dame (reine légendaire baoulé)</div></div>
+        <div class="lr"><span class="em">🏰</span><div><b>Tata</b> — la Tour (forteresse de banco)</div></div>
+        <div class="lr"><span class="em">🎭</span><div><b>Komian</b> — le Fou (devin masqué)</div></div>
+        <div class="lr"><span class="em">🏹</span><div><b>Dozo</b> — le Cavalier (chasseur traditionnel)</div></div>
+        <div class="lr"><span class="em">🌱</span><div><b>Planteur</b> — le Pion (planteur de cacao)</div></div>
+      </div>
+
+      <a class="btn" href="index.html" style="text-align:center;text-decoration:none">≡ Menu</a>
+    </div>
+  </div>
+
+  <footer>AwemA · prototype local — règles complètes, IA hors-ligne.</footer>
+
+  <div id="modal" class="modal"><div class="promo">
+    <h3>Promotion du Planteur</h3>
+    <div class="opts" id="promoOpts"></div>
+  </div></div>
+
+<script>
+/* ============================================================================
+   ÉCHECS À L'IVOIRIENNE — moteur complet + IA (minimax alpha-bêta) + UI
+   Plateau : index 0..63, idx = r*8+f. r=0 en HAUT (rangée 8), r=7 en BAS (rangée 1).
+   Orange = blancs ('w', majuscules), en bas, joueur humain, joue en premier (vers le haut).
+   Vert   = noirs  ('b', minuscules), en haut, IA, joue vers le bas.
+   ========================================================================== */
+
+const GLYPH = { k: "👑", q: "👸", r: "🏰", b: "🎭", n: "🏹", p: "🌱" };
+const PROMO_NAME = { q: "Reine Pokou", r: "Tata", b: "Komian", n: "Dozo" };
+const VAL = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
+
+const KN = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+const KG = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+const ROOK = [[-1,0],[1,0],[0,-1],[0,1]];
+const BISH = [[-1,-1],[-1,1],[1,-1],[1,1]];
+
+/* Tables de position (point de vue Orange, rangée 8 en haut = index 0..7) */
+const PST = {
+  p: [ 0,0,0,0,0,0,0,0,  50,50,50,50,50,50,50,50,  10,10,20,30,30,20,10,10,
+       5,5,10,25,25,10,5,5,  0,0,0,20,20,0,0,0,  5,-5,-10,0,0,-10,-5,5,
+       5,10,10,-20,-20,10,10,5,  0,0,0,0,0,0,0,0 ],
+  n: [ -50,-40,-30,-30,-30,-30,-40,-50, -40,-20,0,0,0,0,-20,-40, -30,0,10,15,15,10,0,-30,
+       -30,5,15,20,20,15,5,-30, -30,0,15,20,20,15,0,-30, -30,5,10,15,15,10,5,-30,
+       -40,-20,0,5,5,0,-20,-40, -50,-40,-30,-30,-30,-30,-40,-50 ],
+  b: [ -20,-10,-10,-10,-10,-10,-10,-20, -10,0,0,0,0,0,0,-10, -10,0,5,10,10,5,0,-10,
+       -10,5,5,10,10,5,5,-10, -10,0,10,10,10,10,0,-10, -10,10,10,10,10,10,10,-10,
+       -10,5,0,0,0,0,5,-10, -20,-10,-10,-10,-10,-10,-10,-20 ],
+  r: [ 0,0,0,0,0,0,0,0,  5,10,10,10,10,10,10,5,  -5,0,0,0,0,0,0,-5,  -5,0,0,0,0,0,0,-5,
+       -5,0,0,0,0,0,0,-5,  -5,0,0,0,0,0,0,-5,  -5,0,0,0,0,0,0,-5,  0,0,0,5,5,0,0,0 ],
+  q: [ -20,-10,-10,-5,-5,-10,-10,-20, -10,0,0,0,0,0,0,-10, -10,0,5,5,5,5,0,-10,
+       -5,0,5,5,5,5,0,-5,  0,0,5,5,5,5,0,-5,  -10,5,5,5,5,5,0,-10,
+       -10,0,5,0,0,0,0,-10, -20,-10,-10,-5,-5,-10,-10,-20 ],
+  k: [ -30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30,
+       -30,-40,-40,-50,-50,-40,-40,-30, -20,-30,-30,-40,-40,-30,-30,-20, -10,-20,-20,-20,-20,-20,-20,-10,
+       20,20,0,0,0,0,20,20,  20,30,10,0,0,10,30,20 ]
+};
+
+let S;                 // état du jeu
+let U = [];            // pile d'annulation (undo) du moteur
+let moveHist = [];     // historique des coups (objets m) pour l'UI
+const INIT_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
+
+const col = p => p === "." ? null : (p === p.toUpperCase() ? "w" : "b");
+const typ = p => p.toLowerCase();
+const opp = c => c === "w" ? "b" : "w";
+
+function freshState() {
+  const b = new Array(64).fill(".");
+  let i = 0;
+  for (const ch of INIT_FEN) { if (ch === "/") continue; if (ch >= "1" && ch <= "8") i += +ch; else b[i++] = ch; }
+  return { board: b, turn: "w", castling: { K: true, Q: true, k: true, q: true }, ep: -1, half: 0, full: 1 };
+}
+
+/* ---- une case est-elle attaquée par la couleur `by` ? ---- */
+function attacked(b, idx, by) {
+  const r = idx >> 3, f = idx & 7;
+  if (by === "w") { if (r + 1 < 8) { if (f - 1 >= 0 && b[(r+1)*8+f-1] === "P") return true; if (f + 1 < 8 && b[(r+1)*8+f+1] === "P") return true; } }
+  else { if (r - 1 >= 0) { if (f - 1 >= 0 && b[(r-1)*8+f-1] === "p") return true; if (f + 1 < 8 && b[(r-1)*8+f+1] === "p") return true; } }
+  const N = by === "w" ? "N" : "n", K = by === "w" ? "K" : "k", R = by === "w" ? "R" : "r", Q = by === "w" ? "Q" : "q", B = by === "w" ? "B" : "b";
+  for (const [dr, df] of KN) { const rr = r+dr, ff = f+df; if (rr>=0&&rr<8&&ff>=0&&ff<8 && b[rr*8+ff] === N) return true; }
+  for (const [dr, df] of KG) { const rr = r+dr, ff = f+df; if (rr>=0&&rr<8&&ff>=0&&ff<8 && b[rr*8+ff] === K) return true; }
+  for (const [dr, df] of ROOK) { let rr = r+dr, ff = f+df; while (rr>=0&&rr<8&&ff>=0&&ff<8) { const p = b[rr*8+ff]; if (p !== ".") { if (p === R || p === Q) return true; break; } rr+=dr; ff+=df; } }
+  for (const [dr, df] of BISH) { let rr = r+dr, ff = f+df; while (rr>=0&&rr<8&&ff>=0&&ff<8) { const p = b[rr*8+ff]; if (p !== ".") { if (p === B || p === Q) return true; break; } rr+=dr; ff+=df; } }
+  return false;
+}
+function kingIdx(b, c) { const K = c === "w" ? "K" : "k"; for (let i = 0; i < 64; i++) if (b[i] === K) return i; return -1; }
+function inCheck(st, c) { return attacked(st.board, kingIdx(st.board, c), opp(c)); }
+
+/* ---- génération des coups pseudo-légaux pour le trait ---- */
+function genPseudo(st) {
+  const b = st.board, stm = st.turn, w = stm === "w", out = [];
+  const add = (from, to, o = {}) => out.push(Object.assign({ from, to, promo: null, ep: false, dbl: false, castle: null, cap: b[to] !== "." }, o));
+  for (let i = 0; i < 64; i++) {
+    const p = b[i]; if (p === "." || col(p) !== stm) continue;
+    const r = i >> 3, f = i & 7, t = typ(p);
+    if (t === "p") {
+      const dir = w ? -1 : 1, startR = w ? 6 : 1, promoR = w ? 0 : 7;
+      const r1 = r + dir;
+      if (r1 >= 0 && r1 < 8 && b[r1*8+f] === ".") {
+        if (r1 === promoR) for (const pr of ["q","r","b","n"]) add(i, r1*8+f, { promo: pr });
+        else { add(i, r1*8+f); if (r === startR) { const r2 = r + 2*dir; if (b[r2*8+f] === ".") add(i, r2*8+f, { dbl: true }); } }
+      }
+      for (const df of [-1, 1]) {
+        const ff = f + df, rr = r + dir; if (ff < 0 || ff > 7 || rr < 0 || rr > 7) continue;
+        const ti = rr*8+ff, tp = b[ti];
+        if (tp !== "." && col(tp) !== stm) { if (rr === promoR) for (const pr of ["q","r","b","n"]) add(i, ti, { promo: pr, cap: true }); else add(i, ti, { cap: true }); }
+        else if (ti === st.ep) add(i, ti, { ep: true, cap: true });
+      }
+    } else if (t === "n") {
+      for (const [dr, df] of KN) { const rr = r+dr, ff = f+df; if (rr<0||rr>7||ff<0||ff>7) continue; const ti = rr*8+ff; if (b[ti] === "." || col(b[ti]) !== stm) add(i, ti); }
+    } else if (t === "k") {
+      for (const [dr, df] of KG) { const rr = r+dr, ff = f+df; if (rr<0||rr>7||ff<0||ff>7) continue; const ti = rr*8+ff; if (b[ti] === "." || col(b[ti]) !== stm) add(i, ti); }
+      // roque
+      if (w && i === 60) {
+        if (st.castling.K && b[61]==="."&&b[62]==="."&&b[63]==="R" && !attacked(b,60,"b")&&!attacked(b,61,"b")&&!attacked(b,62,"b")) add(60,62,{ castle:"K" });
+        if (st.castling.Q && b[59]==="."&&b[58]==="."&&b[57]==="."&&b[56]==="R" && !attacked(b,60,"b")&&!attacked(b,59,"b")&&!attacked(b,58,"b")) add(60,58,{ castle:"Q" });
+      } else if (!w && i === 4) {
+        if (st.castling.k && b[5]==="."&&b[6]==="."&&b[7]==="r" && !attacked(b,4,"w")&&!attacked(b,5,"w")&&!attacked(b,6,"w")) add(4,6,{ castle:"k" });
+        if (st.castling.q && b[3]==="."&&b[2]==="."&&b[1]==="."&&b[0]==="r" && !attacked(b,4,"w")&&!attacked(b,3,"w")&&!attacked(b,2,"w")) add(4,2,{ castle:"q" });
+      }
+    } else {
+      const dirs = t === "r" ? ROOK : t === "b" ? BISH : ROOK.concat(BISH);
+      for (const [dr, df] of dirs) { let rr = r+dr, ff = f+df; while (rr>=0&&rr<8&&ff>=0&&ff<8) { const ti = rr*8+ff; if (b[ti] === ".") add(i, ti); else { if (col(b[ti]) !== stm) add(i, ti); break; } rr+=dr; ff+=df; } }
+    }
+  }
+  return out;
+}
+
+function makeMove(st, m) {
+  const b = st.board, stm = st.turn, w = stm === "w", pc = b[m.from];
+  const capSq = m.ep ? m.to + (w ? 8 : -8) : m.to;
+  U.push({ cap: b[capSq], capSq, ep: st.ep, cast: { ...st.castling }, half: st.half, full: st.full, turn: stm, moved: pc });
+  b[m.to] = m.promo ? (w ? m.promo.toUpperCase() : m.promo) : pc;
+  b[m.from] = ".";
+  if (m.ep) b[capSq] = ".";
+  if (m.castle === "K") { b[61] = "R"; b[63] = "."; }
+  else if (m.castle === "Q") { b[59] = "R"; b[56] = "."; }
+  else if (m.castle === "k") { b[5] = "r"; b[7] = "."; }
+  else if (m.castle === "q") { b[3] = "r"; b[0] = "."; }
+  if (typ(pc) === "k") { if (w) { st.castling.K = st.castling.Q = false; } else { st.castling.k = st.castling.q = false; } }
+  for (const sq of [m.from, m.to]) { if (sq === 56) st.castling.Q = false; else if (sq === 63) st.castling.K = false; else if (sq === 0) st.castling.q = false; else if (sq === 7) st.castling.k = false; }
+  st.ep = m.dbl ? (m.from + m.to) / 2 : -1;
+  st.half = (typ(pc) === "p" || m.cap) ? 0 : st.half + 1;
+  st.turn = opp(stm);
+  if (st.turn === "w") st.full++;
+}
+function unmakeMove(st, m) {
+  const u = U.pop(), b = st.board, w = u.turn === "w";
+  b[m.from] = u.moved;
+  b[m.to] = ".";
+  if (m.ep) { b[m.to] = "."; b[u.capSq] = u.cap; }
+  else b[u.capSq] = u.cap;
+  if (m.castle === "K") { b[63] = "R"; b[61] = "."; }
+  else if (m.castle === "Q") { b[56] = "R"; b[59] = "."; }
+  else if (m.castle === "k") { b[7] = "r"; b[5] = "."; }
+  else if (m.castle === "q") { b[0] = "r"; b[3] = "."; }
+  st.ep = u.ep; st.castling = u.cast; st.half = u.half; st.full = u.full; st.turn = u.turn;
+}
+
+function legalMoves(st) {
+  const me = st.turn, ps = genPseudo(st), out = [];
+  for (const m of ps) { makeMove(st, m); if (!attacked(st.board, kingIdx(st.board, me), opp(me))) out.push(m); unmakeMove(st, m); }
+  return out;
+}
+
+/* ---- évaluation (point de vue Orange/blancs) ---- */
+function evalBoard(b) {
+  let s = 0;
+  for (let i = 0; i < 64; i++) { const p = b[i]; if (p === ".") continue; const t = typ(p); const v = VAL[t] + PST[t][col(p) === "w" ? i : i ^ 56]; s += col(p) === "w" ? v : -v; }
+  return s;
+}
+const MATE = 100000;
+function evalStm(st) { return evalBoard(st.board) * (st.turn === "w" ? 1 : -1); }
+function order(ms) { return ms.sort((a, b) => mvv(b) - mvv(a)); }
+function mvv(m) { let s = 0; if (m.cap) s += 1000 + VAL[m.epCapType || "p"]; if (m.promo) s += 800; if (m.castle) s += 50; return s; }
+
+function qsearch(st, alpha, beta) {
+  let stand = evalStm(st);
+  if (stand >= beta) return beta;
+  if (stand > alpha) alpha = stand;
+  const caps = order(legalMoves(st).filter(m => m.cap || m.promo));
+  for (const m of caps) { makeMove(st, m); const v = -qsearch(st, -beta, -alpha); unmakeMove(st, m); if (v >= beta) return beta; if (v > alpha) alpha = v; }
+  return alpha;
+}
+function negamax(st, depth, alpha, beta, ply) {
+  if (depth <= 0) return qsearch(st, alpha, beta);
+  const ms = legalMoves(st);
+  if (!ms.length) return inCheck(st, st.turn) ? -(MATE - ply) : 0;
+  order(ms);
+  for (const m of ms) { makeMove(st, m); const v = -negamax(st, depth - 1, -beta, -alpha, ply + 1); unmakeMove(st, m); if (v >= beta) return beta; if (v > alpha) alpha = v; }
+  return alpha;
+}
+function bestMove(st, depth) {
+  const ms = order(legalMoves(st)); if (!ms.length) return null;
+  let best = ms[0], bestV = -Infinity, alpha = -Infinity;
+  const cands = [];
+  for (const m of ms) { makeMove(st, m); const v = -negamax(st, depth - 1, -Infinity, -alpha, 1); unmakeMove(st, m); cands.push({ m, v }); if (v > bestV) { bestV = v; best = m; } if (v > alpha) alpha = v; }
+  const top = cands.filter(c => c.v >= bestV - 12);   // un peu de variété entre coups quasi équivalents
+  return top[Math.floor(Math.random() * top.length)].m;
+}
+
+/* ---- perft (test de validation du moteur, appelable en console) ---- */
+function perft(st, d) { if (d === 0) return 1; const ms = legalMoves(st); if (d === 1) return ms.length; let n = 0; for (const m of ms) { makeMove(st, m); n += perft(st, d - 1); unmakeMove(st, m); } return n; }
+
+/* ============================ INTERFACE ==================================== */
+const boardEl = document.getElementById("board");
+let sel = null, targets = new Map(), last = null, over = false, thinking = false;
+let depth = 3, pvp = false;
+const HUMAN = "w", AI = "b";
+
+function countMissing() {
+  const start = { P:8,N:2,B:2,R:2,Q:1, p:8,n:2,b:2,r:2,q:1 };
+  const now = {}; for (const k in start) now[k] = 0;
+  for (const p of S.board) if (p !== "." && now[p] !== undefined) now[p]++;
+  const capByO = [], capByV = [];   // pièces vertes prises par Orange / oranges prises par Vert
+  for (const k of ["p","n","b","r","q"]) { for (let i = now[k]; i < start[k]; i++) capByO.push(GLYPH[k]); }
+  for (const k of ["P","N","B","R","Q"]) { for (let i = now[k]; i < start[k]; i++) capByV.push(GLYPH[typ(k)]); }
+  return { capByO, capByV };
+}
+
+function render() {
+  boardEl.innerHTML = "";
+  const chkSide = inCheck(S, S.turn) ? S.turn : null;
+  for (let i = 0; i < 64; i++) {
+    const r = i >> 3, f = i & 7;
+    const sq = document.createElement("div");
+    sq.className = "sq " + ((r + f) % 2 ? "dark" : "light");
+    if (last && (last.from === i || last.to === i)) sq.classList.add("last");
+    if (sel === i) sq.classList.add("sel");
+    if (targets.has(i)) { if (S.board[i] !== "." || targets.get(i).ep) sq.classList.add("tcap"); else { const d = document.createElement("div"); d.className = "dot"; sq.appendChild(d); } }
+    const p = S.board[i];
+    if (p !== ".") {
+      const t = document.createElement("div");
+      t.className = "pc " + (col(p) === "w" ? "o" : "v");
+      t.textContent = GLYPH[typ(p)];
+      if (typ(p) === "k" && chkSide === col(p)) t.classList.add("chk");
+      sq.appendChild(t);
+    }
+    if (f === 0) { const c = document.createElement("span"); c.className = "coord r"; c.textContent = 8 - r; sq.appendChild(c); }
+    if (r === 7) { const c = document.createElement("span"); c.className = "coord f"; c.textContent = "abcdefgh"[f]; sq.appendChild(c); }
+    sq.dataset.i = i;
+    boardEl.appendChild(sq);
+  }
+  // bandeaux d'info
+  const o = col(S.turn) ;
+  document.getElementById("turnPill").className = "pill " + (S.turn === "w" ? "o" : "v");
+  document.getElementById("turnTxt").textContent = S.turn === "w" ? "Aux Orange de jouer" : (pvp ? "Aux Vert de jouer" : "L'IA (Vert) réfléchit…");
+  const caps = countMissing();
+  document.getElementById("capO").textContent = caps.capByO.join("");
+  document.getElementById("capV").textContent = caps.capByV.join("");
+}
+
+boardEl.addEventListener("click", e => {
+  const cell = e.target.closest(".sq"); if (!cell) return;
+  onSquare(+cell.dataset.i);
+});
+
+function canControl(c) { return !over && !thinking && (pvp || c === HUMAN); }
+
+function onSquare(i) {
+  if (over || thinking) return;
+  const p = S.board[i];
+  if (sel !== null && targets.has(i)) { tryMove(sel, i); return; }
+  if (p !== "." && col(p) === S.turn && canControl(col(p))) {
+    sel = i; targets = new Map();
+    for (const m of legalMoves(S)) if (m.from === i) targets.set(m.to, m);
+    render();
+  } else { sel = null; targets = new Map(); render(); }
+}
+
+function tryMove(from, to) {
+  const ms = legalMoves(S).filter(m => m.from === from && m.to === to);
+  if (!ms.length) return;
+  if (ms.length > 1 && ms[0].promo) { askPromo(ms); return; }
+  applyMove(ms[0]);
+}
+
+function applyMove(m) {
+  makeMove(S, m); moveHist.push(m);
+  last = { from: m.from, to: m.to }; sel = null; targets = new Map();
+  render(); updateStatus();
+  if (!over && !pvp && S.turn === AI) { thinking = true; render(); setTimeout(aiPlay, 240); }
+}
+function aiPlay() {
+  const m = bestMove(S, depth);
+  thinking = false;
+  if (m) applyMove(m); else updateStatus();
+}
+
+function askPromo(ms) {
+  const box = document.getElementById("promoOpts"); box.innerHTML = "";
+  for (const pr of ["q","r","b","n"]) {
+    const m = ms.find(x => x.promo === pr); if (!m) continue;
+    const btn = document.createElement("button"); btn.className = "po";
+    btn.innerHTML = GLYPH[pr] + "<small>" + PROMO_NAME[pr] + "</small>";
+    btn.onclick = () => { document.getElementById("modal").classList.remove("show"); applyMove(m); };
+    box.appendChild(btn);
+  }
+  document.getElementById("modal").classList.add("show");
+}
+
+function insufficient() {
+  const pieces = S.board.filter(p => p !== "." && typ(p) !== "k");
+  if (pieces.length === 0) return true;                                   // R contre R
+  if (pieces.length === 1 && "nb".includes(typ(pieces[0]))) return true;  // R+pièce mineure contre R
+  return false;
+}
+function updateStatus() {
+  const st = document.getElementById("status"); st.className = "";
+  const ms = legalMoves(S), check = inCheck(S, S.turn);
+  if (!ms.length) {
+    over = true;
+    if (check) { st.className = "win"; const winner = S.turn === "w" ? "Vert" : "Orange"; st.textContent = "♚ Échec et mat — " + winner + " l'emporte !"; }
+    else st.textContent = "🤝 Pat — partie nulle.";
+  } else if (S.half >= 100) { over = true; st.textContent = "🤝 Nulle (règle des 50 coups)."; }
+  else if (insufficient()) { over = true; st.textContent = "🤝 Nulle — matériel insuffisant."; }
+  else if (check) st.textContent = "⚠️ Échec au " + (S.turn === "w" ? "roi Orange" : "roi Vert") + " !";
+  else st.textContent = "À toi de jouer.";
+}
+
+function newGame() { S = freshState(); U = []; moveHist = []; sel = null; targets = new Map(); last = null; over = false; thinking = false; render(); updateStatus(); }
+function undo() {
+  if (thinking || !moveHist.length) return;
+  unmakeMove(S, moveHist.pop());
+  if (!pvp && moveHist.length && S.turn === AI) unmakeMove(S, moveHist.pop());  // annule aussi le coup de l'IA
+  over = false; sel = null; targets = new Map();
+  last = moveHist.length ? { from: moveHist[moveHist.length-1].from, to: moveHist[moveHist.length-1].to } : null;
+  render(); updateStatus();
+}
+function setDiff() { depth = +document.getElementById("diff").value; }
+function togglePvp() { pvp = document.getElementById("pvp").checked; render(); updateStatus(); if (!pvp && !over && S.turn === AI) { thinking = true; render(); setTimeout(aiPlay, 240); } }
+
+newGame();
+</script>
+</body>
+</html>

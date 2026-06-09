@@ -155,12 +155,12 @@ const CFG = {
     villager: { food: 50 }, maison: { wood: 35 }, caserne: { wood: 70, gold: 20 }, marche: { wood: 60, gold: 30 },
     tour: { wood: 100, gold: 25 }, champ: { wood: 60 },
     lancier: { food: 45, wood: 20 }, archer: { food: 40, gold: 25 }, cavalier: { food: 60, gold: 45 },
-    commandant: { food: 80, gold: 40 }, feticheur: { food: 80, gold: 60 }, sorcier: { food: 60, gold: 70 }, caravane: { gold: 80 },
+    commandant: { food: 80, gold: 40 }, feticheur: { food: 80, gold: 60 }, sorcier: { food: 60, gold: 70 }, caravane: { gold: 80 }, eclaireur: { food: 35 },
     atelier: { wood: 50 }, baie: { wood: 80 }, tamtam: { wood: 70, gold: 40 },
     foret: { food: 20 }, cloture: { wood: 15 }, portail: { wood: 30, gold: 10 },
     merveille: { food: 600, wood: 600, gold: 500 },
   },
-  TRAIN_TIME: { villager: 6, lancier: 9, archer: 11, cavalier: 14, commandant: 12, feticheur: 14, caravane: 10 },
+  TRAIN_TIME: { villager: 6, lancier: 9, archer: 11, cavalier: 14, commandant: 12, feticheur: 14, caravane: 10, eclaireur: 7 },
   BUILD_WORK: { maison: 16, caserne: 28, marche: 22, tour: 22, champ: 12, atelier: 16, baie: 22, tamtam: 24, foret: 5, cloture: 6, portail: 9, merveille: 90 },   // secondes-ouvrier
   UNIT: {
     villager: { hp: 28, speed: 62, atk: 3, range: 16, cd: 1.1, r: 9 },
@@ -171,6 +171,7 @@ const CFG = {
     feticheur:  { hp: 80, speed: 70, atk: 5, range: 18, cd: 1.3, r: 11, support: true },  // ×2 allié + conversion
     sorcier:    { hp: 55, speed: 88, atk: 9, range: 72, cd: 1.3, r: 10, ranged: true, flying: true },  // troupe aérienne (natte volante)
     caravane:   { hp: 55, speed: 52, atk: 0, range: 0, cd: 1, r: 10 },                    // commerce : navette entre marchés, vulnérable aux razzias
+    eclaireur:  { hp: 50, speed: 120, atk: 4, range: 16, cd: 1.2, r: 10, scout: true },   // cavalier léger : rapide, grande vision, explore le brouillard
   },
   ANIMAL: { hp: 22, speed: 34, fleeSpeed: 50, r: 11, food: 130, fleeRange: 60 },
   // pierre-feuille-ciseaux : lance > cheval > archer > lance (multiplicateur de dégâts)
@@ -201,7 +202,7 @@ const CFG = {
       codex: ["La puissance du Songhaï", "Aux XVᵉ–XVIᵉ siècles, l'empire Songhaï, depuis Gao, devient le plus vaste d'Afrique de l'Ouest : Sonni Ali et les Askia bâtissent une puissante cavalerie et une flotte sur le Niger."] },
   ],
   // Âge minimal requis pour débloquer chaque unité / bâtiment
-  UNLOCK: { villager: 0, maison: 0, champ: 0, caserne: 0, marche: 0, lancier: 0, archer: 1, tour: 1, cavalier: 2, commandant: 0, feticheur: 1, sorcier: 1, atelier: 0, baie: 0, tamtam: 1, foret: 0, cloture: 0, portail: 0, caravane: 0, merveille: 2 },
+  UNLOCK: { villager: 0, maison: 0, champ: 0, caserne: 0, marche: 0, lancier: 0, archer: 1, tour: 1, cavalier: 2, commandant: 0, feticheur: 1, sorcier: 1, atelier: 0, baie: 0, tamtam: 1, foret: 0, cloture: 0, portail: 0, caravane: 0, merveille: 2, eclaireur: 0 },
   TRADE_RATE: 0.07, WONDER_TIME: 150,              // commerce (or/px) ; durée du décompte de victoire de la Merveille (s)
   WALL_UP: { max: 3, mult: 0.85, cost: { wood: 120, gold: 60 } },   // clôture : niveaux de résistance (×PV cumulés)
   PROJ_SPEED: 330, AGGRO: 130, VISION: 300, LEASH: 240, RESEED_TIME: 4, RESEED_COST: { wood: 12 }, ESCORT_DIST: 420, THREAT: 95, GATE_OPEN: 58,
@@ -246,7 +247,7 @@ const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
 const dist2 = (ax, ay, bx, by) => { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; };
 // point déterministe sur un anneau autour d'un centre (réparti par id) — évite les piles
 function ringPos(id, cx, cy, r) { const a = id * 2.39996; return [cx + Math.cos(a) * r, cy + Math.sin(a) * r]; }
-const isMil = u => u.type !== "villager" && u.type !== "caravane";   // la caravane est civile (commerce), pas militaire
+const isMil = u => u.type !== "villager" && u.type !== "caravane" && u.type !== "eclaireur";   // caravane (commerce) & éclaireur (exploration) = civils
 
 /* ===== SON (procédural, WebAudio — aucun fichier) ======================== */
 const SND = (function () {
@@ -287,6 +288,7 @@ let clotureLevel = { player: 0, enemy: 0 };        // niveau de résistance des 
 let escortTimer = 0;                               // cadence d'assignation des escortes de villageois
 let gateFlag = { player: false, enemy: false };    // un portail existe-t-il pour ce camp ? (active l'enceinte)
 let stats = { player: { kills: 0, peakPop: 0 }, enemy: { kills: 0, peakPop: 0 } };   // statistiques de partie (écran de score)
+let visGrid = null, fogOn = false, visTimer = 0;   // brouillard de guerre : 0=inexploré 1=exploré(mémoire) 2=visible ; actif pour le joueur hors mode observation
 let DIFFICULTY = CFG.DIFF.normal;                  // niveau courant (règle l'IA ennemie)
 let lastDiff = "normal";                           // dernier niveau choisi (pour Rejouer)
 const groups = {};                                 // groupes de contrôle 1..9 -> [ids]
@@ -666,6 +668,9 @@ function updateUnit(u, dt) {
         else if (!units.some(x => x.follow === u.id && x.hp > 0)) { const c = playerCite(); if (c && dist(u.x, u.y, c.x, c.y) > c.hw + 80) commandMove(u, c.x, c.y + c.hh + 30); }
       } else if (u.type === "feticheur") { /* support : tient sa position ; la conversion est gérée plus haut */ }
       else if (u.type === "caravane") { setupTrade(u, u.faction); if (u.tradeDest) u.state = "trade"; }   // reprend le commerce dès qu'un 2e pôle existe
+      else if (u.type === "eclaireur") {                  // éclaireur : explore automatiquement le brouillard (joueur)
+        if (u.faction === "player" && fogOn && !u.order) { u.scoutCd = (u.scoutCd || 0) - dt; if (u.scoutCd <= 0) { const t = scoutTarget(u.x, u.y); if (t) { commandMove(u, t.x, t.y); u.scoutCd = 3; } else u.scoutCd = 4; } }
+      }
       else if (isMil(u)) {
         if (!u.post) u.post = { x: u.x, y: u.y };
         if (u.faction === "player" && armyStance !== "free" && !u.order) { u.state = "guard"; break; }
@@ -1234,6 +1239,7 @@ function update(dt) {
   for (const bd of birds) { bd.x += bd.vx * dt; bd.phase += dt * 9; if (bd.x > worldW() + 40) bd.x = -40; if (bd.x < -40) bd.x = worldW() + 40; }
 
   stats.player.peakPop = Math.max(stats.player.peakPop, popUsed("player")); stats.enemy.peakPop = Math.max(stats.enemy.peakPop, popUsed("enemy"));
+  if (fogOn) { visTimer -= dt; if (visTimer <= 0) { visTimer = 0.15; computeVision(); } }
   tipTimer -= dt; if (tipTimer <= 0) { tipTimer = 26; tip("📖 " + CODEX[randInt(0, CODEX.length - 1)][0]); }
 
   if (!over) {
@@ -1309,6 +1315,30 @@ function buildTerrain() {
   }
 }
 
+/* ===== BROUILLARD DE GUERRE =============================================== */
+const visionR = u => (u.type === "eclaireur" ? 9 : u.type === "cavalier" || u.type === "sorcier" || u.commander ? 7 : u.type === "villager" || u.type === "caravane" ? 4 : 5) * CFG.TS;
+function buildingVisionR(b) { return (b.type === "tour" ? 8 : b.type === "cite" ? 7 : b.type === "merveille" ? 6 : 4) * CFG.TS; }
+function computeVision() {
+  if (!fogOn || !visGrid) return;
+  const W = CFG.MW, H = CFG.MH;
+  for (let i = 0; i < visGrid.length; i++) if (visGrid[i] === 2) visGrid[i] = 1;   // ce qui était visible repasse en mémoire
+  const reveal = (wx, wy, r) => {
+    const cx = (wx / CFG.TS) | 0, cy = (wy / CFG.TS) | 0, rc = Math.ceil(r / CFG.TS);
+    for (let gy = Math.max(0, cy - rc); gy <= Math.min(H - 1, cy + rc); gy++)
+      for (let gx = Math.max(0, cx - rc); gx <= Math.min(W - 1, cx + rc); gx++) { const dx = gx - cx, dy = gy - cy; if (dx * dx + dy * dy <= rc * rc) visGrid[gy * W + gx] = 2; }
+  };
+  for (const u of units) if (u.faction === "player" && u.hp > 0) reveal(u.x, u.y, visionR(u));
+  for (const b of buildings) if (b.faction === "player" && b.hp > 0) reveal(b.x, b.y, buildingVisionR(b));
+}
+const cellState = (wx, wy) => { if (!fogOn || !visGrid) return 2; const gx = (wx / CFG.TS) | 0, gy = (wy / CFG.TS) | 0; if (gx < 0 || gy < 0 || gx >= CFG.MW || gy >= CFG.MH) return 0; return visGrid[gy * CFG.MW + gx]; };
+const cellVisible = (wx, wy) => cellState(wx, wy) === 2;
+const cellExplored = (wx, wy) => cellState(wx, wy) >= 1;
+function scoutTarget(x, y) {   // cellule inexplorée la plus proche parmi un échantillon aléatoire (robuste, pas de blocage)
+  if (!visGrid) return null; let best = null, bd = Infinity;
+  for (let i = 0; i < 48; i++) { const gx = (Math.random() * CFG.MW) | 0, gy = (Math.random() * CFG.MH) | 0; if (visGrid[gy * CFG.MW + gx] !== 0) continue; const wxp = (gx + .5) * CFG.TS, wyp = (gy + .5) * CFG.TS; const d = dist2(x, y, wxp, wyp); if (d < bd) { bd = d; best = { x: wxp, y: wyp }; } }
+  return best;
+}
+
 function draw() {
   ctx.fillStyle = "#cdb88c"; ctx.fillRect(0, 0, CSSW, CSSH);
   if (terrain) ctx.drawImage(terrain, cam.x, cam.y, CSSW, CSSH, 0, 0, CSSW, CSSH);
@@ -1318,7 +1348,7 @@ function draw() {
   for (const r of rubble) drawRubble(r);
   for (const n of nodes) drawNode(n);
   for (const c of corpses) drawCorpse(c);
-  const drawables = [...buildings, ...units, ...animals].sort((a, b) => (a.y) - (b.y));
+  const drawables = [...buildings, ...units, ...animals].filter(e => !(fogOn && e.kind === "unit" && e.faction === "enemy" && !cellVisible(e.x, e.y))).sort((a, b) => (a.y) - (b.y));   // ennemis cachés hors champ de vision
   for (const e of drawables) e.kind === "building" ? drawBuilding(e) : e.kind === "animal" ? drawAnimal(e) : drawUnit(e);
   for (const s of spirits) drawSpirit(s);
   for (const p of projectiles) drawArrow(p);
@@ -1328,6 +1358,15 @@ function draw() {
   for (const ft of floats) { ctx.globalAlpha = clamp(1.1 - ft.t, 0, 1); ctx.fillStyle = ft.color; ctx.font = "700 13px system-ui"; ctx.textAlign = "center"; ctx.fillText(ft.text, sx(ft.x), sy(ft.y)); }
   ctx.globalAlpha = 1; ctx.textAlign = "left";
 
+  if (fogOn && visGrid) {                                  // calque de brouillard (limité au viewport, peu coûteux)
+    const gx0 = Math.max(0, (cam.x / CFG.TS) | 0), gy0 = Math.max(0, (cam.y / CFG.TS) | 0);
+    const gx1 = Math.min(CFG.MW - 1, ((cam.x + CSSW) / CFG.TS | 0)), gy1 = Math.min(CFG.MH - 1, ((cam.y + CSSH) / CFG.TS | 0));
+    for (let gy = gy0; gy <= gy1; gy++) for (let gx = gx0; gx <= gx1; gx++) {
+      const v = visGrid[gy * CFG.MW + gx]; if (v === 2) continue;
+      ctx.fillStyle = v === 0 ? "#0c0b08" : "rgba(12,11,8,0.46)";
+      ctx.fillRect(sx(gx * CFG.TS), sy(gy * CFG.TS), CFG.TS + 1, CFG.TS + 1);
+    }
+  }
   if (buildMode) drawGhost();
   if (mouse.dragging && mouse.dragStart && !buildMode) drawSelBox();
   drawMinimap();
@@ -1532,7 +1571,7 @@ function drawUnit(u) {
 
   const fly = u.flying ? 20 + Math.sin(gameT * 2 + u.id) * 2 : 0;     // hauteur de vol (natte)
   ctx.save(); ctx.translate(x + u.facing * u.lunge * 4, y - bob - fly); ctx.scale(u.facing, 1);
-  if (u.type === "cavalier") {
+  if (u.type === "cavalier" || u.type === "eclaireur") {
     ctx.fillStyle = "#8a6a3a"; rrect(-12, -2, 22, 9, 4); ctx.fill();
     ctx.fillStyle = "#6a4a28"; ctx.fillRect(-11, 6, 3, 7); ctx.fillRect(7, 6, 3, 7); ctx.fillRect(8, -6, 4, 6);
   } else if (u.flying) {                          // natte volante (tapis tressé)
@@ -1543,7 +1582,7 @@ function drawUnit(u) {
     const sw = moving ? Math.sin(u.bob) * 3 : 0; ctx.strokeStyle = "#7a5a30"; ctx.lineWidth = 2.4;
     ctx.beginPath(); ctx.moveTo(-2, U.r * 0.5); ctx.lineTo(-2 + sw, U.r * 0.5 + 6); ctx.moveTo(2, U.r * 0.5); ctx.lineTo(2 - sw, U.r * 0.5 + 6); ctx.stroke();
   }
-  const yy = u.type === "cavalier" ? -8 : 0;
+  const yy = (u.type === "cavalier" || u.type === "eclaireur") ? -8 : 0;
   ctx.fillStyle = u.flash ? "#fff" : "#e9dcb6"; rrect(-U.r * 0.7, yy - U.r * 0.5, U.r * 1.4, U.r, 3); ctx.fill();
   ctx.fillStyle = c; ctx.fillRect(-U.r * 0.7, yy - U.r * 0.1, U.r * 1.4, 3);
   ctx.fillStyle = "#caa46a"; ctx.beginPath(); ctx.arc(0, yy - U.r * 0.7, U.r * 0.45, 0, TAU); ctx.fill();
@@ -1635,8 +1674,8 @@ function drawMinimap() {
   const fx = r.w / worldW(), fy = r.h / worldH();
   for (const L of lakes) { ctx.fillStyle = "#83b6cb"; ctx.beginPath(); ctx.ellipse(r.x + L.x * fx, r.y + L.y * fy, L.rw * fx, L.rh * fy, 0, 0, TAU); ctx.fill(); }
   for (const n of nodes) { ctx.fillStyle = n.type === "food" ? "#cdb05a" : n.type === "wood" ? "#3f8f5a" : "#f0c64a"; ctx.fillRect(r.x + n.x * fx - 1, r.y + n.y * fy - 1, 2, 2); }
-  for (const b of buildings) { ctx.fillStyle = COL[b.faction]; ctx.fillRect(r.x + b.x * fx - 2, r.y + b.y * fy - 2, 4, 4); }
-  for (const u of units) { ctx.fillStyle = COL[u.faction]; ctx.fillRect(r.x + u.x * fx - 1, r.y + u.y * fy - 1, 2, 2); }
+  for (const b of buildings) { if (fogOn && b.faction === "enemy" && !cellExplored(b.x, b.y)) continue; ctx.fillStyle = COL[b.faction]; ctx.fillRect(r.x + b.x * fx - 2, r.y + b.y * fy - 2, 4, 4); }
+  for (const u of units) { if (fogOn && u.faction === "enemy" && !cellVisible(u.x, u.y)) continue; ctx.fillStyle = COL[u.faction]; ctx.fillRect(r.x + u.x * fx - 1, r.y + u.y * fy - 1, 2, 2); }
   for (const a of animals) { ctx.fillStyle = "#8a6a3a"; ctx.fillRect(r.x + a.x * fx - 1, r.y + a.y * fy - 1, 2, 2); }
   ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.strokeRect(r.x + cam.x * fx, r.y + cam.y * fy, CSSW * fx, CSSH * fy);
 }
@@ -1720,7 +1759,7 @@ function nodeAt(x, y) { let best = null, bd = Infinity; for (const n of nodes) {
 
 /* ===== BARRE DE COMMANDE (DOM) =========================================== */
 const bldName = t => ({ cite: "Cité", maison: "Maison", caserne: "Caserne", marche: "Marché", tour: "Tour de guet", champ: "Champ", atelier: "Atelier de bois", baie: "Baie aux pirogues", tamtam: "Tam-tam parleur", foret: "Forêt plantée", cloture: "Clôture", portail: "Portail", merveille: "Grande Mosquée" }[t] || t);
-const unitName = t => ({ villager: "Caravanier", lancier: "Lancier", archer: "Archer", cavalier: "Cavalier", commandant: "Commandant", feticheur: "Féticheur", sorcier: "Sorcier volant", caravane: "Caravane" }[t] || t);
+const unitName = t => ({ villager: "Caravanier", lancier: "Lancier", archer: "Archer", cavalier: "Cavalier", commandant: "Commandant", feticheur: "Féticheur", sorcier: "Sorcier volant", caravane: "Caravane", eclaireur: "Éclaireur" }[t] || t);
 function costStr(c) { return Object.keys(c).map(k => RES_ICON[k] + c[k]).join(" "); }
 function actBtn(label, cost, onclick, enabled, cls) {
   return `<button class="act ${cls || ""}" ${enabled ? "" : "disabled"} onclick="${onclick}">${label}<span class="c">${cost}</span></button>`;
@@ -1744,6 +1783,7 @@ function refreshCmd() {
     if (b.faction === "player" && b.progress >= 1) {
       if (b.type === "cite") {
         html += trainBtn("➕ Caravanier", "villager");
+        html += trainBtn("🐎 Éclaireur", "eclaireur");
         if (!units.some(u => u.faction === "player" && u.commander)) html += trainBtn("🎖️ Commandant", "commandant");
         html += trainBtn("🔮 Féticheur", "feticheur");
         const next = CFG.AGE[age.player + 1];
@@ -1850,6 +1890,8 @@ function startGame(diff, spec) {
   res = { player: { ...CFG.START }, enemy: { ...CFG.START } };
   age = { player: 0, enemy: 0 }; advancing = { player: null, enemy: null };
   running = true; over = false; won = false; gameT = 0; nextId = 1; aiTimer = 0.5; tipTimer = 14; codexOpen = false; spectator = !!spec;
+  stats = { player: { kills: 0, peakPop: 0 }, enemy: { kills: 0, peakPop: 0 } };
+  visGrid = new Uint8Array(CFG.MW * CFG.MH); fogOn = !spectator; visTimer = 0;   // brouillard actif sauf en mode observation (IA vs IA : tout visible)
   DIFFICULTY = CFG.DIFF[diff] || CFG.DIFF[lastDiff] || CFG.DIFF.normal; if (CFG.DIFF[diff]) lastDiff = diff;   // niveau choisi (en observation, les 2 IA partagent ce réglage)
   if (!terrain) buildTerrain();
   fish = []; for (const L of lakes) for (let i = 0; i < 7; i++) fish.push(makeFish(L));   // bancs de poissons animés
@@ -1866,6 +1908,7 @@ function startGame(diff, spec) {
   for (let h = 0; h < 7; h++) { const hx = rand(W * 0.25, W * 0.75), hy = rand(H * 0.15, H * 0.85); for (let i = 0, k = randInt(3, 5); i < k; i++) animals.push(makeAnimal(clamp(hx + rand(-55, 55), 20, W - 20), clamp(hy + rand(-55, 55), 20, H - 20))); }
 
   cam.x = pCite.x - CSSW / 2; cam.y = pCite.y - CSSH / 2; clampCam();
+  if (fogOn) computeVision();
   document.getElementById("intro").classList.add("hidden");
   document.getElementById("result").classList.add("hidden");
   document.getElementById("codex").classList.add("hidden");

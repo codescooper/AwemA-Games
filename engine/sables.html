@@ -281,9 +281,10 @@ const SND = (function () {
 })();
 
 /* ===== ÉTAT =============================================================== */
-const cv = document.getElementById("game"), ctx = cv.getContext("2d");
+const cv = document.getElementById("game"); let ctx = cv.getContext("2d");   // ctx réassignable : redirigé vers le calque d'entités pour le contour
 let CSSW = 0, CSSH = 0, DPR = 1, terrain = null;
 let PXS = 3, pixelMode = true;   // pixel art : le canvas est rendu en basse résolution (÷PXS) puis agrandi en nearest-neighbor
+let entLayer = null, entCtx = null, silLayer = null, silCtx = null, outlineOn = true;   // calque des sprites + silhouette (contour noir pixel art)
 let units = [], buildings = [], nodes = [], floats = [], parts = [], projectiles = [], corpses = [], rubble = [], birds = [], animals = [], spirits = [], lakes = [], fish = [], pirogues = [];
 let nav = null, navTimer = 0, pathBudget = 0;      // grille de navigation A* (obstacles statiques) + budget de calcul/frame
 let res = { player: { food: 0, wood: 0, gold: 0 }, enemy: { food: 0, wood: 0, gold: 0 } };
@@ -1362,7 +1363,24 @@ function draw() {
   for (const n of nodes) drawNode(n);
   for (const c of corpses) drawCorpse(c);
   const drawables = [...buildings, ...units, ...animals].filter(e => !(fogOn && e.kind === "unit" && e.faction === "enemy" && !cellVisible(e.x, e.y))).sort((a, b) => (a.y) - (b.y));   // ennemis cachés hors champ de vision
-  for (const e of drawables) e.kind === "building" ? drawBuilding(e) : e.kind === "animal" ? drawAnimal(e) : drawUnit(e);
+  if (pixelMode && outlineOn && entCtx) {            // contour noir pixel art : rendu des sprites sur un calque, composité avec un liseré décalé
+    const Wb = cv.width, Hb = cv.height, main = ctx;
+    entCtx.setTransform(1, 0, 0, 1, 0, 0); entCtx.clearRect(0, 0, Wb, Hb);
+    entCtx.setTransform(1 / PXS, 0, 0, 1 / PXS, 0, 0); entCtx.imageSmoothingEnabled = false;
+    ctx = entCtx;                                    // les fonctions de dessin écrivent maintenant sur le calque
+    for (const e of drawables) e.kind === "building" ? drawBuilding(e) : e.kind === "animal" ? drawAnimal(e) : drawUnit(e);
+    ctx = main;
+    silCtx.setTransform(1, 0, 0, 1, 0, 0); silCtx.clearRect(0, 0, Wb, Hb);
+    silCtx.globalCompositeOperation = "source-over"; silCtx.drawImage(entLayer, 0, 0);
+    silCtx.globalCompositeOperation = "source-in"; silCtx.fillStyle = "#181009"; silCtx.fillRect(0, 0, Wb, Hb);   // silhouette sombre
+    silCtx.globalCompositeOperation = "source-over";
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(silLayer, -1, 0); ctx.drawImage(silLayer, 1, 0); ctx.drawImage(silLayer, 0, -1); ctx.drawImage(silLayer, 0, 1);   // contour 4 directions (1 px backing)
+    ctx.drawImage(entLayer, 0, 0);                   // sprites couleur par-dessus
+    ctx.restore();
+  } else {
+    for (const e of drawables) e.kind === "building" ? drawBuilding(e) : e.kind === "animal" ? drawAnimal(e) : drawUnit(e);
+  }
   for (const s of spirits) drawSpirit(s);
   for (const p of projectiles) drawArrow(p);
   for (const p of parts) { ctx.globalAlpha = (p.smoke ? 0.5 : 1) * (1 - p.life / p.max); ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(sx(p.x), sy(p.y), p.r, 0, TAU); ctx.fill(); }
@@ -2012,6 +2030,8 @@ function resize() {
   if (pixelMode) {   // backing store réduit → tout est rasterisé en gros pixels, le CSS agrandit en nearest-neighbor
     cv.width = Math.max(1, Math.ceil(CSSW / PXS)); cv.height = Math.max(1, Math.ceil(CSSH / PXS));
     cv.style.imageRendering = "pixelated"; ctx.setTransform(1 / PXS, 0, 0, 1 / PXS, 0, 0); ctx.imageSmoothingEnabled = false;
+    if (!entLayer) { entLayer = document.createElement("canvas"); entCtx = entLayer.getContext("2d"); silLayer = document.createElement("canvas"); silCtx = silLayer.getContext("2d"); }
+    entLayer.width = silLayer.width = cv.width; entLayer.height = silLayer.height = cv.height;   // calques à la résolution du backing store
   } else {
     cv.width = Math.round(CSSW * DPR); cv.height = Math.round(CSSH * DPR);
     cv.style.imageRendering = "auto"; ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.imageSmoothingEnabled = true;

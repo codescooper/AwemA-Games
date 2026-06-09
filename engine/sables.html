@@ -158,9 +158,10 @@ const CFG = {
     commandant: { food: 80, gold: 40 }, feticheur: { food: 80, gold: 60 }, sorcier: { food: 60, gold: 70 }, caravane: { gold: 80 },
     atelier: { wood: 50 }, baie: { wood: 80 }, tamtam: { wood: 70, gold: 40 },
     foret: { food: 20 }, cloture: { wood: 15 }, portail: { wood: 30, gold: 10 },
+    merveille: { food: 600, wood: 600, gold: 500 },
   },
   TRAIN_TIME: { villager: 6, lancier: 9, archer: 11, cavalier: 14, commandant: 12, feticheur: 14, caravane: 10 },
-  BUILD_WORK: { maison: 16, caserne: 28, marche: 22, tour: 22, champ: 12, atelier: 16, baie: 22, tamtam: 24, foret: 5, cloture: 6, portail: 9 },   // secondes-ouvrier
+  BUILD_WORK: { maison: 16, caserne: 28, marche: 22, tour: 22, champ: 12, atelier: 16, baie: 22, tamtam: 24, foret: 5, cloture: 6, portail: 9, merveille: 90 },   // secondes-ouvrier
   UNIT: {
     villager: { hp: 28, speed: 62, atk: 3, range: 16, cd: 1.1, r: 9 },
     lancier:  { hp: 52, speed: 56, atk: 7, range: 18, cd: 1.0, r: 10 },
@@ -187,6 +188,7 @@ const CFG = {
     foret:   { hp: 60, hw: 22, hh: 18, forest: true, wood: 320, mature: 35 },        // forêt plantée : mûrit (~35 s) puis bois récoltable
     cloture: { hp: 160, hw: 18, hh: 11, wall: true },                                // clôture : maillon de mur, PV évolutifs
     portail: { hp: 210, hw: 22, hh: 12, wall: true, gate: true },                    // portail : s'ouvre à l'approche d'un habitant, bloque l'ennemi
+    merveille: { hp: 950, hw: 44, hh: 46 },                                          // Grande Mosquée de Djenné : achevée → décompte de victoire
   },
   // ── LES TROIS EMPIRES (façon « Âges » d'AoE) ──────────────────────────────
   AGE: [
@@ -199,8 +201,8 @@ const CFG = {
       codex: ["La puissance du Songhaï", "Aux XVᵉ–XVIᵉ siècles, l'empire Songhaï, depuis Gao, devient le plus vaste d'Afrique de l'Ouest : Sonni Ali et les Askia bâtissent une puissante cavalerie et une flotte sur le Niger."] },
   ],
   // Âge minimal requis pour débloquer chaque unité / bâtiment
-  UNLOCK: { villager: 0, maison: 0, champ: 0, caserne: 0, marche: 0, lancier: 0, archer: 1, tour: 1, cavalier: 2, commandant: 0, feticheur: 1, sorcier: 1, atelier: 0, baie: 0, tamtam: 1, foret: 0, cloture: 0, portail: 0, caravane: 0 },
-  TRADE_RATE: 0.07,                                // or gagné par px parcouru entre deux marchés (commerce)
+  UNLOCK: { villager: 0, maison: 0, champ: 0, caserne: 0, marche: 0, lancier: 0, archer: 1, tour: 1, cavalier: 2, commandant: 0, feticheur: 1, sorcier: 1, atelier: 0, baie: 0, tamtam: 1, foret: 0, cloture: 0, portail: 0, caravane: 0, merveille: 2 },
+  TRADE_RATE: 0.07, WONDER_TIME: 150,              // commerce (or/px) ; durée du décompte de victoire de la Merveille (s)
   WALL_UP: { max: 3, mult: 0.85, cost: { wood: 120, gold: 60 } },   // clôture : niveaux de résistance (×PV cumulés)
   PROJ_SPEED: 330, AGGRO: 130, VISION: 300, LEASH: 240, RESEED_TIME: 4, RESEED_COST: { wood: 12 }, ESCORT_DIST: 420, THREAT: 95, GATE_OPEN: 58,
   RETINUE: 6, VDEF: 52,                          // escorte du commandant ; portée d'auto-défense des villageois
@@ -284,6 +286,7 @@ let aiFlip = false;                                // alterne l'ordre des 2 IA e
 let clotureLevel = { player: 0, enemy: 0 };        // niveau de résistance des clôtures par camp
 let escortTimer = 0;                               // cadence d'assignation des escortes de villageois
 let gateFlag = { player: false, enemy: false };    // un portail existe-t-il pour ce camp ? (active l'enceinte)
+let stats = { player: { kills: 0, peakPop: 0 }, enemy: { kills: 0, peakPop: 0 } };   // statistiques de partie (écran de score)
 let DIFFICULTY = CFG.DIFF.normal;                  // niveau courant (règle l'IA ennemie)
 let lastDiff = "normal";                           // dernier niveau choisi (pour Rejouer)
 const groups = {};                                 // groupes de contrôle 1..9 -> [ids]
@@ -729,7 +732,7 @@ function updateUnit(u, dt) {
       else {
         u.swing += dt * 9; b.progress = Math.min(1, b.progress + dt / CFG.BUILD_WORK[b.type]);
         b.hp = Math.max(b.hp, b.maxHp * (0.15 + 0.85 * b.progress));
-        if (b.progress >= 1) { b.hp = b.maxHp; spawnDust(b.x, b.y, 14, "#d9c08a"); if (b.farm) completeFarm(b); if (b.forest) b.matureT = CFG.BLD.foret.mature; if (b.type === "baie") { spawnPirogue(b); spawnPirogue(b); } if (u.faction === "player") tip("✅ " + (b.forest ? "Forêt plantée — patiente qu'elle mûrisse" : bldName(b.type) + " achevé")); }
+        if (b.progress >= 1) { b.hp = b.maxHp; spawnDust(b.x, b.y, 14, "#d9c08a"); if (b.farm) completeFarm(b); if (b.forest) b.matureT = CFG.BLD.foret.mature; if (b.type === "baie") { spawnPirogue(b); spawnPirogue(b); } if (b.type === "merveille") { b.wonderT = CFG.WONDER_TIME; tip((b.faction === "player" ? "🕌 Ta Grande Mosquée" : "⚠ La Merveille rivale") + " s'élève — victoire dans " + CFG.WONDER_TIME + " s si elle tient !"); } if (u.faction === "player") tip("✅ " + (b.forest ? "Forêt plantée — patiente qu'elle mûrisse" : bldName(b.type) + " achevé")); }
       }
       break;
     }
@@ -847,7 +850,7 @@ function spawnArrow(x, y, target, faction, dmg, attType) {
   SND.play("arrow");
 }
 function onDeath(t, byFaction) {
-  if (t.kind === "unit") { corpses.push({ x: t.x, y: t.y, type: t.type, faction: t.faction, facing: t.facing || 1, t: 0, max: 1.7 }); spawnDust(t.x, t.y, 9, "#9a8048"); SND.play("death"); }
+  if (t.kind === "unit") { corpses.push({ x: t.x, y: t.y, type: t.type, faction: t.faction, facing: t.facing || 1, t: 0, max: 1.7 }); spawnDust(t.x, t.y, 9, "#9a8048"); SND.play("death"); if (byFaction && byFaction !== t.faction && stats[byFaction]) stats[byFaction].kills++; }
   else if (t.kind === "animal") {                         // gibier abattu → carcasse = gisement de vivres
     const n = makeNode("food", t.x, t.y, CFG.ANIMAL.food); n.r = 13; n.carcass = true; nodes.push(n);
     spawnDust(t.x, t.y, 9, "#9a7a4a");
@@ -981,6 +984,7 @@ function updateBuilding(b, dt) {
     if (b.type === "baie") res[b.faction].food += CFG.BLD.baie.food * dt;     // pêche aux pirogues
     if (b.forest && !b.matured) { b.matureT -= dt; if (b.matureT <= 0) { b.matured = true; const n = makeNode("wood", b.x, b.y, CFG.BLD.foret.wood); n.r = 16; n.fromForest = b; b.woodNode = n; nodes.push(n); spawnDust(b.x, b.y, 12, "#3f8f5a"); } }   // forêt mûre → bois récoltable
     if (b.gate) b.open = units.some(u => u.faction === b.faction && u.hp > 0 && dist(u.x, u.y, b.x, b.y) < CFG.GATE_OPEN);   // portail : s'ouvre à l'approche d'un habitant
+    if (b.type === "merveille" && b.wonderT > 0) { b.wonderT -= dt; if (b.wonderT <= 0) endGame(b.faction === "player"); }   // décompte de victoire
     if (b.type === "tamtam" && b.cd > 0) b.cd = Math.max(0, b.cd - dt);        // récupération du chant
     if (b.type === "tour") {
       b.cd = Math.max(0, b.cd - dt);
@@ -1091,6 +1095,7 @@ function aiUpdate(f) {
     else if (!hasBld("caserne") && vills.length >= 5 && canAfford(f, CFG.COST.caserne)) aiBuild(f, "caserne", myCite);   // armée
     else if (!hasBld("marche")  && hasCaserne && canAfford(f, CFG.COST.marche)) aiBuild(f, "marche", myCite);            // → permet le Mali
     else if (DIFFICULTY.tech && age[f] >= 1 && !hasTamtam && hasCaserne && canAfford(f, CFG.COST.tamtam)) aiBuild(f, "tamtam", myCite, 40, 90);
+    else if (DIFFICULTY.tech && age[f] >= 2 && !hasBld("merveille") && canAfford(f, CFG.COST.merveille)) aiBuild(f, "merveille", myCite, 60, 115);   // course à la Merveille (victoire alternative)
     else if (age[f] >= 1 && myTourN < 3 && canAfford(f, CFG.COST.tour)) aiBuild(f, "tour", myCite, 55, 105);
     else if (vills.length >= 8  && myBld("champ").length < 2 && canAfford(f, CFG.COST.champ)) aiBuild(f, "champ", myCite, 30, 85);
     else if (vills.length >= 10 && !hasAtelier && canAfford(f, CFG.COST.atelier)) aiBuild(f, "atelier", myCite, 50, 110);
@@ -1228,6 +1233,7 @@ function update(dt) {
   for (const ft of floats) { ft.t += dt; ft.y += ft.vy * dt; } floats = floats.filter(ft => ft.t < 1.1);
   for (const bd of birds) { bd.x += bd.vx * dt; bd.phase += dt * 9; if (bd.x > worldW() + 40) bd.x = -40; if (bd.x < -40) bd.x = worldW() + 40; }
 
+  stats.player.peakPop = Math.max(stats.player.peakPop, popUsed("player")); stats.enemy.peakPop = Math.max(stats.enemy.peakPop, popUsed("enemy"));
   tipTimer -= dt; if (tipTimer <= 0) { tipTimer = 26; tip("📖 " + CODEX[randInt(0, CODEX.length - 1)][0]); }
 
   if (!over) {
@@ -1459,6 +1465,13 @@ function drawBuildingBody(b, x, y, c, tint) {
   else if (b.type === "atelier") { ctx.fillStyle = "#7a5a30"; for (let i = 0; i < 3; i++) ctx.fillRect(x - b.hw * 0.6 + i * b.hw * 0.5, y + 1, b.hw * 0.42, 5); drawIcon(x, y - b.hh - 9, "🪵"); }
   else if (b.type === "baie") { ctx.fillStyle = "#7a5a30"; ctx.fillRect(x - b.hw, y + b.hh - 2, b.hw * 2, 4); ctx.fillStyle = "#6a4a28"; ctx.fillRect(x + b.hw * 0.3, y + 1, 16, 6); drawIcon(x, y - b.hh - 9, "🛶"); }
   else if (b.type === "tamtam") { ctx.fillStyle = "#6a4a28"; ctx.beginPath(); ctx.ellipse(x, y, b.hw * 0.55, b.hh * 0.45, 0, 0, TAU); ctx.fill(); ctx.fillStyle = "#caa86a"; ctx.beginPath(); ctx.ellipse(x, y - b.hh * 0.35, b.hw * 0.5, b.hh * 0.2, 0, 0, TAU); ctx.fill(); drawIcon(x, y - b.hh - 9, "🥁"); }
+  else if (b.type === "merveille") {
+    ctx.fillStyle = "#b07a3e"; ctx.fillRect(x - b.hw, y - b.hh * 0.4, b.hw * 2, b.hh * 1.4);
+    ctx.fillStyle = "#9a6634";
+    for (let i = -2; i <= 2; i++) { const mx = x + i * (b.hw * 0.46); ctx.fillRect(mx - 4, y - b.hh - 10, 8, b.hh * 0.6 + 10); ctx.beginPath(); ctx.moveTo(mx - 5, y - b.hh - 10); ctx.lineTo(mx, y - b.hh - 22); ctx.lineTo(mx + 5, y - b.hh - 10); ctx.closePath(); ctx.fill(); }
+    ctx.fillStyle = "#5e3d1e"; for (let i = -3; i <= 3; i++) ctx.fillRect(x + i * (b.hw * 0.27) - 1.5, y - b.hh * 0.3, 3, b.hh * 1.25);
+    drawIcon(x, y - b.hh - 28, "🕌");
+  }
 }
 function drawBanner(b, x, y, c) {
   ctx.strokeStyle = "#6a4a28"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + b.hw - 6, y - b.hh); ctx.lineTo(x + b.hw - 6, y - b.hh - 16); ctx.stroke();
@@ -1706,7 +1719,7 @@ function buildingAt(x, y) { for (const b of buildings) if (x >= b.x - b.hw && x 
 function nodeAt(x, y) { let best = null, bd = Infinity; for (const n of nodes) { const r = n.r + 6; const d = dist2(x, y, n.x, n.y); if (d < r * r && d < bd) { bd = d; best = n; } } return best; }
 
 /* ===== BARRE DE COMMANDE (DOM) =========================================== */
-const bldName = t => ({ cite: "Cité", maison: "Maison", caserne: "Caserne", marche: "Marché", tour: "Tour de guet", champ: "Champ", atelier: "Atelier de bois", baie: "Baie aux pirogues", tamtam: "Tam-tam parleur", foret: "Forêt plantée", cloture: "Clôture", portail: "Portail" }[t] || t);
+const bldName = t => ({ cite: "Cité", maison: "Maison", caserne: "Caserne", marche: "Marché", tour: "Tour de guet", champ: "Champ", atelier: "Atelier de bois", baie: "Baie aux pirogues", tamtam: "Tam-tam parleur", foret: "Forêt plantée", cloture: "Clôture", portail: "Portail", merveille: "Grande Mosquée" }[t] || t);
 const unitName = t => ({ villager: "Caravanier", lancier: "Lancier", archer: "Archer", cavalier: "Cavalier", commandant: "Commandant", feticheur: "Féticheur", sorcier: "Sorcier volant", caravane: "Caravane" }[t] || t);
 function costStr(c) { return Object.keys(c).map(k => RES_ICON[k] + c[k]).join(" "); }
 function actBtn(label, cost, onclick, enabled, cls) {
@@ -1748,7 +1761,7 @@ function refreshCmd() {
     const vills = us.filter(u => u.type === "villager").length;
     const counts = {}; us.forEach(u => counts[u.type] = (counts[u.type] || 0) + 1);
     info2 = `<b>${us.length} unité${us.length > 1 ? "s" : ""}</b><br><span class="mini">${Object.keys(counts).map(t => counts[t] + " " + unitName(t)).join(", ")}</span>`;
-    if (vills > 0) { html += buildBtn("🏠 Maison", "maison"); html += buildBtn("🌾 Champ", "champ"); html += buildBtn("🌳 Forêt", "foret"); html += buildBtn("🧱 Clôture", "cloture"); html += buildBtn("🚪 Portail", "portail"); html += buildBtn("🏛️ Caserne", "caserne"); html += buildBtn("⚖️ Marché", "marche"); html += buildBtn("🗼 Tour", "tour"); html += buildBtn("🪵 Atelier", "atelier"); html += buildBtn("🛶 Baie", "baie"); html += buildBtn("🥁 Tam-tam", "tamtam"); }
+    if (vills > 0) { html += buildBtn("🏠 Maison", "maison"); html += buildBtn("🌾 Champ", "champ"); html += buildBtn("🌳 Forêt", "foret"); html += buildBtn("🧱 Clôture", "cloture"); html += buildBtn("🚪 Portail", "portail"); html += buildBtn("🏛️ Caserne", "caserne"); html += buildBtn("⚖️ Marché", "marche"); html += buildBtn("🗼 Tour", "tour"); html += buildBtn("🪵 Atelier", "atelier"); html += buildBtn("🛶 Baie", "baie"); html += buildBtn("🥁 Tam-tam", "tamtam"); if (age["player"] >= 2) html += buildBtn("🕌 Merveille", "merveille"); }
     if (us.some(u => u.commander)) {
       html += `<button class="act ${armyStance === 'guard' ? 'adv' : ''}" onclick="setStance('guard')">🛡️ Garder<span class="c">encercler le village</span></button>`;
       html += `<button class="act ${armyStance === 'patrol' ? 'adv' : ''}" onclick="setStance('patrol')">🥾 Patrouille<span class="c">tourner autour</span></button>`;
@@ -1804,7 +1817,8 @@ function syncTop() {
   document.getElementById("ageName").textContent = ageOf("player").name;
   document.getElementById("ageProg").textContent = advancing.player ? "  ⏳" + Math.round(advancing.player.t / advancing.player.time * 100) + "%" : "";
   const m = Math.floor(gameT / 60), s = Math.floor(gameT % 60);
-  document.getElementById("clock").textContent = m + ":" + (s < 10 ? "0" : "") + s;
+  const wb = buildings.find(b => b.type === "merveille" && b.wonderT > 0);   // Merveille en décompte (n'importe quel camp)
+  document.getElementById("clock").textContent = m + ":" + (s < 10 ? "0" : "") + s + (wb ? "  🕌" + (wb.faction === "player" ? "" : "⚠") + Math.ceil(wb.wonderT) + "s" : "");
   document.getElementById("idleBtn").textContent = "💤 " + idleVillagers().length;
 }
 function tip(text) { floats.push({ x: wx(CSSW / 2), y: wy(CSSH - BOT - 30), text, color: "#a8631f", t: 0, vy: -18 }); }
@@ -1871,7 +1885,8 @@ function endGame(victory) {
     document.getElementById("resSub").textContent = victory ? "La Cité rivale est tombée. Ton nom entrera dans les chants des griots." : "Ta Cité est tombée. Le désert reprend ses droits.";
   }
   const m = Math.floor(gameT / 60), s = Math.floor(gameT % 60);
-  document.getElementById("resStats").textContent = `Empire : ${ageOf("player").name} · Durée : ${m}:${s < 10 ? "0" : ""}${s} · Unités restantes : ${units.filter(u => u.faction === "player").length}`;
+  const sc = Math.max(0, Math.round(stats.player.kills * 12 + stats.player.peakPop * 6 + age["player"] * 200 + (won ? 800 : 0) - gameT * 0.4));
+  document.getElementById("resStats").textContent = `Empire : ${ageOf("player").name} · Durée : ${m}:${s < 10 ? "0" : ""}${s} · ⚔️ ${stats.player.kills} vaincus · 👥 armée max ${stats.player.peakPop} · 🏅 Score ${sc}`;
   document.getElementById("result").classList.remove("hidden");
 }
 

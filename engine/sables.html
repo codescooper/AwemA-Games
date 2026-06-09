@@ -69,6 +69,7 @@
   <span class="res" id="ageChip">🏛️ <span id="ageName">Ghana</span><small id="ageProg"></small></span>
   <span class="sp"></span>
   <span class="res mini" id="clock">0:00</span>
+  <button class="tbtn on" id="sndBtn" onclick="toggleSound()" title="Son (touche M)">🔊</button>
   <button class="tbtn" id="cmdBtn" onclick="selectCommander()" title="Sélectionner le commandant (touche C)">🎖️</button>
   <button class="tbtn" id="idleBtn" onclick="cycleIdle()" title="Sélectionner le prochain villageois oisif (touche .)">💤 0</button>
   <button class="tbtn on" id="autoBtn" onclick="toggleAuto()" title="Auto-emploi : les villageois oisifs vont récolter seuls">⚙ Auto</button>
@@ -243,6 +244,29 @@ const dist2 = (ax, ay, bx, by) => { const dx = ax - bx, dy = ay - by; return dx 
 function ringPos(id, cx, cy, r) { const a = id * 2.39996; return [cx + Math.cos(a) * r, cy + Math.sin(a) * r]; }
 const isMil = u => u.type !== "villager";
 
+/* ===== SON (procédural, WebAudio — aucun fichier) ======================== */
+const SND = (function () {
+  let ctx = null, master = null, muted = false; const last = {};
+  function init() { if (ctx) return; try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; } master = ctx.createGain(); master.gain.value = 0.5; master.connect(ctx.destination); ambient(); }
+  function resume() { if (ctx && ctx.state === "suspended") ctx.resume(); }
+  function tone(f, dur, type, vol, slide, dly) { if (!ctx || muted) return; const t = ctx.currentTime + (dly || 0), o = ctx.createOscillator(), g = ctx.createGain(); o.type = type || "sine"; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(1, slide), t + dur); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol || 0.3, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0006, t + dur); o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.03); }
+  function noise(dur, vol, freq) { if (!ctx || muted) return; const t = ctx.currentTime, n = (ctx.sampleRate * dur) | 0, b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; const s = ctx.createBufferSource(); s.buffer = b; const fl = ctx.createBiquadFilter(); fl.type = "bandpass"; fl.frequency.value = freq || 1200; const g = ctx.createGain(); g.gain.setValueAtTime(vol || 0.2, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur); s.connect(fl); fl.connect(g); g.connect(master); s.start(t); s.stop(t + dur); }
+  function ambient() { const n = (ctx.sampleRate * 2) | 0, b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * .5; const s = ctx.createBufferSource(); s.buffer = b; s.loop = true; const fl = ctx.createBiquadFilter(); fl.type = "lowpass"; fl.frequency.value = 360; const g = ctx.createGain(); g.gain.value = .05; s.connect(fl); fl.connect(g); g.connect(master); s.start(); }
+  const seq = (arr, type, vol, gap) => arr.forEach((f, i) => tone(f, gap * 1.6, type, vol, null, i * gap));
+  const fx = {
+    select: () => tone(680, .06, "square", .1), command: () => tone(900, .05, "triangle", .09),
+    build: () => { noise(.12, .16, 500); tone(200, .12, "sine", .1, 140); }, done: () => seq([523, 784], "sine", .16, .09),
+    train: () => tone(440, .1, "sawtooth", .09, 640), melee: () => noise(.07, .15, 280), arrow: () => noise(.13, .09, 2600),
+    death: () => tone(200, .22, "sawtooth", .11, 70), chant: () => seq([392, 494, 587, 698], "sine", .1, .13),
+    age: () => seq([523, 659, 784, 1047], "triangle", .16, .11), convert: () => tone(880, .3, "sine", .11, 320),
+    win: () => seq([523, 659, 784, 1047, 1318], "triangle", .18, .14), lose: () => seq([392, 330, 262], "sawtooth", .15, .18),
+  };
+  const thr = { melee: 70, arrow: 95, death: 130 };
+  function play(name) { if (!ctx || muted) return; resume(); if (thr[name]) { const t = performance.now(); if (t - (last[name] || 0) < thr[name]) return; last[name] = t; } (fx[name] || (() => { }))(); }
+  function toggleMute() { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.5; if (!muted) resume(); return muted; }
+  return { init, play, toggleMute, isMuted: () => muted };
+})();
+
 /* ===== ÉTAT =============================================================== */
 const cv = document.getElementById("game"), ctx = cv.getContext("2d");
 let CSSW = 0, CSSH = 0, DPR = 1, terrain = null;
@@ -323,7 +347,7 @@ function onAgeUp(f) {
   const cite = buildings.find(b => b.faction === f && b.type === "cite");
   if (cite) for (let i = 0; i < 46; i++) parts.push({ x: cite.x + rand(-cite.hw, cite.hw), y: cite.y + rand(-cite.hh, cite.hh), vx: rand(-34, 34), vy: rand(-95, -20), life: 0, max: rand(0.6, 1.25), r: rand(2, 4.5), color: "#f0c64a" });
   if (f === "player") {
-    tip("🏛️ Ton empire devient le " + cur.name + " !");
+    tip("🏛️ Ton empire devient le " + cur.name + " !"); SND.play("age");
     if (cur.codex && !CODEX.some(c => c[0] === cur.codex[0])) CODEX.unshift(cur.codex);
     refreshCmd();
   }
@@ -802,13 +826,14 @@ function applyDamage(t, dmg, faction, attType) {
   else if (m > 1 && faction === "player") floats.push({ x: t.x, y: t.y - 22, text: "×" + m + " !", color: "#c8941f", t: 0, vy: -22 });
   if (t.hp <= 0) onDeath(t, faction);
 }
-function dealDamage(att, t) { applyDamage(t, effAtk(att), att.faction, att.type); }
+function dealDamage(att, t) { applyDamage(t, effAtk(att), att.faction, att.type); SND.play("melee"); }
 function spawnArrow(x, y, target, faction, dmg, attType) {
   const d = Math.max(1, dist(x, y, target.x, target.y));
   projectiles.push({ sx: x, sy: y, x, y, target, tx: target.x, ty: target.y, faction, dmg, attType, t: 0, dur: clamp(d / CFG.PROJ_SPEED, 0.12, 0.9), ang: 0 });
+  SND.play("arrow");
 }
 function onDeath(t, byFaction) {
-  if (t.kind === "unit") { corpses.push({ x: t.x, y: t.y, type: t.type, faction: t.faction, facing: t.facing || 1, t: 0, max: 1.7 }); spawnDust(t.x, t.y, 9, "#9a8048"); }
+  if (t.kind === "unit") { corpses.push({ x: t.x, y: t.y, type: t.type, faction: t.faction, facing: t.facing || 1, t: 0, max: 1.7 }); spawnDust(t.x, t.y, 9, "#9a8048"); SND.play("death"); }
   else if (t.kind === "animal") {                         // gibier abattu → carcasse = gisement de vivres
     const n = makeNode("food", t.x, t.y, CFG.ANIMAL.food); n.r = 13; n.carcass = true; nodes.push(n);
     spawnDust(t.x, t.y, 9, "#9a7a4a");
@@ -827,7 +852,7 @@ function spawnSmoke(x, y, n) { for (let i = 0; i < n; i++) parts.push({ smoke: t
 function convertUnit(t, faction) {                      // un ennemi rallié au camp du féticheur, mais affaibli (perf ÷2)
   t.faction = faction; t.converted = true; t.order = null; t.follow = null; t.target = null; t.gNode = null; t.state = "idle"; t.post = null;
   for (let i = 0; i < 14; i++) parts.push({ x: t.x, y: t.y, vx: rand(-32, 32), vy: rand(-62, -10), life: 0, max: rand(0.5, 1), r: rand(2, 4), color: "#b07ad0" });
-  if (faction === "player") floats.push({ x: t.x, y: t.y - 20, text: "✨ converti", color: "#b07ad0", t: 0, vy: -22 });
+  if (faction === "player") { floats.push({ x: t.x, y: t.y - 20, text: "✨ converti", color: "#b07ad0", t: 0, vy: -22 }); SND.play("convert"); }
 }
 function chantSpirits(b) {                               // tam-tam : appelle CHANT.per esprits par soldat
   if (b.cd > 0) { if (b.faction === "player") tip("🥁 Le tam-tam reprend son souffle…"); return; }
@@ -836,7 +861,7 @@ function chantSpirits(b) {                               // tam-tam : appelle CH
     for (let k = 0; k < CFG.CHANT.per; k++) spirits.push({ host: u, faction: b.faction, x: u.x, y: u.y, ang: k / CFG.CHANT.per * TAU + rand(0, 1), life: 0, max: CFG.CHANT.duration, cd: rand(0, 1) });
     count++;
   }
-  if (b.faction === "player") tip(count ? "🥁 Chant des esprits ! " + count * CFG.CHANT.per + " esprits gardiens invoqués" : "Aucun soldat à protéger");
+  if (b.faction === "player") { tip(count ? "🥁 Chant des esprits ! " + count * CFG.CHANT.per + " esprits gardiens invoqués" : "Aucun soldat à protéger"); if (count) SND.play("chant"); }
 }
 function updateSpirit(s, dt) {
   s.life += dt; s.cd = Math.max(0, s.cd - dt);
@@ -947,7 +972,7 @@ function updateBuilding(b, dt) {
     b.trainT = 0; b.queue.shift();
     const u = makeUnit(b.faction, type, b.x + rand(-6, 6), b.y + b.hh + 14);
     units.push(u); deployUnit(u, b);
-    if (b.faction === "player") refreshCmd();
+    if (b.faction === "player") { refreshCmd(); SND.play("train"); }
   }
 }
 
@@ -976,7 +1001,7 @@ function placeBuilding(type, x, y) {
   let assigned = 0;
   for (const id of sel) { const u = unitById(id); if (u && u.type === "villager") { commandBuild(u, b); assigned++; } }
   if (assigned === 0) { const v = units.find(u => u.faction === "player" && u.type === "villager"); if (v) commandBuild(v, b); }
-  refreshCmd(); return b;
+  SND.play("build"); refreshCmd(); return b;
 }
 function placeChain(type, x1, y1, x2, y2) {        // pose une chaîne de segments du point de départ au point d'arrivée
   const b = CFG.BLD[type], step = Math.max(20, b.hw * 2 + 2);
@@ -1606,6 +1631,7 @@ window.addEventListener("mouseup", e => {
     }
     else if (b && b.faction === "player") { sel.clear(); selBld = b; }
     else if (!e.shiftKey) { sel.clear(); selBld = null; }
+    if (sel.size || selBld) SND.play("select");
     mouse.lastClick = { t: now, x: mouse.x, y: mouse.y };
   }
   mouse.dragStart = null; mouse.dragging = false; refreshCmd();
@@ -1619,6 +1645,7 @@ function rightClick() {
   const wxp = wx(mouse.x), wyp = wy(mouse.y);
   if (selBld) { selBld.rally = { x: wxp, y: wyp }; floats.push({ x: wxp, y: wyp, text: "⚑", color: COL.player, t: 0, vy: -10 }); return; }
   if (sel.size === 0) return;
+  SND.play("command");
   const eU = unitAt(wxp, wyp), eB = buildingAt(wxp, wyp), node = nodeAt(wxp, wyp), animal = animalAt(wxp, wyp);
   const selUnits = [...sel].map(unitById).filter(Boolean);
   const enemyT = (eU && eU.faction !== "player") ? eU : (eB && eB.faction !== "player") ? eB : null;
@@ -1727,6 +1754,7 @@ function summonSorcier(fet) {                            // le féticheur invoqu
 }
 function summonSel() { summonSorcier([...sel].map(unitById).find(u => u && u.type === "feticheur")); }
 function toggleAuto() { autoEmploy = !autoEmploy; const b = document.getElementById("autoBtn"); b.classList.toggle("on", autoEmploy); tip(autoEmploy ? "⚙ Auto-emploi activé" : "⚙ Auto-emploi désactivé"); }
+function toggleSound() { const m = SND.toggleMute(); const b = document.getElementById("sndBtn"); if (b) { b.textContent = m ? "🔇" : "🔊"; b.classList.toggle("on", !m); } }
 
 /* ===== HUD ================================================================ */
 function syncTop() {
@@ -1761,6 +1789,7 @@ function scatterNodes(cx, cy, type, n, spread, amount) {
   }
 }
 function startGame(diff, spec) {
+  SND.init();   // démarre l'audio (geste utilisateur = clic du bouton)
   units = []; buildings = []; nodes = []; floats = []; parts = []; projectiles = []; corpses = []; rubble = []; birds = []; animals = []; spirits = []; fish = []; pirogues = []; sel = new Set(); selBld = null; buildMode = null; armyStance = "free";
   clotureLevel = { player: 0, enemy: 0 };
   for (const k in AI_STATE) delete AI_STATE[k];   // réinitialise l'état tactique des deux IA
@@ -1794,7 +1823,7 @@ function startGame(diff, spec) {
 }
 
 function endGame(victory) {
-  if (over) return; over = true; won = victory;
+  if (over) return; over = true; won = victory; SND.play(victory ? "win" : "lose");
   if (spectator) {
     document.getElementById("resTitle").textContent = "🏁 Bataille terminée";
     document.getElementById("resSub").textContent = victory ? "L'empire bleu (gauche) l'emporte." : "L'empire rouge (droite) l'emporte.";
@@ -1825,6 +1854,7 @@ window.addEventListener("keydown", e => {
   if (k === "." || k === ",") { e.preventDefault(); cycleIdle(); }
   if (k === "h") { const c = buildings.find(b => b.faction === "player" && b.type === "cite"); if (c) { sel.clear(); selBld = c; cam.x = c.x - CSSW / 2; cam.y = c.y - CSSH / 2; clampCam(); refreshCmd(); } }
   if (k === "c" && !e.ctrlKey) selectCommander();
+  if (k === "m") toggleSound();
   if (k >= "1" && k <= "9") {                       // groupes de contrôle
     if (e.ctrlKey || e.metaKey) { e.preventDefault(); groups[k] = [...sel]; tip("Groupe " + k + " enregistré (" + sel.size + ")"); }
     else { const g = (groups[k] || []).filter(id => unitById(id)); if (g.length) { sel = new Set(g); selBld = null; refreshCmd(); } }

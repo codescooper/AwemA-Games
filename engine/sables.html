@@ -155,11 +155,11 @@ const CFG = {
     villager: { food: 50 }, maison: { wood: 35 }, caserne: { wood: 70, gold: 20 }, marche: { wood: 60, gold: 30 },
     tour: { wood: 100, gold: 25 }, champ: { wood: 60 },
     lancier: { food: 45, wood: 20 }, archer: { food: 40, gold: 25 }, cavalier: { food: 60, gold: 45 },
-    commandant: { food: 80, gold: 40 }, feticheur: { food: 80, gold: 60 }, sorcier: { food: 60, gold: 70 },
+    commandant: { food: 80, gold: 40 }, feticheur: { food: 80, gold: 60 }, sorcier: { food: 60, gold: 70 }, caravane: { gold: 80 },
     atelier: { wood: 50 }, baie: { wood: 80 }, tamtam: { wood: 70, gold: 40 },
     foret: { food: 20 }, cloture: { wood: 15 }, portail: { wood: 30, gold: 10 },
   },
-  TRAIN_TIME: { villager: 6, lancier: 9, archer: 11, cavalier: 14, commandant: 12, feticheur: 14 },
+  TRAIN_TIME: { villager: 6, lancier: 9, archer: 11, cavalier: 14, commandant: 12, feticheur: 14, caravane: 10 },
   BUILD_WORK: { maison: 16, caserne: 28, marche: 22, tour: 22, champ: 12, atelier: 16, baie: 22, tamtam: 24, foret: 5, cloture: 6, portail: 9 },   // secondes-ouvrier
   UNIT: {
     villager: { hp: 28, speed: 62, atk: 3, range: 16, cd: 1.1, r: 9 },
@@ -169,6 +169,7 @@ const CFG = {
     commandant: { hp: 520, speed: 78, atk: 70, range: 20, cd: 1.0, r: 12 },   // héros : ~10× un soldat (lancier 52/7)
     feticheur:  { hp: 80, speed: 70, atk: 5, range: 18, cd: 1.3, r: 11, support: true },  // ×2 allié + conversion
     sorcier:    { hp: 55, speed: 88, atk: 9, range: 72, cd: 1.3, r: 10, ranged: true, flying: true },  // troupe aérienne (natte volante)
+    caravane:   { hp: 55, speed: 52, atk: 0, range: 0, cd: 1, r: 10 },                    // commerce : navette entre marchés, vulnérable aux razzias
   },
   ANIMAL: { hp: 22, speed: 34, fleeSpeed: 50, r: 11, food: 130, fleeRange: 60 },
   // pierre-feuille-ciseaux : lance > cheval > archer > lance (multiplicateur de dégâts)
@@ -198,7 +199,8 @@ const CFG = {
       codex: ["La puissance du Songhaï", "Aux XVᵉ–XVIᵉ siècles, l'empire Songhaï, depuis Gao, devient le plus vaste d'Afrique de l'Ouest : Sonni Ali et les Askia bâtissent une puissante cavalerie et une flotte sur le Niger."] },
   ],
   // Âge minimal requis pour débloquer chaque unité / bâtiment
-  UNLOCK: { villager: 0, maison: 0, champ: 0, caserne: 0, marche: 0, lancier: 0, archer: 1, tour: 1, cavalier: 2, commandant: 0, feticheur: 1, sorcier: 1, atelier: 0, baie: 0, tamtam: 1, foret: 0, cloture: 0, portail: 0 },
+  UNLOCK: { villager: 0, maison: 0, champ: 0, caserne: 0, marche: 0, lancier: 0, archer: 1, tour: 1, cavalier: 2, commandant: 0, feticheur: 1, sorcier: 1, atelier: 0, baie: 0, tamtam: 1, foret: 0, cloture: 0, portail: 0, caravane: 0 },
+  TRADE_RATE: 0.07,                                // or gagné par px parcouru entre deux marchés (commerce)
   WALL_UP: { max: 3, mult: 0.85, cost: { wood: 120, gold: 60 } },   // clôture : niveaux de résistance (×PV cumulés)
   PROJ_SPEED: 330, AGGRO: 130, VISION: 300, LEASH: 240, RESEED_TIME: 4, RESEED_COST: { wood: 12 }, ESCORT_DIST: 420, THREAT: 95, GATE_OPEN: 58,
   RETINUE: 6, VDEF: 52,                          // escorte du commandant ; portée d'auto-défense des villageois
@@ -242,7 +244,7 @@ const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
 const dist2 = (ax, ay, bx, by) => { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; };
 // point déterministe sur un anneau autour d'un centre (réparti par id) — évite les piles
 function ringPos(id, cx, cy, r) { const a = id * 2.39996; return [cx + Math.cos(a) * r, cy + Math.sin(a) * r]; }
-const isMil = u => u.type !== "villager";
+const isMil = u => u.type !== "villager" && u.type !== "caravane";   // la caravane est civile (commerce), pas militaire
 
 /* ===== SON (procédural, WebAudio — aucun fichier) ======================== */
 const SND = (function () {
@@ -660,6 +662,7 @@ function updateUnit(u, dt) {
         if (e) commandAttack(u, e);
         else if (!units.some(x => x.follow === u.id && x.hp > 0)) { const c = playerCite(); if (c && dist(u.x, u.y, c.x, c.y) > c.hw + 80) commandMove(u, c.x, c.y + c.hh + 30); }
       } else if (u.type === "feticheur") { /* support : tient sa position ; la conversion est gérée plus haut */ }
+      else if (u.type === "caravane") { setupTrade(u, u.faction); if (u.tradeDest) u.state = "trade"; }   // reprend le commerce dès qu'un 2e pôle existe
       else if (isMil(u)) {
         if (!u.post) u.post = { x: u.x, y: u.y };
         if (u.faction === "player" && armyStance !== "free" && !u.order) { u.state = "guard"; break; }
@@ -782,6 +785,17 @@ function updateUnit(u, dt) {
       if (c && dist(u.x, u.y, c.x, c.y) > c.hw + 70) { tx = c.x; ty = c.y; }   // courir s'abriter à la Cité
       else { tx = u.x + (u.x - foe.x); ty = u.y + (u.y - foe.y); }             // déjà à l'abri : s'écarter de l'ennemi
       stepTo(u, tx, ty, dt); u.swing = 0;
+      break;
+    }
+    case "trade": {                                       // caravane : navette commerciale entre deux pôles → or selon la distance
+      if (!u.tradeDest || u.tradeDest.hp <= 0 || !u.tradeHome || u.tradeHome.hp <= 0) { setupTrade(u, u.faction); if (!u.tradeDest) { u.state = "idle"; break; } }
+      const dd = u.tradeDest;
+      if (dist(u.x, u.y, dd.x, dd.y) < Math.max(dd.hw, dd.hh) + U.r + 8) {
+        const gain = Math.round(dist(u.tradeHome.x, u.tradeHome.y, dd.x, dd.y) * CFG.TRADE_RATE);
+        res[u.faction].gold += gain;
+        if (u.faction === "player") floats.push({ x: dd.x, y: dd.y - dd.hh - 6, text: "+" + gain + "✦", color: "#f0c64a", t: 0, vy: -24 });
+        const tmp = u.tradeHome; u.tradeHome = u.tradeDest; u.tradeDest = tmp;   // repart vers l'autre pôle
+      } else stepTo(u, dd.x, dd.y, dt);
       break;
     }
   }
@@ -941,7 +955,16 @@ function trainAt(b, type) {
   pay(b.faction, cost); b.queue.push(type); if (b.faction === "player") refreshCmd(); return true;
 }
 function isDefaultRally(b) { return Math.abs(b.rally.x - b.x) < 2 && Math.abs(b.rally.y - (b.y + b.hh + 28)) < 2; }
+function setupTrade(u, f) {                 // commerce : navette entre les deux pôles (marché/Cité) les plus éloignés
+  const hubs = buildings.filter(b => b.faction === f && b.progress >= 1 && (b.type === "marche" || b.type === "cite"));
+  if (hubs.length < 2) { u.tradeHome = null; u.tradeDest = null; return; }
+  hubs.sort((a, b) => dist2(u.x, u.y, a.x, a.y) - dist2(u.x, u.y, b.x, b.y));
+  u.tradeHome = hubs[0]; let far = hubs[1], fd = -1;
+  for (const h of hubs) { const dd = dist2(hubs[0].x, hubs[0].y, h.x, h.y); if (dd > fd) { fd = dd; far = h; } }
+  u.tradeDest = far;
+}
 function deployUnit(u, b) {                 // affecte automatiquement l'unité produite selon le ralliement
+  if (u.type === "caravane") { setupTrade(u, b.faction); u.state = u.tradeDest ? "trade" : "idle"; return; }
   const node = nodeAtPoint(b.rally.x, b.rally.y, 26);
   const enemy = enemyAtPoint(b.rally.x, b.rally.y, 30, b.faction);
   if (u.type === "villager") {
@@ -1471,8 +1494,23 @@ function drawFarm(b, x, y) {                       // champ : sol labouré + pou
   if (!built) barAt(x, y + b.hh + 6, b.hw * 2, b.progress, "#3a7bd5");
 }
 
+function drawCaravane(u, x, y) {                   // chameau bâté (commerce)
+  const r = CFG.UNIT.caravane.r, moving = u.state === "trade", bob = moving ? Math.abs(Math.sin(u.bob)) * 1.5 : 0;
+  ctx.fillStyle = "#0002"; ctx.beginPath(); ctx.ellipse(x, y + r * 0.7, r, r * 0.4, 0, 0, TAU); ctx.fill();
+  if (sel.has(u.id)) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x, y + r * 0.7, r + 3, r * 0.5 + 2, 0, 0, TAU); ctx.stroke(); }
+  ctx.save(); ctx.translate(x, y - bob); ctx.scale(u.facing, 1);
+  const sw = moving ? Math.sin(u.bob) * 2 : 0; ctx.strokeStyle = "#8a6a3a"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-5, 3); ctx.lineTo(-5 + sw, 11); ctx.moveTo(5, 3); ctx.lineTo(5 - sw, 11); ctx.stroke();
+  ctx.fillStyle = u.flash ? "#fff" : "#c79a5a"; ctx.beginPath(); ctx.ellipse(0, -1, r, r * 0.55, 0, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(-2, -r * 0.65, r * 0.42, Math.PI, TAU); ctx.fill();
+  ctx.fillStyle = u.flash ? "#fff" : "#b88a4a"; ctx.fillRect(r * 0.7, -r * 1.15, 3, r * 0.9); ctx.beginPath(); ctx.arc(r * 0.9, -r * 1.15, 3, 0, TAU); ctx.fill();
+  ctx.fillStyle = "#a8631f"; ctx.fillRect(-r * 0.55, -r * 0.95, r * 0.55, r * 0.45);
+  ctx.restore();
+  if (u.hp < u.maxHp) barAt(x, y - r - 8, r * 2, u.hp / u.maxHp, u.faction === "player" ? "#2e7d32" : "#b1432f");
+}
 function drawUnit(u) {
   const x = sx(u.x), y = sy(u.y); if (x < -30 || x > CSSW + 30 || y < -30 || y > CSSH + 30) return;
+  if (u.type === "caravane") { drawCaravane(u, x, y); return; }
   const c = COL[u.faction], U = CFG.UNIT[u.type];
   const moving = (u.state === "move" || u.state === "return" || (u.state === "gather" && u.gNode && dist(u.x, u.y, u.gNode.x, u.gNode.y) > u.gNode.r + U.r + 4) || (u.state === "attack" && u.target && dist(u.x, u.y, u.target.x, u.target.y) > U.range + 20));
   const bob = moving ? Math.abs(Math.sin(u.bob)) * 2.2 : Math.sin(gameT * 2 + u.id) * 0.6;
@@ -1669,7 +1707,7 @@ function nodeAt(x, y) { let best = null, bd = Infinity; for (const n of nodes) {
 
 /* ===== BARRE DE COMMANDE (DOM) =========================================== */
 const bldName = t => ({ cite: "Cité", maison: "Maison", caserne: "Caserne", marche: "Marché", tour: "Tour de guet", champ: "Champ", atelier: "Atelier de bois", baie: "Baie aux pirogues", tamtam: "Tam-tam parleur", foret: "Forêt plantée", cloture: "Clôture", portail: "Portail" }[t] || t);
-const unitName = t => ({ villager: "Caravanier", lancier: "Lancier", archer: "Archer", cavalier: "Cavalier", commandant: "Commandant", feticheur: "Féticheur", sorcier: "Sorcier volant" }[t] || t);
+const unitName = t => ({ villager: "Caravanier", lancier: "Lancier", archer: "Archer", cavalier: "Cavalier", commandant: "Commandant", feticheur: "Féticheur", sorcier: "Sorcier volant", caravane: "Caravane" }[t] || t);
 function costStr(c) { return Object.keys(c).map(k => RES_ICON[k] + c[k]).join(" "); }
 function actBtn(label, cost, onclick, enabled, cls) {
   return `<button class="act ${cls || ""}" ${enabled ? "" : "disabled"} onclick="${onclick}">${label}<span class="c">${cost}</span></button>`;
@@ -1700,6 +1738,7 @@ function refreshCmd() {
         const wl = clotureLevel.player; html += actBtn("🧱 Clôture +résist." + (wl ? " (niv " + wl + ")" : ""), wl >= CFG.WALL_UP.max ? "max" : costStr(CFG.WALL_UP.cost), "upgradeWallSel()", wl < CFG.WALL_UP.max && canAfford("player", CFG.WALL_UP.cost), "adv");
       }
       if (b.type === "caserne") { html += trainBtn("🗡️ Lancier", "lancier"); html += trainBtn("🏹 Archer", "archer"); html += trainBtn("🐎 Cavalier", "cavalier"); }
+      if (b.type === "marche") { html += trainBtn("🐪 Caravane", "caravane"); html += `<span class="mini" style="align-self:center">la caravane fait l'or-sel entre 2 marchés/Cité — protège-la des razzias</span>`; }
       if (b.type === "tamtam") html += actBtn("🥁 Chant des esprits", b.cd > 0 ? "⏳ " + Math.ceil(b.cd) + "s" : CFG.CHANT.per + " esprits / soldat", "chantSel()", b.cd <= 0, "adv");
       html += `<span class="mini" style="align-self:center">Clic droit = ralliement ⚑ (sur ressource = récolte auto, sur ennemi = attaque)</span>`;
     }

@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>L'Atelier — Crée tes jeux avec l'IA</title>
+<style>
+  :root { color-scheme: dark; --acc:#7c5cff; --acc2:#22b8a6; --ok:#36c46a; --bad:#ff6b6b; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; min-height: 100vh; color: #eef0f6;
+         background: radial-gradient(1100px 560px at 50% -10%, #241d3a, #0c0e16 62%); }
+  a { color: #c9b8ff; }
+  .top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: .7rem; padding: .55rem .9rem;
+         background: #0c0e16e6; border-bottom: 1px solid #ffffff14; backdrop-filter: blur(6px); }
+  .top h1 { font-size: 1.02rem; margin: 0; letter-spacing: .3px; }
+  .top .sp { flex: 1; }
+  .chip { font-size: .8rem; background: #ffffff14; border: 1px solid #ffffff24; border-radius: 1rem; padding: .25rem .6rem; white-space: nowrap; }
+  .chip b { color: #ffd76a; }
+  .tbtn { font: inherit; color: #fff; background: #ffffff14; border: 1px solid #ffffff2e; border-radius: .5rem; padding: .35rem .6rem; cursor: pointer; text-decoration: none; }
+  .tbtn:hover { background: #ffffff24; }
+  .layout { display: flex; gap: 0; align-items: stretch; min-height: calc(100vh - 49px); }
+  /* Sidebar */
+  .side { width: 290px; flex-shrink: 0; border-right: 1px solid #ffffff14; padding: .8rem .6rem 2rem; overflow-y: auto; }
+  .mod { margin-bottom: .5rem; }
+  .mod h3 { font-size: .76rem; text-transform: uppercase; letter-spacing: 1.3px; opacity: .55; margin: .9rem .4rem .35rem; }
+  .lk { display: flex; align-items: center; gap: .5rem; padding: .5rem .55rem; border-radius: .55rem; cursor: pointer; font-size: .9rem; }
+  .lk:hover { background: #ffffff10; }
+  .lk.active { background: var(--acc); color: #11101e; font-weight: 700; }
+  .lk .st { width: 1.2rem; text-align: center; flex-shrink: 0; }
+  .lk.active .st { color: #11101e; }
+  .bar { height: 7px; background: #ffffff14; border-radius: 4px; overflow: hidden; margin: .3rem .4rem .2rem; }
+  .bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--acc), var(--acc2)); width: 0; transition: width .4s; }
+  .badges { display: flex; flex-wrap: wrap; gap: .25rem; padding: .3rem .4rem; font-size: 1.1rem; min-height: 1.3em; }
+  /* Main */
+  .main { flex: 1; min-width: 0; padding: 1rem 1.1rem 3rem; max-width: 920px; }
+  .lesson h2 { margin: .2rem 0 .2rem; font-size: 1.5rem; }
+  .lesson .sub { opacity: .6; font-size: .82rem; margin-bottom: .8rem; }
+  .teach { line-height: 1.6; font-size: .97rem; }
+  .teach p { margin: .5rem 0; }
+  .teach code { background: #ffffff18; padding: .05rem .35rem; border-radius: .3rem; font-size: .9em; }
+  .teach .k { color: #ffd76a; font-weight: 600; }
+  .box { border-radius: .7rem; padding: .7rem .85rem; margin: .8rem 0; border: 1px solid #ffffff1c; }
+  .ai { background: linear-gradient(180deg, #2a2350, #1c1838); border-color: #7c5cff55; }
+  .ai .h { display: flex; align-items: center; gap: .5rem; font-weight: 700; color: #c9b8ff; margin-bottom: .35rem; }
+  .ai .prompt { background: #0c0e16; border: 1px dashed #7c5cff66; border-radius: .5rem; padding: .5rem .6rem; font-size: .88rem; font-style: italic; color: #e7e0ff; }
+  .ai .copy { margin-top: .45rem; font-size: .8rem; }
+  /* Playground */
+  .pg { display: grid; grid-template-columns: 1fr 340px; gap: .7rem; margin: .8rem 0; }
+  @media (max-width: 760px){ .pg { grid-template-columns: 1fr; } .side { position: fixed; left: 0; top: 49px; bottom: 0; background: #11121c; transform: translateX(-100%); transition: transform .25s; z-index: 6; } .side.open { transform: none; } .menuBtn { display: inline-block !important; } }
+  .menuBtn { display: none; }
+  .editor { width: 100%; min-height: 230px; resize: vertical; font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace; font-size: 13px;
+            line-height: 1.5; color: #e8eef7; background: #0b0d14; border: 1px solid #ffffff24; border-radius: .6rem; padding: .6rem .7rem; tab-size: 2; white-space: pre; overflow-wrap: normal; }
+  .out { display: flex; flex-direction: column; gap: .5rem; }
+  .stage { background: #0b0d14; border: 1px solid #ffffff24; border-radius: .6rem; padding: .4rem; display: flex; align-items: center; justify-content: center; }
+  canvas.cv { width: 100%; height: auto; image-rendering: auto; border-radius: .3rem; background: #11151f; }
+  .console { background: #07090f; border: 1px solid #ffffff1c; border-radius: .5rem; padding: .45rem .6rem; font-family: ui-monospace, monospace; font-size: 12.5px; min-height: 54px; max-height: 130px; overflow: auto; white-space: pre-wrap; color: #b9e6c8; }
+  .pgbtns { display: flex; flex-wrap: wrap; gap: .45rem; margin: .2rem 0 .1rem; }
+  .btn { font: inherit; color: #fff; background: #ffffff16; border: 1px solid #ffffff2e; border-radius: .5rem; padding: .45rem .7rem; cursor: pointer; }
+  .btn:hover { background: #ffffff26; } .btn:active { transform: translateY(1px); }
+  .btn.run { background: var(--acc); color: #11101e; border-color: transparent; font-weight: 800; }
+  .banner { border-radius: .55rem; padding: .55rem .7rem; margin: .6rem 0; font-weight: 600; display: none; }
+  .banner.show { display: block; }
+  .banner.good { background: #16432b; border: 1px solid var(--ok); color: #b6f0c8; }
+  .banner.bad { background: #45201f; border: 1px solid #ff6b6b66; color: #ffc9c9; }
+  .nav { display: flex; justify-content: space-between; gap: .5rem; margin-top: 1.3rem; }
+  /* Mentor */
+  .mentor { display: flex; gap: .6rem; align-items: flex-start; background: #ffffff0d; border: 1px solid #ffffff1c; border-radius: .7rem; padding: .6rem .7rem; margin: .8rem 0; }
+  .mentor .av { font-size: 1.7rem; line-height: 1; flex-shrink: 0; }
+  .mentor .bubble { font-size: .92rem; line-height: 1.45; }
+  .mentor .who { font-weight: 700; color: #8fe0d4; font-size: .82rem; }
+  .hide { display: none; }
+</style>
+</head>
+<body>
+  <div class="top">
+    <button class="tbtn menuBtn" onclick="toggleSide()">☰</button>
+    <h1>🎓 L'Atelier <span style="opacity:.6;font-weight:400">— crée tes jeux avec l'IA</span></h1>
+    <span class="sp"></span>
+    <span class="chip">⭐ <b id="xp">0</b> XP</span>
+    <span class="chip" id="progChip">0 %</span>
+    <a class="tbtn" href="index.html">≡ Menu</a>
+  </div>
+
+  <div class="layout">
+    <aside class="side" id="side">
+      <div class="bar"><i id="progBar"></i></div>
+      <div class="badges" id="badges" title="Tes badges"></div>
+      <nav id="toc"></nav>
+    </aside>
+
+    <main class="main">
+      <section class="lesson" id="lesson"></section>
+    </main>
+  </div>
+
+<script>
+/* ============================================================================
+   L'ATELIER — apprendre à coder en créant les jeux d'AwemA, guidé par l'IA (Awa).
+   100% local, hors-ligne. Bac à sable de code en direct + progression sauvegardée.
+   ========================================================================== */
+
+const PRAISE = ["Akwaba au club des codeurs ! 🎉", "Magnifique, ça marche !", "Tu progresses vite 💪",
+  "Voilà du beau code !", "Le griot racontera tes exploits 🥁", "Impeccable, on continue !"];
+const ENCOURAGE = ["Presque ! Relis l'énoncé tranquillement.", "Pas grave, on apprend en se trompant 🙂",
+  "Essaie encore — clique sur 💡 Indice si tu bloques.", "Tu y es presque, regarde la console."];
+
+/* --- Le programme : modules → leçons ---
+   Chaque leçon : {id,title,xp, teach(HTML), prompt(IA), mode:'code'|'canvas'|'anim'|'read',
+                   starter, task, hint, solution, check(api)->bool, intro(phrase d'Awa)} */
+const COURSE = [
+{ id:"start", title:"Bienvenue", icon:"👋", lessons:[
+  { id:"s1", title:"Akwaba ! Comment ça marche", xp:10, mode:"code",
+    intro:"Salut, moi c'est Awa, ton guide. Ici on apprend en FAISANT : tu écris du vrai code, tu cliques ▶, tu vois le résultat tout de suite !",
+    teach:`<p>Bienvenue dans <b>l'Atelier</b> ! Tu vas apprendre à <span class="k">programmer</span> en construisant, petit à petit, les jeux de la plateforme — <em>avec l'aide de l'IA</em>.</p>
+      <p>À droite, un <b>bac à sable</b> : écris du code, clique <span class="k">▶ Lancer</span>, et la console affiche le résultat. La commande <code>print(...)</code> affiche un message.</p>
+      <p>👉 Ta première mission : affiche un message, puis ton prénom.</p>`,
+    prompt:`Comment afficher un message à l'écran en JavaScript ? Donne-moi un exemple simple avec une fonction print().`,
+    starter:`print("Akwaba, le monde !");\n// ajoute une 2e ligne avec ton prénom :\n`,
+    task:"Affiche deux messages (deux print).",
+    hint:"Écris une 2e ligne, par exemple : print(\"Awa\");",
+    solution:`print("Akwaba, le monde !");\nprint("Awa");`,
+    check:(a)=> a.logs.length>=2 },
+]},
+{ id:"bases", title:"Les bases du code", icon:"🧱", lessons:[
+  { id:"b1", title:"Les variables : ranger des valeurs", xp:15, mode:"code",
+    intro:"Une variable, c'est comme un sac étiqueté où tu ranges une valeur pour t'en servir plus tard.",
+    teach:`<p>Une <span class="k">variable</span> garde une valeur sous un nom. On la crée avec <code>let</code> :</p>
+      <p><code>let sacs = 3;</code> range le nombre 3 dans <code>sacs</code>.</p>
+      <p>On peut calculer : <code>+</code> <code>-</code> <code>*</code> (multiplier) <code>/</code> (diviser).</p>
+      <p>👉 Mission : un planteur a <b>3 sacs</b> de <b>12 fèves</b> de cacao. Affiche le <b>total</b> de fèves.</p>`,
+    prompt:`En JavaScript, comment créer des variables et afficher le résultat d'une multiplication ?`,
+    starter:`let sacs = 3;\nlet parSac = 12;\n// affiche le total (sacs multiplié par parSac) :\n`,
+    task:"Affiche 36 (le total), calculé à partir des variables.",
+    hint:"print(sacs * parSac);",
+    solution:`let sacs = 3;\nlet parSac = 12;\nprint(sacs * parSac);`,
+    check:(a)=> a.logs.includes("36") },
+  { id:"b2", title:"Les conditions : si... alors...", xp:15, mode:"code",
+    intro:"Un jeu doit DÉCIDER : si tu as assez d'or, tu peux construire. C'est le rôle de if/else.",
+    teach:`<p>Avec <span class="k">if / else</span>, le programme choisit :</p>
+      <p><code>if (or >= 5) { ... } else { ... }</code> — <code>>=</code> veut dire « supérieur ou égal ».</p>
+      <p>👉 Mission : la variable <code>or</code> vaut 7. Affiche <b>"riche"</b> si <code>or</code> ≥ 5, sinon <b>"pauvre"</b>.</p>`,
+    prompt:`Montre-moi un exemple de if/else en JavaScript qui affiche un mot différent selon une valeur.`,
+    starter:`let or = 7;\n// si or >= 5 -> "riche", sinon -> "pauvre"\n`,
+    task:"Affiche \"riche\" (car or vaut 7).",
+    hint:`if (or >= 5) { print("riche"); } else { print("pauvre"); }`,
+    solution:`let or = 7;\nif (or >= 5) { print("riche"); } else { print("pauvre"); }`,
+    check:(a)=> a.logs.some(l=>/riche/i.test(l)) && !a.logs.some(l=>/pauvre/i.test(l)) },
+  { id:"b3", title:"Les boucles : répéter sans se fatiguer", xp:15, mode:"code",
+    intro:"Pour générer 8 villageois, on ne copie pas 8 fois la même ligne : on fait une boucle !",
+    teach:`<p>La boucle <span class="k">for</span> répète :</p>
+      <p><code>for (let i = 1; i &lt;= 5; i++) { ... }</code> exécute le bloc pour i = 1, 2, 3, 4, 5.</p>
+      <p>👉 Mission : affiche les nombres de <b>1 à 5</b>, un par ligne.</p>`,
+    prompt:`Explique-moi la boucle for en JavaScript avec un exemple qui affiche les nombres de 1 à 5.`,
+    starter:`for (let i = 1; i <= 5; i++) {\n  // affiche i\n}`,
+    task:"Affiche 1, 2, 3, 4 et 5.",
+    hint:"Dans la boucle : print(i);",
+    solution:`for (let i = 1; i <= 5; i++) {\n  print(i);\n}`,
+    check:(a)=> ["1","2","3","4","5"].every(n=> a.logs.includes(n)) },
+  { id:"b4", title:"Les fonctions : ranger une recette", xp:20, mode:"code",
+    intro:"Une fonction, c'est une recette réutilisable. On l'écrit une fois, on l'appelle autant qu'on veut.",
+    teach:`<p>Une <span class="k">fonction</span> regroupe des instructions sous un nom, avec des <em>paramètres</em> :</p>
+      <p><code>function salue(nom) { print("Akwaba, " + nom + " !"); }</code></p>
+      <p>Puis on l'<b>appelle</b> : <code>salue("Awa");</code>. Le <code>+</code> colle des textes.</p>
+      <p>👉 Mission : écris <code>salue(nom)</code> qui affiche « Akwaba, &lt;nom&gt; ! » et appelle-la avec ton prénom.</p>`,
+    prompt:`Comment définir et appeler une fonction avec un paramètre en JavaScript ? Exemple court.`,
+    starter:`function salue(nom) {\n  // affiche "Akwaba, <nom> !"\n}\nsalue("Awa");`,
+    task:"Affiche un message du type « Akwaba, Awa ! ».",
+    hint:`Dans la fonction : print("Akwaba, " + nom + " !");`,
+    solution:`function salue(nom) {\n  print("Akwaba, " + nom + " !");\n}\nsalue("Awa");`,
+    check:(a)=> a.logs.some(l=>/Akwaba,\s*\S+/.test(l)) },
+]},
+{ id:"dessin", title:"Dessiner & animer", icon:"🎨", lessons:[
+  { id:"d1", title:"Dessiner sur la toile", xp:20, mode:"canvas",
+    intro:"Place au dessin ! Le canvas est ta toile. ctx est ton pinceau : couleur, rectangles, cercles.",
+    teach:`<p>Sur le <span class="k">canvas</span>, on peint avec <code>ctx</code> :</p>
+      <p><code>ctx.fillStyle = "#e8702a";</code> choisit la couleur, puis<br>
+      <code>ctx.fillRect(x, y, largeur, hauteur);</code> peint un rectangle.</p>
+      <p>Un cercle : <code>ctx.beginPath(); ctx.arc(x, y, rayon, 0, Math.PI*2); ctx.fill();</code></p>
+      <p>La toile fait <code>W</code> de large et <code>H</code> de haut. 👉 Mission : le fond vert est déjà là — ajoute un <b>soleil orange</b> (cercle) au centre.</p>`,
+    prompt:`Comment dessiner un cercle plein d'une couleur donnée sur un canvas HTML avec le contexte 2D ?`,
+    starter:`// fond vert (déjà fait) :\nctx.fillStyle = "#0f7a4e";\nctx.fillRect(0, 0, W, H);\n\n// à toi : un cercle ORANGE au centre (W/2, H/2), rayon 34\n`,
+    task:"Dessine un cercle orange au centre de la toile.",
+    hint:`ctx.fillStyle = "#e8702a";\nctx.beginPath();\nctx.arc(W/2, H/2, 34, 0, Math.PI*2);\nctx.fill();`,
+    solution:`ctx.fillStyle = "#0f7a4e";\nctx.fillRect(0,0,W,H);\nctx.fillStyle = "#e8702a";\nctx.beginPath();\nctx.arc(W/2, H/2, 34, 0, Math.PI*2);\nctx.fill();`,
+    check:(a)=>{ const c=a.pix(a.W/2|0,a.H/2|0); return c[0]>180 && c[1]>70 && c[1]<170 && c[2]<90; } },
+  { id:"d2", title:"La boucle de jeu : ça bouge !", xp:25, mode:"anim",
+    intro:"Le secret de TOUT jeu vidéo : redessiner très vite, en bougeant un peu à chaque image. C'est la boucle de jeu.",
+    teach:`<p>Avec <code>loop(function(dt){ ... })</code>, ton code tourne ~60 fois par seconde (<code>dt</code> = temps écoulé). À chaque image : on <span class="k">efface</span>, on <span class="k">bouge</span>, on <span class="k">redessine</span>.</p>
+      <p>👉 Lance la démo : un cercle traverse l'écran. Change la vitesse (le <code>120</code>) et relance pour voir !</p>`,
+    prompt:`Comment animer un cercle qui se déplace sur un canvas avec requestAnimationFrame ? Donne la structure de la boucle.`,
+    starter:`let x = 0;\nloop(function(dt){\n  clear();                 // efface l'image précédente\n  x = x + 120 * dt;        // avance (vitesse x temps)\n  if (x > W) x = 0;        // revient à gauche\n  ctx.fillStyle = "#e8702a";\n  ctx.beginPath();\n  ctx.arc(x, H/2, 16, 0, Math.PI*2);\n  ctx.fill();\n});`,
+    task:"Lance l'animation (utilise loop).",
+    hint:"Clique simplement ▶ Lancer — puis amuse-toi à changer la vitesse 120.",
+    solution:null,
+    check:(a)=> a.calls.has("loop") },
+  { id:"d3", title:"Réagir au joueur : le clic", xp:25, mode:"anim",
+    intro:"Un jeu, ça répond ! Capte les clics du joueur avec onClick.",
+    teach:`<p><code>onClick(function(x, y){ ... })</code> appelle ton code à chaque clic, avec la position <code>x, y</code> dans la toile.</p>
+      <p>👉 Mission : à chaque clic, fais pousser un <b>fruit</b> (cercle vert) là où tu cliques. Lance, puis clique dans le cadre !</p>`,
+    prompt:`Comment détecter un clic de souris sur un canvas et récupérer les coordonnées x, y à l'intérieur ?`,
+    starter:`print("Lance, puis clique dans le cadre !");\nonClick(function(x, y){\n  ctx.fillStyle = "#13875a";\n  ctx.beginPath();\n  ctx.arc(x, y, 14, 0, Math.PI*2);\n  ctx.fill();\n});`,
+    task:"Utilise onClick pour dessiner au clic.",
+    hint:"Clique ▶ Lancer, puis clique dans la toile à droite.",
+    solution:null,
+    check:(a)=> a.calls.has("onClick") },
+]},
+{ id:"jeux", title:"Concevoir les jeux d'AwemA", icon:"🎮", lessons:[
+  { id:"j1", title:"Lignées : le tour par tour", xp:20, mode:"read",
+    intro:"Regardons comment est pensé chaque jeu de la plateforme. D'abord Lignées : un jeu de stratégie au tour par tour.",
+    teach:`<p><b>Idée</b> : tu donnes des ordres, puis on « résout » le tour. Le cœur est une <span class="k">fonction pure</span> : <code>nouvelÉtat = résoudre(état, ordres)</code>. Même entrée → même sortie : facile à tester !</p>
+      <p>L'<b>état</b> est juste un objet : <code>{ or: 80, grain: 100 }</code>. Un ordre le transforme.</p>
+      <p>👉 Lance : on simule « commercer » (+25 d'or). C'est exactement l'esprit de Lignées.</p>`,
+    prompt:`Aide-moi à concevoir un jeu au tour par tour : une fonction resoudreTour(etat, ordre) qui renvoie un nouvel état. Quels avantages d'une fonction pure ?`,
+    starter:`let etat = { or: 80, grain: 100 };\n\nfunction resoudre(etat, ordre){\n  if (ordre === "commercer") return { or: etat.or + 25, grain: etat.grain };\n  return etat;\n}\n\nlet apres = resoudre(etat, "commercer");\nprint("Avant : or = " + etat.or);\nprint("Après : or = " + apres.or);`,
+    task:"Lance la démo et observe l'état avant/après.",
+    hint:"Clique ▶ Lancer la démo.",
+    solution:null, check:null },
+  { id:"j2", title:"Voraces : créatures qui grandissent", xp:20, mode:"anim",
+    intro:"Voraces : une créature gobe des fruits, grandit... et ralentit. Une règle simple crée tout le plaisir.",
+    teach:`<p><b>Idée</b> : une créature est un objet <code>{ x, y, taille }</code>. <span class="k">Plus elle est grosse, plus elle est lente</span> : <code>vitesse = 120 / taille</code>.</p>
+      <p>👉 Lance : le cercle grandit avec le temps et ralentit tout seul. Voilà le moteur de Voraces, en 8 lignes !</p>`,
+    prompt:`Conçois la mécanique d'un jeu type "snake/agar" : une créature qui grandit en mangeant et ralentit quand elle grossit. Quelle formule pour la vitesse ?`,
+    starter:`let bestiole = { x: 30, y: 90, taille: 1 };\nloop(function(dt){\n  clear();\n  bestiole.taille += 0.4 * dt;          // grandit\n  let vitesse = 120 / bestiole.taille;  // plus gros = plus lent\n  bestiole.x += vitesse * dt;\n  if (bestiole.x > W) bestiole.x = 0;\n  ctx.fillStyle = "#22b8a6";\n  ctx.beginPath();\n  ctx.arc(bestiole.x, bestiole.y, 8 * bestiole.taille, 0, Math.PI*2);\n  ctx.fill();\n});`,
+    task:"Lance et observe : elle grossit et ralentit.",
+    hint:"Clique ▶ Lancer la démo.",
+    solution:null, check:(a)=> a.calls.has("loop") },
+  { id:"j3", title:"L'Âge des Sables : l'automate des unités", xp:20, mode:"read",
+    intro:"Dans un RTS, chaque villageois a un comportement. On le modélise par un 'automate à états'.",
+    teach:`<p><b>Idée</b> : une unité a un <span class="k">état</span> (« oisif », « récolte », « combat »…) et on choisit quoi faire selon cet état. C'est une <em>machine à états</em>, le secret des centaines d'unités autonomes.</p>
+      <p>👉 Lance : on fait passer un villageois d'« oisif » à « récolte » quand il trouve de la nourriture.</p>`,
+    prompt:`Explique-moi la "machine à états" pour gérer le comportement d'unités dans un jeu de stratégie. Donne un exemple avec switch.`,
+    starter:`let unite = { etat: "oisif" };\nlet nourritureProche = true;\n\nfunction penser(u){\n  switch (u.etat) {\n    case "oisif":\n      if (nourritureProche) u.etat = "recolte";\n      break;\n    case "recolte":\n      print("Le villageois récolte le mil 🌾");\n      break;\n  }\n}\n\npenser(unite);   // oisif -> décide de récolter\npenser(unite);   // maintenant il récolte\nprint("État final : " + unite.etat);`,
+    task:"Lance et suis le changement d'état.",
+    hint:"Clique ▶ Lancer la démo.",
+    solution:null, check:null },
+  { id:"j4", title:"Échecs : le plateau et les règles", xp:20, mode:"read",
+    intro:"Les Échecs à l'ivoirienne : un plateau = un simple tableau de 64 cases, et des règles de déplacement.",
+    teach:`<p><b>Idée</b> : le plateau est un <span class="k">tableau</span> de 64 cases. Chaque pièce a une règle. Pour la Tata (tour), on avance en ligne droite jusqu'à un obstacle.</p>
+      <p>👉 Lance : on compte les cases libres devant une Tata posée au coin. C'est la base d'un moteur d'échecs.</p>`,
+    prompt:`Comment représenter un échiquier en code et générer les déplacements d'une tour (en ligne droite) ? Tableau de 64 cases.`,
+    starter:`// plateau 8x8 vide ('.' = libre), une Tata (T) en bas à gauche\nlet libres = 0;\nlet x = 0;                 // colonne de la Tata\nfor (let y = 1; y < 8; y++){   // on monte tout droit\n  // case vide ? -> déplacement possible\n  libres++;\n}\nprint("La Tata peut avancer de " + libres + " cases tout droit.");`,
+    task:"Lance et lis le nombre de déplacements.",
+    hint:"Clique ▶ Lancer la démo.",
+    solution:null, check:null },
+]},
+{ id:"ia", title:"Créer AVEC l'IA", icon:"🤖", lessons:[
+  { id:"i1", title:"Bien demander à l'IA", xp:20, mode:"read",
+    intro:"Voici ma spécialité ! L'IA construit plus vite si tu demandes BIEN. La clé : découper et être précis.",
+    teach:`<p>Pour créer un jeu avec une IA (comme moi 🤖), <b>découpe</b> en petits morceaux et sois <b>précis</b>. Compare :</p>
+      <p>❌ « Fais-moi un jeu. » → trop vague.<br>
+      ✅ « Écris une fonction JS <code>deplacer(joueur, dt)</code> qui fait avancer un objet <code>{x,y}</code> vers la droite à 100 px/s, et qui le ramène à gauche s'il sort de l'écran (largeur W). »</p>
+      <p>Une bonne demande dit : <span class="k">le langage</span>, <span class="k">l'entrée</span>, <span class="k">la sortie attendue</span>, et <span class="k">les contraintes</span>.</p>
+      <p>👉 Lance : la console affiche un modèle de bonne demande, prêt à copier vers ton IA.</p>`,
+    prompt:`Voici mon objectif : [décris ton mini-jeu]. Découpe-le en 5 petites étapes de code, et pour chacune écris-moi une fonction JavaScript courte et commentée.`,
+    starter:`print("Recette d'une bonne demande à l'IA :");\nprint("1) Le langage : 'en JavaScript...'");\nprint("2) Ce que je donne : 'un objet {x, y}'");\nprint("3) Ce que je veux : 'une fonction qui...'");\nprint("4) Les règles : 'la vitesse est 100, l'écran fait W'");\nprint("5) Le format : 'code court et commenté'");`,
+    task:"Lance et lis la recette.",
+    hint:"Clique ▶ Lancer la démo, puis copie le prompt ci-dessus pour t'entraîner.",
+    solution:null, check:null },
+  { id:"i2", title:"Vérifier & corriger le code de l'IA", xp:25, mode:"code",
+    intro:"L'IA se trompe parfois ! Le bon réflexe : tester avec print, repérer le bug, et demander une correction.",
+    teach:`<p>Ne fais jamais confiance aveuglément : <b>teste</b>. Ici, l'IA a écrit une fonction <code>doubler</code>... mais il y a un <span class="k">bug</span> ! Elle <em>additionne</em> au lieu de <em>multiplier</em>.</p>
+      <p>👉 Mission : corrige <code>doubler</code> pour qu'elle renvoie <code>n * 2</code>. La console doit afficher <b>10</b>.</p>`,
+    prompt:`Cette fonction doit doubler un nombre mais renvoie un mauvais résultat : [colle le code]. Trouve le bug et corrige-le.`,
+    starter:`function doubler(n){\n  return n + 2;   // 🐞 bug : ce n'est pas ça, "doubler" !\n}\nprint(doubler(5));   // devrait afficher 10`,
+    task:"Corrige la fonction pour afficher 10.",
+    hint:"Remplace n + 2 par n * 2.",
+    solution:`function doubler(n){\n  return n * 2;\n}\nprint(doubler(5));`,
+    check:(a)=> a.logs.includes("10") },
+]},
+{ id:"projet", title:"Ton projet", icon:"🏆", lessons:[
+  { id:"p1", title:"Mini-jeu : la collecte au village", xp:40, mode:"anim",
+    intro:"Grand moment : on assemble tout ! Boucle de jeu + clic + score. Tu vas faire ton premier vrai jeu.",
+    teach:`<p>On combine ce que tu sais : un <b>fruit</b> apparaît à une position aléatoire ; <b>clique dessus</b> pour le récolter ; le <b>score</b> monte et un nouveau fruit apparaît.</p>
+      <p>Tout est presque écrit. 👉 Mission : complète la ligne du <span class="k">score</span> (<code>score = score + 1</code>) dans le clic. Lance, puis récolte des fruits !</p>`,
+    prompt:`Aide-moi à assembler un mini-jeu : un fruit cliquable qui rapporte des points et réapparaît ailleurs. Boucle de dessin + gestion du clic + score.`,
+    starter:`let fruit = { x: rand(20, W-20), y: rand(20, H-20) };\nlet score = 0;\n\nonClick(function(mx, my){\n  let d = Math.hypot(mx - fruit.x, my - fruit.y);\n  if (d < 20) {                 // clic sur le fruit ?\n    // 👉 complète : ajoute 1 au score\n    \n    fruit.x = rand(20, W-20);   // nouveau fruit\n    fruit.y = rand(20, H-20);\n  }\n});\n\nloop(function(dt){\n  clear();\n  ctx.fillStyle = "#13875a";    // le fruit\n  ctx.beginPath(); ctx.arc(fruit.x, fruit.y, 14, 0, Math.PI*2); ctx.fill();\n  ctx.fillStyle = "#fff"; ctx.font = "16px system-ui";\n  ctx.fillText("Score : " + score, 10, 22);\n});`,
+    task:"Ajoute score = score + 1 dans le clic, lance, et récolte !",
+    hint:"Dans le if du onClick, écris : score = score + 1;",
+    solution:`let fruit = { x: rand(20, W-20), y: rand(20, H-20) };\nlet score = 0;\nonClick(function(mx, my){\n  let d = Math.hypot(mx - fruit.x, my - fruit.y);\n  if (d < 20) {\n    score = score + 1;\n    fruit.x = rand(20, W-20); fruit.y = rand(20, H-20);\n  }\n});\nloop(function(dt){\n  clear();\n  ctx.fillStyle = "#13875a";\n  ctx.beginPath(); ctx.arc(fruit.x, fruit.y, 14, 0, Math.PI*2); ctx.fill();\n  ctx.fillStyle = "#fff"; ctx.font = "16px system-ui";\n  ctx.fillText("Score : " + score, 10, 22);\n});`,
+    check:(a)=> a.calls.has("loop") && a.calls.has("onClick") && /score\s*=\s*score\s*\+\s*1|score\s*\+=\s*1|score\+\+/.test(a.src) },
+]},
+];
+
+/* ----------------------------- état & sauvegarde -------------------------- */
+const LKEY = "awema_atelier_v1";
+let prog = load();
+function load(){ try { return JSON.parse(localStorage.getItem(LKEY)) || { done:[], xp:0 }; } catch(e){ return { done:[], xp:0 }; } }
+function save(){ try { localStorage.setItem(LKEY, JSON.stringify(prog)); } catch(e){} }
+const allLessons = COURSE.flatMap(m => m.lessons);
+let current = allLessons.find(l => !prog.done.includes(l.id)) || allLessons[0];
+
+/* ----------------------------- bac à sable -------------------------------- */
+function fmt(v){ if (typeof v === "object" && v !== null) { try { return JSON.stringify(v); } catch(e){ return String(v); } } return String(v); }
+function makePlayground(canvas, consoleEl){
+  const api = { logs:[], calls:new Set(), error:null, src:"", W:canvas.width, H:canvas.height, ctx:canvas.getContext("2d") };
+  api.pix = (x,y)=>{ try { return api.ctx.getImageData(x,y,1,1).data; } catch(e){ return [0,0,0,0]; } };
+  let rafId=null, keyH=null, clickH=null;
+  function stop(){ if (rafId) cancelAnimationFrame(rafId); rafId=null; if (keyH){ window.removeEventListener("keydown", keyH); keyH=null; } if (clickH){ canvas.removeEventListener("click", clickH); clickH=null; } }
+  function render(){ consoleEl.textContent = (api.error ? "⛔ " + api.error + "\n" : "") + api.logs.join("\n"); }
+  function run(src){
+    stop(); api.logs=[]; api.calls=new Set(); api.error=null; api.src=src;
+    api.ctx.clearRect(0,0,api.W,api.H);
+    const print=(...a)=>{ api.calls.add("print"); api.logs.push(a.map(fmt).join(" ")); };
+    const clear=()=>{ api.calls.add("clear"); api.ctx.clearRect(0,0,api.W,api.H); };
+    const rand=(a=1,b)=>{ api.calls.add("rand"); if (b===undefined){ b=a; a=0; } return a + Math.random()*(b-a); };
+    const loop=(fn)=>{ api.calls.add("loop"); let last=performance.now(); const step=(t)=>{ const dt=Math.min(0.05,(t-last)/1000); last=t; try { fn(dt); } catch(e){ api.error=e.message; render(); return; } rafId=requestAnimationFrame(step); }; rafId=requestAnimationFrame(step); };
+    const onKey=(fn)=>{ api.calls.add("onKey"); keyH=e=>{ try { fn(e.key); } catch(err){} }; window.addEventListener("keydown", keyH); };
+    const onClick=(fn)=>{ api.calls.add("onClick"); clickH=e=>{ const r=canvas.getBoundingClientRect(); try { fn((e.clientX-r.left)*api.W/r.width,(e.clientY-r.top)*api.H/r.height); } catch(err){} }; canvas.addEventListener("click", clickH); };
+    try { const f=new Function("print","clear","rand","loop","onKey","onClick","ctx","W","H", src); f(print,clear,rand,loop,onKey,onClick,api.ctx,api.W,api.H); }
+    catch(e){ api.error=e.message; }
+    render();
+    return api;
+  }
+  return { run, stop, api };
+}
+
+/* ----------------------------- rendu de l'UI ------------------------------ */
+let pg = null, hintShown = false;
+const lessonEl = document.getElementById("lesson");
+
+function moduleOf(l){ return COURSE.find(m => m.lessons.includes(l)); }
+function renderTOC(){
+  const toc = document.getElementById("toc"); toc.innerHTML = "";
+  for (const m of COURSE){
+    const md = document.createElement("div"); md.className="mod";
+    md.innerHTML = `<h3>${m.icon} ${m.title}</h3>`;
+    for (const l of m.lessons){
+      const done = prog.done.includes(l.id);
+      const a = document.createElement("div");
+      a.className = "lk" + (l===current ? " active" : "");
+      a.innerHTML = `<span class="st">${done ? "✅" : "○"}</span><span>${l.title}</span>`;
+      a.onclick = ()=>{ current=l; hintShown=false; renderAll(); document.getElementById("side").classList.remove("open"); };
+      md.appendChild(a);
+    }
+    toc.appendChild(md);
+  }
+}
+function refreshHeader(){
+  document.getElementById("xp").textContent = prog.xp;
+  const pct = Math.round(prog.done.length / allLessons.length * 100);
+  document.getElementById("progChip").textContent = pct + " %";
+  document.getElementById("progBar").style.width = pct + "%";
+  // badges : un par module complété
+  const b = [];
+  for (const m of COURSE) if (m.lessons.every(l => prog.done.includes(l.id))) b.push(m.icon);
+  document.getElementById("badges").textContent = b.join(" ");
+}
+function renderLesson(){
+  const l = current, m = moduleOf(l);
+  const hasCheck = !!l.check, isRead = l.mode === "read" || (!hasCheck);
+  lessonEl.innerHTML = `
+    <h2>${l.title}</h2>
+    <div class="sub">${m.icon} ${m.title} · ${l.xp} XP</div>
+    <div class="mentor"><div class="av">🤖</div><div class="bubble"><div class="who">Awa, ton guide IA</div><span id="mentorTxt">${l.intro || "On y va !"}</span></div></div>
+    <div class="teach">${l.teach}</div>
+    <div class="box ai"><div class="h">🤖 Demande à l'IA</div>
+      <div class="prompt" id="promptTxt">${esc(l.prompt || "")}</div>
+      <button class="btn copy" onclick="copyPrompt()">📋 Copier ce prompt</button></div>
+    <p class="teach"><b>🎯 Mission :</b> ${l.task || "Lance et observe."}</p>
+    <div class="pg">
+      <div>
+        <textarea class="editor" id="editor" spellcheck="false"></textarea>
+        <div class="pgbtns">
+          <button class="btn run" onclick="runPlay()">▶ ${hasCheck ? "Lancer & vérifier" : "Lancer la démo"}</button>
+          <button class="btn" onclick="resetCode()">↺ Réinitialiser</button>
+          <button class="btn" onclick="showHint()">💡 Indice</button>
+          ${l.solution ? `<button class="btn" onclick="showSolution()">👁 Solution</button>` : ``}
+          ${isRead ? `<button class="btn" onclick="markCompris()">✓ Compris (+${l.xp} XP)</button>` : ``}
+        </div>
+        <div class="banner" id="banner"></div>
+      </div>
+      <div class="out">
+        <div class="stage"><canvas class="cv" id="cv" width="320" height="200"></canvas></div>
+        <div class="console" id="console">▶ Lance ton code pour voir le résultat ici…</div>
+      </div>
+    </div>
+    <div class="nav">
+      <button class="btn" onclick="go(-1)">← Précédent</button>
+      <button class="btn run" onclick="go(1)">Suivant →</button>
+    </div>`;
+  document.getElementById("editor").value = l.starter || "";
+  pg = makePlayground(document.getElementById("cv"), document.getElementById("console"));
+}
+function renderAll(){ renderTOC(); renderLesson(); refreshHeader(); }
+
+function esc(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function setBanner(txt, good){ const b=document.getElementById("banner"); b.textContent=txt; b.className="banner show " + (good?"good":"bad"); }
+function setMentor(txt){ const m=document.getElementById("mentorTxt"); if (m) m.textContent=txt; }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+function award(l){ if (!prog.done.includes(l.id)){ prog.done.push(l.id); prog.xp += l.xp; save(); } refreshHeader(); renderTOC(); }
+
+function runPlay(){
+  const src = document.getElementById("editor").value;
+  pg.run(src);
+  const l = current;
+  if (l.check){
+    let ok=false; try { ok = !!l.check(pg.api); } catch(e){ ok=false; }
+    if (pg.api.error) { setMentor("Il y a une erreur dans le code — regarde la console (en rouge), c'est souvent une parenthèse ou un point-virgule."); setBanner("⛔ " + pg.api.error, false); return; }
+    if (ok){ const first=!prog.done.includes(l.id); award(l); setMentor(pick(PRAISE)); setBanner("✅ Validé ! " + (first?"+"+l.xp+" XP. ":"") + "Clique « Suivant → ».", true); }
+    else { setMentor(hintShown ? l.hint : pick(ENCOURAGE)); setBanner("Pas encore validé. " + (hintShown ? "Indice : " + l.hint : "Clique 💡 Indice."), false); }
+  } else {
+    if (pg.api.error){ setBanner("⛔ " + pg.api.error, false); return; }
+    award(l); setMentor("Bien vu ! Tu peux modifier le code et relancer pour expérimenter.");
+    setBanner("👍 Démo lancée. Tu peux passer à la suite quand tu veux.", true);
+  }
+}
+function markCompris(){ award(current); setMentor("Super, c'est noté ✅. Direction la suite !"); setBanner("✓ Leçon validée. +"+current.xp+" XP", true); }
+function resetCode(){ document.getElementById("editor").value = current.starter || ""; pg.stop(); document.getElementById("console").textContent="▶ Lance ton code…"; pg.api.ctx.clearRect(0,0,pg.api.W,pg.api.H); }
+function showHint(){ hintShown=true; setMentor("💡 " + (current.hint || "Relis bien l'énoncé, étape par étape.")); setBanner("💡 " + (current.hint||""), true); }
+function showSolution(){ if (current.solution){ document.getElementById("editor").value = current.solution; setMentor("Voici une solution. Lis-la, lance-la, puis essaie de la réécrire toi-même !"); } }
+function copyPrompt(){ const t=current.prompt||""; if (navigator.clipboard) navigator.clipboard.writeText(t).then(()=>setMentor("📋 Prompt copié ! Colle-le à une IA (comme Claude) pour t'entraîner.")); else setMentor("Sélectionne le texte du prompt et copie-le (Ctrl+C)."); }
+function go(d){ if (pg) pg.stop(); const i=allLessons.indexOf(current)+d; if (i<0||i>=allLessons.length) return; current=allLessons[i]; hintShown=false; renderAll(); window.scrollTo(0,0); }
+function toggleSide(){ document.getElementById("side").classList.toggle("open"); }
+
+// Tab insère 2 espaces dans l'éditeur
+document.addEventListener("keydown", e=>{
+  if (e.key==="Tab" && e.target && e.target.id==="editor"){ e.preventDefault(); const t=e.target, s=t.selectionStart, en=t.selectionEnd; t.value=t.value.slice(0,s)+"  "+t.value.slice(en); t.selectionStart=t.selectionEnd=s+2; }
+});
+
+renderAll();
+</script>
+</body>
+</html>

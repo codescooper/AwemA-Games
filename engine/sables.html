@@ -203,6 +203,13 @@ const CFG = {
   ],
   // Âge minimal requis pour débloquer chaque unité / bâtiment
   UNLOCK: { villager: 0, maison: 0, champ: 0, caserne: 0, marche: 0, lancier: 0, archer: 1, tour: 1, cavalier: 2, commandant: 0, feticheur: 1, sorcier: 1, atelier: 0, baie: 0, tamtam: 1, foret: 0, cloture: 0, portail: 0, caravane: 0, merveille: 2, eclaireur: 0 },
+  UPGRADES: {                                      // arbre d'améliorations (faction-wide, uniques, achetés au bâtiment concerné)
+    outils:      { name: "Outils de fer", icon: "🪓", at: "atelier", age: 0, mult: 1.35, cost: { wood: 120, gold: 40 },  desc: "Récolte +35%" },
+    forge:       { name: "Forge",         icon: "⚔️", at: "caserne",  age: 1, mult: 1.25, cost: { wood: 120, gold: 120 }, desc: "Attaque militaire +25%" },
+    cuirasse:    { name: "Cuirasses",     icon: "🛡️", at: "caserne",  age: 1, mult: 1.20, cost: { wood: 160, gold: 90 },  desc: "PV des soldats +20%" },
+    comptoir:    { name: "Comptoir",      icon: "💰", at: "marche",   age: 1, mult: 1.30, cost: { wood: 100, gold: 150 }, desc: "Or marché & commerce +30%" },
+    meurtrieres: { name: "Meurtrières",   icon: "🏹", at: "tour",     age: 1, mult: 1.35, cost: { wood: 140, gold: 80 },  desc: "Dégâts des tours +35%" },
+  },
   TRADE_RATE: 0.07, WONDER_TIME: 150,              // commerce (or/px) ; durée du décompte de victoire de la Merveille (s)
   WALL_UP: { max: 3, mult: 0.85, cost: { wood: 120, gold: 60 } },   // clôture : niveaux de résistance (×PV cumulés)
   PROJ_SPEED: 330, AGGRO: 130, VISION: 300, LEASH: 240, RESEED_TIME: 4, RESEED_COST: { wood: 12 }, ESCORT_DIST: 420, THREAT: 95, GATE_OPEN: 58,
@@ -289,6 +296,7 @@ let escortTimer = 0;                               // cadence d'assignation des 
 let gateFlag = { player: false, enemy: false };    // un portail existe-t-il pour ce camp ? (active l'enceinte)
 let stats = { player: { kills: 0, peakPop: 0 }, enemy: { kills: 0, peakPop: 0 } };   // statistiques de partie (écran de score)
 let visGrid = null, fogOn = false, visTimer = 0;   // brouillard de guerre : 0=inexploré 1=exploré(mémoire) 2=visible ; actif pour le joueur hors mode observation
+let upg = { player: {}, enemy: {} };               // améliorations recherchées par camp (arbre d'améliorations)
 let DIFFICULTY = CFG.DIFF.normal;                  // niveau courant (règle l'IA ennemie)
 let lastDiff = "normal";                           // dernier niveau choisi (pour Rejouer)
 const groups = {};                                 // groupes de contrôle 1..9 -> [ids]
@@ -305,7 +313,7 @@ const worldW = () => CFG.MW * CFG.TS, worldH = () => CFG.MH * CFG.TS;
 
 /* ===== CRÉATION D'ENTITÉS ================================================= */
 function makeUnit(faction, type, x, y) {
-  const u = CFG.UNIT[type], hp = Math.round(u.hp * CFG.AGE[age[faction]].hp);
+  const u = CFG.UNIT[type], hp = Math.round(u.hp * CFG.AGE[age[faction]].hp * (type !== "villager" && type !== "caravane" && type !== "eclaireur" ? upgMult(faction, "cuirasse") : 1));   // cuirasses : +PV des soldats
   return { id: nextId++, kind: "unit", faction, type, x, y, hp, maxHp: hp,
     state: "idle", tx: x, ty: y, target: null, gNode: null, lastNodeType: "food", post: null,
     order: null, follow: null, converted: false, flying: !!u.flying, commander: type === "commandant",
@@ -330,8 +338,10 @@ function pay(f, cost) { for (const k in cost) res[f][k] -= cost[k]; }
 const ageOf = f => CFG.AGE[age[f]];
 const fetichMult = f => units.some(u => u.faction === f && u.type === "feticheur" && u.hp > 0) ? CFG.FETICH_MULT : 1;   // ×2 si un féticheur du camp est présent
 const diffPower = f => (spectator || f !== "enemy") ? 1 : DIFFICULTY.power;   // handicap de puissance de l'IA selon la difficulté
-const gatherRate = u => CFG.GATHER_RATE * ageOf(u.faction).gather * fetichMult(u.faction) * (u.converted ? CFG.CONVERT_MULT : 1);
-const effAtk = u => CFG.UNIT[u.type].atk * ageOf(u.faction).atk * fetichMult(u.faction) * diffPower(u.faction) * (u.converted ? CFG.CONVERT_MULT : 1);
+const gatherRate = u => CFG.GATHER_RATE * ageOf(u.faction).gather * fetichMult(u.faction) * upgMult(u.faction, "outils") * (u.converted ? CFG.CONVERT_MULT : 1);
+const hasUpg = (f, id) => !!(upg[f] && upg[f][id]);                       // amélioration acquise ?
+const upgMult = (f, id) => hasUpg(f, id) ? CFG.UPGRADES[id].mult : 1;     // multiplicateur (1 si non acquise)
+const effAtk = u => CFG.UNIT[u.type].atk * ageOf(u.faction).atk * fetichMult(u.faction) * diffPower(u.faction) * upgMult(u.faction, "forge") * (u.converted ? CFG.CONVERT_MULT : 1);
 const unlocked = (f, type) => age[f] >= (CFG.UNLOCK[type] || 0);
 
 function canAdvance(f) {
@@ -799,7 +809,7 @@ function updateUnit(u, dt) {
       if (!u.tradeDest || u.tradeDest.hp <= 0 || !u.tradeHome || u.tradeHome.hp <= 0) { setupTrade(u, u.faction); if (!u.tradeDest) { u.state = "idle"; break; } }
       const dd = u.tradeDest;
       if (dist(u.x, u.y, dd.x, dd.y) < Math.max(dd.hw, dd.hh) + U.r + 8) {
-        const gain = Math.round(dist(u.tradeHome.x, u.tradeHome.y, dd.x, dd.y) * CFG.TRADE_RATE);
+        const gain = Math.round(dist(u.tradeHome.x, u.tradeHome.y, dd.x, dd.y) * CFG.TRADE_RATE * upgMult(u.faction, "comptoir"));
         res[u.faction].gold += gain;
         if (u.faction === "player") floats.push({ x: dd.x, y: dd.y - dd.hh - 6, text: "+" + gain + "✦", color: "#f0c64a", t: 0, vy: -24 });
         const tmp = u.tradeHome; u.tradeHome = u.tradeDest; u.tradeDest = tmp;   // repart vers l'autre pôle
@@ -985,7 +995,7 @@ function deployUnit(u, b) {                 // affecte automatiquement l'unité 
 }
 function updateBuilding(b, dt) {
   if (b.progress >= 1) {
-    if (b.type === "marche") res[b.faction].gold += CFG.BLD.marche.gold * dt;
+    if (b.type === "marche") res[b.faction].gold += CFG.BLD.marche.gold * dt * upgMult(b.faction, "comptoir");
     if (b.type === "baie") res[b.faction].food += CFG.BLD.baie.food * dt;     // pêche aux pirogues
     if (b.forest && !b.matured) { b.matureT -= dt; if (b.matureT <= 0) { b.matured = true; const n = makeNode("wood", b.x, b.y, CFG.BLD.foret.wood); n.r = 16; n.fromForest = b; b.woodNode = n; nodes.push(n); spawnDust(b.x, b.y, 12, "#3f8f5a"); } }   // forêt mûre → bois récoltable
     if (b.gate) b.open = units.some(u => u.faction === b.faction && u.hp > 0 && dist(u.x, u.y, b.x, b.y) < CFG.GATE_OPEN);   // portail : s'ouvre à l'approche d'un habitant
@@ -993,7 +1003,7 @@ function updateBuilding(b, dt) {
     if (b.type === "tamtam" && b.cd > 0) b.cd = Math.max(0, b.cd - dt);        // récupération du chant
     if (b.type === "tour") {
       b.cd = Math.max(0, b.cd - dt);
-      if (b.cd <= 0) { const e = nearestEnemyUnit(b.x, b.y, b.faction, CFG.BLD.tour.range); if (e) { b.cd = CFG.BLD.tour.cd; spawnArrow(b.x, b.y - b.hh, e, b.faction, CFG.BLD.tour.atk * ageOf(b.faction).atk, "tour"); } }
+      if (b.cd <= 0) { const e = nearestEnemyUnit(b.x, b.y, b.faction, CFG.BLD.tour.range); if (e) { b.cd = CFG.BLD.tour.cd; spawnArrow(b.x, b.y - b.hh, e, b.faction, CFG.BLD.tour.atk * ageOf(b.faction).atk * upgMult(b.faction, "meurtrieres"), "tour"); } }
     }
     if (b.hp < b.maxHp * 0.4) { b.smokeT -= dt; if (b.smokeT <= 0) { b.smokeT = 0.35; spawnSmoke(b.x + rand(-b.hw * 0.6, b.hw * 0.6), b.y - b.hh * 0.3, 1); } }
   }
@@ -1093,6 +1103,7 @@ function aiUpdate(f) {
 
   // 3) avancer d'Âge dès que les conditions sont remplies (sans attendre)
   if (!advancing[f]) { const c = canAdvance(f); if (c.ok) startAdvance(f); }
+  if (DIFFICULTY.tech) aiResearch(f);                // se technologise (forge/cuirasses/comptoir/outils/meurtrières)
 
   // 4) CONSTRUCTION — un seul chantier à la fois, par PRIORITÉ : chemin militaire/âge d'abord, éco de confort ensuite
   if (!chantier) {
@@ -1793,6 +1804,7 @@ function refreshCmd() {
       if (b.type === "caserne") { html += trainBtn("🗡️ Lancier", "lancier"); html += trainBtn("🏹 Archer", "archer"); html += trainBtn("🐎 Cavalier", "cavalier"); }
       if (b.type === "marche") { html += trainBtn("🐪 Caravane", "caravane"); html += `<span class="mini" style="align-self:center">la caravane fait l'or-sel entre 2 marchés/Cité — protège-la des razzias</span>`; }
       if (b.type === "tamtam") html += actBtn("🥁 Chant des esprits", b.cd > 0 ? "⏳ " + Math.ceil(b.cd) + "s" : CFG.CHANT.per + " esprits / soldat", "chantSel()", b.cd <= 0, "adv");
+      html += upgButtons(b.type);                  // arbre d'améliorations (forge/cuirasses, comptoir, outils, meurtrières)
       html += `<span class="mini" style="align-self:center">Clic droit = ralliement ⚑ (sur ressource = récolte auto, sur ennemi = attaque)</span>`;
     }
     if (b.faction === "player" && b.type !== "cite") html += actBtn("💥 Détruire", "+40 % rendu", "demolishSel()", true);
@@ -1814,6 +1826,32 @@ function refreshCmd() {
   info.innerHTML = info2; act.innerHTML = html;
 }
 function trainSel(type) { if (selBld) trainAt(selBld, type); }
+function upgButtons(at) {                            // boutons d'amélioration disponibles à ce type de bâtiment
+  let h = "";
+  for (const id in CFG.UPGRADES) { const U = CFG.UPGRADES[id]; if (U.at !== at) continue;
+    if (hasUpg("player", id)) h += actBtn(U.icon + " " + U.name, "✓ acquis", "", false, "adv");
+    else if (age.player < U.age) h += actBtn(U.icon + " " + U.name, CFG.AGE[U.age].name + " requis", "", false);
+    else h += actBtn(U.icon + " " + U.name, costStr(U.cost) + " · " + U.desc, "researchSel('" + id + "')", canAfford("player", U.cost), "adv");
+  }
+  return h;
+}
+function research(f, id) {                           // achète une amélioration pour le camp f
+  const U = CFG.UPGRADES[id]; if (!U || hasUpg(f, id) || age[f] < U.age || !canAfford(f, U.cost)) return false;
+  if (!buildings.some(b => b.faction === f && b.type === U.at && b.progress >= 1)) return false;
+  pay(f, U.cost); upg[f][id] = true;
+  if (id === "cuirasse") for (const x of units) if (x.faction === f && isMil(x) && x.hp > 0) { x.maxHp = Math.round(x.maxHp * U.mult); x.hp = Math.round(x.hp * U.mult); }   // PV rétroactif
+  if (f === "player") { SND.play("done"); tip("🔧 " + U.name + " — " + U.desc); refreshCmd(); }
+  return true;
+}
+function researchSel(id) { research("player", id); }
+function aiResearch(f) {                             // l'IA se technologise (égalité des deux IA)
+  for (const id in CFG.UPGRADES) { const U = CFG.UPGRADES[id];
+    if (hasUpg(f, id) || age[f] < U.age || !canAfford(f, U.cost)) continue;
+    if (!buildings.some(b => b.faction === f && b.type === U.at && b.progress >= 1)) continue;
+    if (res[f].gold - (U.cost.gold || 0) < 50) continue;   // garde une réserve d'or pour l'armée
+    research(f, id); return;                                 // une amélioration par passe
+  }
+}
 function advanceSel() { startAdvance("player"); }
 function startBuild(type) { if (!unlocked("player", type)) { tip("⚠ " + CFG.AGE[CFG.UNLOCK[type]].name + " requis"); return; } if (!canAfford("player", CFG.COST[type])) { tip("⚠ Pas assez de ressources"); return; } buildMode = type; refreshCmd(); }
 function cancelBuild() { buildMode = null; refreshCmd(); }
@@ -1892,6 +1930,7 @@ function startGame(diff, spec) {
   running = true; over = false; won = false; gameT = 0; nextId = 1; aiTimer = 0.5; tipTimer = 14; codexOpen = false; spectator = !!spec;
   stats = { player: { kills: 0, peakPop: 0 }, enemy: { kills: 0, peakPop: 0 } };
   visGrid = new Uint8Array(CFG.MW * CFG.MH); fogOn = !spectator; visTimer = 0;   // brouillard actif sauf en mode observation (IA vs IA : tout visible)
+  upg = { player: {}, enemy: {} };
   DIFFICULTY = CFG.DIFF[diff] || CFG.DIFF[lastDiff] || CFG.DIFF.normal; if (CFG.DIFF[diff]) lastDiff = diff;   // niveau choisi (en observation, les 2 IA partagent ce réglage)
   if (!terrain) buildTerrain();
   fish = []; for (const L of lakes) for (let i = 0; i < 7; i++) fish.push(makeFish(L));   // bancs de poissons animés

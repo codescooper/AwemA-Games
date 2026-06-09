@@ -70,6 +70,7 @@
   <span class="sp"></span>
   <span class="res mini" id="clock">0:00</span>
   <button class="tbtn on" id="sndBtn" onclick="toggleSound()" title="Son (touche M)">🔊</button>
+  <button class="tbtn on" id="pxBtn" onclick="togglePixel()" title="Style pixel art (touche P)">▦ Pixel</button>
   <button class="tbtn" id="cmdBtn" onclick="selectCommander()" title="Sélectionner le commandant (touche C)">🎖️</button>
   <button class="tbtn" id="idleBtn" onclick="cycleIdle()" title="Sélectionner le prochain villageois oisif (touche .)">💤 0</button>
   <button class="tbtn on" id="autoBtn" onclick="toggleAuto()" title="Auto-emploi : les villageois oisifs vont récolter seuls">⚙ Auto</button>
@@ -282,6 +283,7 @@ const SND = (function () {
 /* ===== ÉTAT =============================================================== */
 const cv = document.getElementById("game"), ctx = cv.getContext("2d");
 let CSSW = 0, CSSH = 0, DPR = 1, terrain = null;
+let PXS = 3, pixelMode = true;   // pixel art : le canvas est rendu en basse résolution (÷PXS) puis agrandi en nearest-neighbor
 let units = [], buildings = [], nodes = [], floats = [], parts = [], projectiles = [], corpses = [], rubble = [], birds = [], animals = [], spirits = [], lakes = [], fish = [], pirogues = [];
 let nav = null, navTimer = 0, pathBudget = 0;      // grille de navigation A* (obstacles statiques) + budget de calcul/frame
 let res = { player: { food: 0, wood: 0, gold: 0 }, enemy: { food: 0, wood: 0, gold: 0 } };
@@ -1262,7 +1264,7 @@ function update(dt) {
 }
 
 /* ===== CAMÉRA ============================================================= */
-function clampCam() { cam.x = clamp(cam.x, 0, Math.max(0, worldW() - CSSW)); cam.y = clamp(cam.y, 0, Math.max(0, worldH() - CSSH)); }
+function clampCam() { cam.x = clamp(cam.x, 0, Math.max(0, worldW() - CSSW)); cam.y = clamp(cam.y, 0, Math.max(0, worldH() - CSSH)); if (pixelMode) { cam.x = Math.round(cam.x); cam.y = Math.round(cam.y); } }   // caméra entière en mode pixel (réduit le scintillement)
 const sx = wx => wx - cam.x, sy = wy => wy - cam.y;
 const wx = s => s + cam.x, wy = s => s + cam.y;
 
@@ -1885,6 +1887,8 @@ function summonSorcier(fet) {                            // le féticheur invoqu
 function summonSel() { summonSorcier([...sel].map(unitById).find(u => u && u.type === "feticheur")); }
 function toggleAuto() { autoEmploy = !autoEmploy; const b = document.getElementById("autoBtn"); b.classList.toggle("on", autoEmploy); tip(autoEmploy ? "⚙ Auto-emploi activé" : "⚙ Auto-emploi désactivé"); }
 function toggleSound() { const m = SND.toggleMute(); const b = document.getElementById("sndBtn"); if (b) { b.textContent = m ? "🔇" : "🔊"; b.classList.toggle("on", !m); } }
+function togglePixel() { pixelMode = !pixelMode; const b = document.getElementById("pxBtn"); if (b) b.classList.toggle("on", pixelMode); resize(); tip(pixelMode ? "▦ Pixel art activé (finesse " + PXS + " · touches [ et ])" : "Pixel art désactivé (rendu net)"); }
+function setPixelSize(p) { PXS = clamp(p, 2, 6); if (pixelMode) { resize(); tip("▦ Finesse des pixels : " + PXS + (PXS === 2 ? " (fin)" : PXS >= 5 ? " (gros)" : "")); } }
 
 /* ===== HUD ================================================================ */
 function syncTop() {
@@ -1991,6 +1995,9 @@ window.addEventListener("keydown", e => {
   if (k === "h") { const c = buildings.find(b => b.faction === "player" && b.type === "cite"); if (c) { sel.clear(); selBld = c; cam.x = c.x - CSSW / 2; cam.y = c.y - CSSH / 2; clampCam(); refreshCmd(); } }
   if (k === "c" && !e.ctrlKey) selectCommander();
   if (k === "m") toggleSound();
+  if (k === "p") togglePixel();
+  if (k === "]") setPixelSize(PXS + 1);
+  if (k === "[") setPixelSize(PXS - 1);
   if (k >= "1" && k <= "9") {                       // groupes de contrôle
     if (e.ctrlKey || e.metaKey) { e.preventDefault(); groups[k] = [...sel]; tip("Groupe " + k + " enregistré (" + sel.size + ")"); }
     else { const g = (groups[k] || []).filter(id => unitById(id)); if (g.length) { sel = new Set(g); selBld = null; refreshCmd(); } }
@@ -2001,8 +2008,14 @@ window.addEventListener("blur", () => { for (const k in keys) keys[k] = false; m
 
 function resize() {
   DPR = Math.min(window.devicePixelRatio || 1, 2); CSSW = window.innerWidth; CSSH = window.innerHeight;
-  cv.width = Math.round(CSSW * DPR); cv.height = Math.round(CSSH * DPR);
-  cv.style.width = CSSW + "px"; cv.style.height = CSSH + "px"; ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  cv.style.width = CSSW + "px"; cv.style.height = CSSH + "px";
+  if (pixelMode) {   // backing store réduit → tout est rasterisé en gros pixels, le CSS agrandit en nearest-neighbor
+    cv.width = Math.max(1, Math.ceil(CSSW / PXS)); cv.height = Math.max(1, Math.ceil(CSSH / PXS));
+    cv.style.imageRendering = "pixelated"; ctx.setTransform(1 / PXS, 0, 0, 1 / PXS, 0, 0); ctx.imageSmoothingEnabled = false;
+  } else {
+    cv.width = Math.round(CSSW * DPR); cv.height = Math.round(CSSH * DPR);
+    cv.style.imageRendering = "auto"; ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.imageSmoothingEnabled = true;
+  }
   clampCam();
 }
 window.addEventListener("resize", resize); resize();

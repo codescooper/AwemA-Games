@@ -283,7 +283,7 @@ const SND = (function () {
 /* ===== ÉTAT =============================================================== */
 const cv = document.getElementById("game"); let ctx = cv.getContext("2d");   // ctx réassignable : redirigé vers le calque d'entités pour le contour
 let CSSW = 0, CSSH = 0, DPR = 1, terrain = null;
-let PXS = 2, pixelMode = true;   // pixel art : taille d'un pixel d'art en pixels ÉCRAN (DPR pris en compte) ; bas = net, haut = gros
+let PXS = 1, pixelMode = true;   // pixel art : taille d'un pixel d'art en pixels ÉCRAN (DPR pris en compte) ; 1 = résolution native (max netteté), haut = gros
 let entLayer = null, entCtx = null, silLayer = null, silCtx = null, outlineOn = true;   // calque des sprites + silhouette (contour noir pixel art)
 let units = [], buildings = [], nodes = [], floats = [], parts = [], projectiles = [], corpses = [], rubble = [], birds = [], animals = [], spirits = [], lakes = [], fish = [], pirogues = [];
 let nav = null, navTimer = 0, pathBudget = 0;      // grille de navigation A* (obstacles statiques) + budget de calcul/frame

@@ -283,7 +283,7 @@ const SND = (function () {
 /* ===== ÉTAT =============================================================== */
 const cv = document.getElementById("game"); let ctx = cv.getContext("2d");   // ctx réassignable : redirigé vers le calque d'entités pour le contour
 let CSSW = 0, CSSH = 0, DPR = 1, terrain = null;
-let PXS = 3, pixelMode = true;   // pixel art : le canvas est rendu en basse résolution (÷PXS) puis agrandi en nearest-neighbor
+let PXS = 2, pixelMode = true;   // pixel art : taille d'un pixel d'art en pixels ÉCRAN (DPR pris en compte) ; bas = net, haut = gros
 let entLayer = null, entCtx = null, silLayer = null, silCtx = null, outlineOn = true;   // calque des sprites + silhouette (contour noir pixel art)
 let units = [], buildings = [], nodes = [], floats = [], parts = [], projectiles = [], corpses = [], rubble = [], birds = [], animals = [], spirits = [], lakes = [], fish = [], pirogues = [];
 let nav = null, navTimer = 0, pathBudget = 0;      // grille de navigation A* (obstacles statiques) + budget de calcul/frame
@@ -1366,7 +1366,7 @@ function draw() {
   if (pixelMode && outlineOn && entCtx) {            // contour noir pixel art : rendu des sprites sur un calque, composité avec un liseré décalé
     const Wb = cv.width, Hb = cv.height, main = ctx;
     entCtx.setTransform(1, 0, 0, 1, 0, 0); entCtx.clearRect(0, 0, Wb, Hb);
-    entCtx.setTransform(1 / PXS, 0, 0, 1 / PXS, 0, 0); entCtx.imageSmoothingEnabled = false;
+    entCtx.setTransform(Wb / CSSW, 0, 0, Hb / CSSH, 0, 0); entCtx.imageSmoothingEnabled = false;
     ctx = entCtx;                                    // les fonctions de dessin écrivent maintenant sur le calque
     for (const e of drawables) e.kind === "building" ? drawBuilding(e) : e.kind === "animal" ? drawAnimal(e) : drawUnit(e);
     ctx = main;
@@ -1906,7 +1906,7 @@ function summonSel() { summonSorcier([...sel].map(unitById).find(u => u && u.typ
 function toggleAuto() { autoEmploy = !autoEmploy; const b = document.getElementById("autoBtn"); b.classList.toggle("on", autoEmploy); tip(autoEmploy ? "⚙ Auto-emploi activé" : "⚙ Auto-emploi désactivé"); }
 function toggleSound() { const m = SND.toggleMute(); const b = document.getElementById("sndBtn"); if (b) { b.textContent = m ? "🔇" : "🔊"; b.classList.toggle("on", !m); } }
 function togglePixel() { pixelMode = !pixelMode; const b = document.getElementById("pxBtn"); if (b) b.classList.toggle("on", pixelMode); resize(); tip(pixelMode ? "▦ Pixel art activé (finesse " + PXS + " · touches [ et ])" : "Pixel art désactivé (rendu net)"); }
-function setPixelSize(p) { PXS = clamp(p, 2, 6); if (pixelMode) { resize(); tip("▦ Finesse des pixels : " + PXS + (PXS === 2 ? " (fin)" : PXS >= 5 ? " (gros)" : "")); } }
+function setPixelSize(p) { PXS = clamp(p, 1, 6); if (pixelMode) { resize(); tip("▦ Taille des pixels : " + PXS + (PXS <= 1 ? " (très net)" : PXS === 2 ? " (net)" : PXS >= 5 ? " (gros)" : "")); } }
 
 /* ===== HUD ================================================================ */
 function syncTop() {
@@ -2027,9 +2027,11 @@ window.addEventListener("blur", () => { for (const k in keys) keys[k] = false; m
 function resize() {
   DPR = Math.min(window.devicePixelRatio || 1, 2); CSSW = window.innerWidth; CSSH = window.innerHeight;
   cv.style.width = CSSW + "px"; cv.style.height = CSSH + "px";
-  if (pixelMode) {   // backing store réduit → tout est rasterisé en gros pixels, le CSS agrandit en nearest-neighbor
-    cv.width = Math.max(1, Math.ceil(CSSW / PXS)); cv.height = Math.max(1, Math.ceil(CSSH / PXS));
-    cv.style.imageRendering = "pixelated"; ctx.setTransform(1 / PXS, 0, 0, 1 / PXS, 0, 0); ctx.imageSmoothingEnabled = false;
+  if (pixelMode) {   // backing = résolution écran (CSS×DPR) ÷ PXS → net (upscale quasi entier) et bien plus détaillé qu'avant
+    const dw = Math.round(CSSW * DPR), dh = Math.round(CSSH * DPR);
+    cv.width = Math.max(1, Math.ceil(dw / PXS)); cv.height = Math.max(1, Math.ceil(dh / PXS));
+    cv.style.imageRendering = "pixelated"; if (cv.style.imageRendering !== "pixelated") cv.style.imageRendering = "crisp-edges";   // fallback Firefox
+    ctx.setTransform(cv.width / CSSW, 0, 0, cv.height / CSSH, 0, 0); ctx.imageSmoothingEnabled = false;
     if (!entLayer) { entLayer = document.createElement("canvas"); entCtx = entLayer.getContext("2d"); silLayer = document.createElement("canvas"); silCtx = silLayer.getContext("2d"); }
     entLayer.width = silLayer.width = cv.width; entLayer.height = silLayer.height = cv.height;   // calques à la résolution du backing store
   } else {

@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Tam-Tam — le cercle de danse</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html,body { margin:0; height:100%; overflow:hidden; background:#0d0a14; color:#f5edd9;
+    font-family:system-ui,-apple-system,sans-serif; -webkit-user-select:none; user-select:none; touch-action:none; }
+  #cv { display:block; width:100vw; height:100vh; }
+  .menu-link { position:fixed; top:.6rem; right:.7rem; z-index:6; color:#ffd9a8; text-decoration:none; font-size:.82rem;
+    background:#0008; border:1px solid #ffffff22; padding:.25rem .55rem; border-radius:.5rem; }
+  .ov { position:fixed; inset:0; z-index:5; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:radial-gradient(900px 520px at 50% 30%, #241a3acc, #0d0a14f2); padding:1.2rem; text-align:center; gap:.55rem; }
+  .ov.hide { display:none; }
+  h1 { margin:.2rem; font-size:clamp(1.7rem,6.5vw,3rem); letter-spacing:1px; text-shadow:0 0 26px #e8702a66; }
+  .sub { opacity:.85; max-width:620px; line-height:1.55; font-size:.95rem; }
+  .big { font:inherit; font-weight:800; font-size:1.05rem; padding:.7rem 1.4rem; border-radius:.7rem; border:0; cursor:pointer;
+    background:linear-gradient(180deg,#ffb24d,#e8702a); color:#2a1404; box-shadow:0 8px 30px #e8702a55; margin-top:.4rem; }
+  .big:active { transform:translateY(1px); }
+  .hint { font-size:.82rem; opacity:.62; }
+  .stars { font-size:2.1rem; letter-spacing:.3rem; }
+  .keys { display:flex; gap:1.2rem; justify-content:center; font-size:.88rem; opacity:.85; flex-wrap:wrap; }
+  .keys b { background:#ffffff18; border:1px solid #ffffff2e; border-radius:.4rem; padding:.1rem .5rem; }
+  /* HUD */
+  #hud { position:fixed; inset:0; pointer-events:none; z-index:4; }
+  #hud.hide { display:none; }
+  #danseNom { position:fixed; top:8px; left:12px; font-weight:700; font-size:.92rem; text-shadow:0 2px 6px #000; }
+  #prog { position:fixed; top:30px; left:12px; width:180px; max-width:40vw; height:7px; background:#0008;
+    border:1px solid #ffffff22; border-radius:4px; overflow:hidden; }
+  #prog>i { display:block; height:100%; width:0; background:linear-gradient(90deg,#e8702a,#ffd54a); }
+  #coeurs { position:fixed; top:8px; left:50%; transform:translateX(-50%); font-size:1.05rem; letter-spacing:2px;
+    text-shadow:0 2px 6px #000; }
+  #scoreBox { position:fixed; top:8px; right:12px; text-align:right; font-variant-numeric:tabular-nums;
+    text-shadow:0 2px 6px #000; font-size:.92rem; }
+  #scoreBox b { font-size:1.1rem; color:#ffd54a; }
+</style>
+</head>
+<body>
+  <canvas id="cv"></canvas>
+  <a class="menu-link" href="index.html">≡ Menu</a>
+
+  <div id="hud" class="hide">
+    <div id="danseNom"></div>
+    <div id="prog"><i></i></div>
+    <div id="coeurs"></div>
+    <div id="scoreBox"><b id="score">0</b><br><span id="comboTxt"></span></div>
+  </div>
+
+  <div id="menu" class="ov">
+    <h1>🥁 TAM-TAM</h1>
+    <div class="sub">La nuit est tombée, le cercle de danse s'est formé. Des <b>esprits masqués</b> s'avancent vers ton djembé,
+      <b>en rythme</b> — frappe au moment <b>exact</b> où ils touchent le cercle de feu&nbsp;: main <b>gauche</b> pour ceux de gauche,
+      main <b>droite</b> pour ceux de droite. Trois danses, de plus en plus endiablées. Rate trop de frappes… et la transe t'emporte.</div>
+    <div class="keys"><span>◀ gauche : <b>Q</b> / <b>←</b> / tape à gauche</span><span>droite ▶ : <b>D</b> / <b>→</b> / tape à droite</span></div>
+    <button class="big" onclick="startRun()">Entrer dans le cercle ▶</button>
+    <div class="hint" id="bestTxt"></div>
+  </div>
+
+  <div id="inter" class="ov hide">
+    <h1>✨ Danse suivante</h1>
+    <div class="sub" id="interTxt"></div>
+    <button class="big" onclick="nextDanse()">Continuer ▶</button>
+  </div>
+
+  <div id="won" class="ov hide">
+    <h1>👑 Maître du tam-tam !</h1>
+    <div class="stars" id="wonStars"></div>
+    <div class="sub" id="wonTxt"></div>
+    <button class="big" onclick="startRun()">Rejouer ▶</button>
+    <a class="hint" href="index.html" style="color:#ffd9a8">← Menu</a>
+  </div>
+
+  <div id="lost" class="ov hide">
+    <h1>🌑 La transe t'a emporté…</h1>
+    <div class="sub" id="lostTxt"></div>
+    <button class="big" onclick="startRun()">Retenter ▶</button>
+    <a class="hint" href="index.html" style="color:#ffd9a8">← Menu</a>
+  </div>
+
+<script>
+/* ============================================================================
+   TAM-TAM — combat rythmique. 100% local, hors-ligne, audio 100% WebAudio.
+   UNE seule horloge (audio si disponible, sinon interne) pilote les sons
+   programmés ET les esprits : la synchro est garantie par construction.
+   Le jugement se fait sur les NOTES (données pures) — les sprites ne sont
+   qu'une projection visuelle. Testable sans audio via timeSkew.
+   ========================================================================== */
+const cv=document.getElementById("cv"), ctx=cv.getContext("2d");
+let DPR=1, W=0, H=0;
+function resize(){ DPR=Math.min(devicePixelRatio||1,2); W=innerWidth; H=innerHeight;
+  cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR); ctx.setTransform(DPR,0,0,DPR,0,0); }
+addEventListener("resize", resize); resize();
+addEventListener("error", ev=>{ try{ let d=document.getElementById("errband");
+  if(!d){ d=document.createElement("div"); d.id="errband"; d._n=0;
+    d.style.cssText="position:fixed;left:8px;top:8px;right:8px;z-index:99;background:#5a1410;color:#ffd9d0;border:1px solid #ff6b6b;border-radius:8px;padding:8px 10px;font:13px/1.4 system-ui;white-space:pre-wrap";
+    document.body.appendChild(d); }
+  d._n++; d.textContent="⛔ Erreur"+(d._n>1?" ×"+d._n:"")+" : "+(ev.message||"inconnue")+(ev.lineno?" (ligne "+ev.lineno+")":""); }catch(e){} });
+
+const TAU=Math.PI*2, rand=(a,b)=>a+Math.random()*(b-a), clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const BEST_KEY="tamtam_best";
+
+/* ---- horloge unique (audio si dispo, sinon interne) ; timeSkew = test/debug ---- */
+let ac=null, audioOk=false, timeSkew=0;
+function initAudio(){ if(!ac){ try{ ac=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  if (ac && ac.state==="suspended"){ try{ ac.resume(); }catch(e){} }
+  audioOk = !!(ac && ac.state==="running"); }
+function nowSec(){ return (audioOk? ac.currentTime : performance.now()/1000) + timeSkew; }
+
+/* ---- percussions procédurales ---- */
+function sBass(t){ if(!audioOk) return; const o=ac.createOscillator(), g=ac.createGain();
+  o.type="sine"; o.frequency.setValueAtTime(82,t); o.frequency.exponentialRampToValueAtTime(44,t+0.11);
+  g.gain.setValueAtTime(0.5,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.16);
+  o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t+0.18); }
+function noiseBuf(dur){ const n=ac.createBufferSource(), len=Math.max(1,ac.sampleRate*dur|0),
+  buf=ac.createBuffer(1,len,ac.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len); n.buffer=buf; return n; }
+function sSlap(t,v){ if(!audioOk) return; const n=noiseBuf(0.06), f=ac.createBiquadFilter(), g=ac.createGain();
+  f.type="highpass"; f.frequency.value=1400; g.gain.setValueAtTime(v||0.3,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.06);
+  n.connect(f); f.connect(g); g.connect(ac.destination); n.start(t); }
+function sTek(t,side){ if(!audioOk) return; const n=noiseBuf(0.05), f=ac.createBiquadFilter(), g=ac.createGain();
+  f.type="bandpass"; f.frequency.value=side==="L"?620:980; f.Q.value=4;
+  g.gain.setValueAtTime(0.34,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.07);
+  n.connect(f); f.connect(g); g.connect(ac.destination); n.start(t); }
+function sShake(t){ if(!audioOk) return; const n=noiseBuf(0.03), f=ac.createBiquadFilter(), g=ac.createGain();
+  f.type="highpass"; f.frequency.value=6000; g.gain.setValueAtTime(0.07,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.03);
+  n.connect(f); f.connect(g); g.connect(ac.destination); n.start(t); }
+function sClick(t){ if(!audioOk) return; const o=ac.createOscillator(), g=ac.createGain();
+  o.type="square"; o.frequency.value=1100; g.gain.setValueAtTime(0.12,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.05);
+  o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t+0.06); }
+
+/* ---- les trois danses ---- */
+const DANSES=[
+  { name:"Danse de l'accueil", bpm:92,  measures:14, density:0 },
+  { name:"Danse des masques",  bpm:112, measures:16, density:1 },
+  { name:"Danse du feu",       bpm:132, measures:18, density:2 },
+];
+/* motifs par mesure (grille de croches : 8 pas), choisis selon la densité */
+const PATTERNS=[
+  [ [[0,"L"],[4,"R"]], [[0,"L"],[2,"R"],[4,"L"],[6,"R"]], [[0,"R"],[4,"L"]], [[0,"L"],[4,"R"],[6,"R"]] ],
+  [ [[0,"L"],[2,"R"],[4,"L"],[6,"R"]], [[0,"L"],[1,"L"],[4,"R"]], [[0,"R"],[2,"R"],[4,"L"],[6,"L"]], [[0,"L"],[4,"R"],[5,"R"],[6,"L"]] ],
+  [ [[0,"L"],[1,"R"],[4,"L"],[5,"R"]], [[0,"L"],[2,"L"],[4,"R"],[6,"R"],[7,"L"]], [[0,"R"],[1,"R"],[2,"L"],[4,"R"],[6,"L"]], [[0,"L"],[2,"R"],[3,"L"],[4,"R"],[6,"L"],[7,"R"]] ],
+];
+const TRAVEL=1.6, WIN_PERFECT=0.075, WIN_GOOD=0.16;   // fenêtres de jugement (s)
+const COUNT_IN=4;                                       // 4 temps d'appel
+
+let state="menu";          // menu | play | inter | won | lost
+let danse=0, notes=[], sounds=[], soundIdx=0, startT=0, endT=0;
+let hearts=5, score=0, combo=0, maxCombo=0, stats={parfait:0,bien:0,miss:0,whiff:0}, totalNotes=0;
+let judgeFx=null, beatFx=0, hitFx={L:0,R:0}, shake=0, runStats=[];
+
+function buildDanse(d){
+  const D=DANSES[d], spb=60/D.bpm, t0=nowSec()+0.8;
+  startT=t0; notes=[]; sounds=[]; soundIdx=0;
+  for (let b=0;b<COUNT_IN;b++) sounds.push({t:t0+b*spb, k:"click"});
+  const off=t0+COUNT_IN*spb;
+  for (let m=0;m<D.measures;m++){
+    const pool=PATTERNS[Math.min(D.density + (m>=D.measures-4?0:0), PATTERNS.length-1)];
+    const extra=(m>=D.measures*0.6 && D.density<2)? PATTERNS[D.density+1] : null;   // fin de danse : ça s'intensifie
+    const pat=(extra && Math.random()<0.4 ? extra : pool)[Math.floor(Math.random()*4)];
+    for (const [sub,side] of pat){
+      const t=off+(m*8+sub)*spb/2;
+      notes.push({ t, side, st:"pending" });
+      sounds.push({ t, k:"tek", side });
+    }
+    for (let b=0;b<4;b++){ sounds.push({t:off+(m*4+b)*spb, k:(b===0||b===2)?"bass":"slap"});
+      for (let s=0;s<2;s++) sounds.push({t:off+(m*4+b)*spb+s*spb/2, k:"shake"}); }
+  }
+  notes.sort((a,b)=>a.t-b.t); sounds.sort((a,b)=>a.t-b.t);
+  totalNotes=notes.length;
+  endT=(notes.length?notes[notes.length-1].t:off)+1.2;
+}
+
+function startRun(){ initAudio(); danse=0; hearts=5; score=0; combo=0; maxCombo=0;
+  stats={parfait:0,bien:0,miss:0,whiff:0}; runStats=[];
+  for (const o of ["menu","inter","won","lost"]) document.getElementById(o).classList.add("hide");
+  document.getElementById("hud").classList.remove("hide");
+  buildDanse(0); state="play"; syncHUD(); }
+function nextDanse(){ document.getElementById("inter").classList.add("hide");
+  danse++; buildDanse(danse); state="play"; syncHUD(); }
+
+function endDanse(){
+  runStats.push({ name:DANSES[danse].name, parfait:stats.parfait, bien:stats.bien, miss:stats.miss });
+  if (danse>=DANSES.length-1) return winRun();
+  state="inter";
+  document.getElementById("interTxt").innerHTML=
+    `« ${DANSES[danse].name} » achevée — combo max <b>${maxCombo}</b>.<br>La suivante bat à <b>${DANSES[danse+1].bpm} BPM</b>… reste dans le rythme !`;
+  document.getElementById("inter").classList.remove("hide");
+}
+function winRun(){
+  state="won";
+  const hits=stats.parfait+stats.bien, acc=hits/Math.max(1,hits+stats.miss);
+  const st=acc>=0.95?3:acc>=0.85?2:1;
+  let best=0; try{ best=+(localStorage.getItem(BEST_KEY)||0); if (score>best){ best=score; localStorage.setItem(BEST_KEY,String(best)); } }catch(e){}
+  document.getElementById("wonStars").textContent="★".repeat(st)+"☆".repeat(3-st);
+  document.getElementById("wonTxt").innerHTML=
+    `Les trois danses sont à toi. Score <b>${score}</b> · précision <b>${Math.round(acc*100)}%</b> · combo max <b>${maxCombo}</b>.<br><span class="hint">Record : ${best}</span>`;
+  document.getElementById("hud").classList.add("hide");
+  document.getElementById("won").classList.remove("hide");
+}
+function loseRun(){
+  state="lost";
+  try{ const b=+(localStorage.getItem(BEST_KEY)||0); if (score>b) localStorage.setItem(BEST_KEY,String(score)); }catch(e){}
+  document.getElementById("lostTxt").innerHTML=
+    `Danse ${danse+1}/3 — score <b>${score}</b>, combo max <b>${maxCombo}</b>.<br>Conseil : écoute le <b>tek</b> aigu — chaque esprit a le sien.`;
+  document.getElementById("hud").classList.add("hide");
+  document.getElementById("lost").classList.remove("hide");
+}
+
+/* ---- jugement : sur les notes, indépendant du rendu ---- */
+function handleHit(side, tNow){
+  if (state!=="play") return null;
+  const now = tNow!==undefined? tNow : nowSec();
+  if (audioOk) sSlap(ac.currentTime, 0.34);
+  hitFx[side]=1;
+  let best=null, bd=1e9;
+  for (const n of notes){ if (n.st!=="pending"||n.side!==side) continue;
+    const d=Math.abs(n.t-now); if (d<bd){ bd=d; best=n; } }
+  if (!best || bd>WIN_GOOD){ stats.whiff++; combo=0; judgeFx={txt:"✗ dans le vide",c:"#9a8fb8",t:1}; syncHUD(); return "whiff"; }
+  best.st="hit";
+  const mult=1+Math.min(3,Math.floor(combo/10));
+  if (bd<=WIN_PERFECT){ stats.parfait++; combo++; score+=100*mult; judgeFx={txt:"PARFAIT !",c:"#ffd54a",t:1}; }
+  else { stats.bien++; combo++; score+=50*mult; judgeFx={txt:"Bien",c:"#8fe0d4",t:1}; }
+  maxCombo=Math.max(maxCombo,combo);
+  syncHUD(); return bd<=WIN_PERFECT?"parfait":"bien";
+}
+
+function update(){
+  if (state!=="play") return;
+  const now=nowSec();
+  // sons programmés (fenêtre d'avance de 0,15 s)
+  while (soundIdx<sounds.length && sounds[soundIdx].t<now+0.15){
+    const s=sounds[soundIdx++]; if (!audioOk) continue;
+    const t=Math.max(ac.currentTime, s.t-timeSkew);
+    if (s.k==="bass") sBass(t); else if (s.k==="slap") sSlap(t,0.18);
+    else if (s.k==="tek") sTek(t,s.side); else if (s.k==="shake") sShake(t); else sClick(t);
+  }
+  // notes manquées
+  for (const n of notes){ if (n.st==="pending" && now>n.t+WIN_GOOD){
+    n.st="miss"; stats.miss++; combo=0; hearts--; shake=8;
+    judgeFx={txt:"Raté !",c:"#ff7b6b",t:1};
+    if (hearts<=0){ syncHUD(); return loseRun(); } syncHUD(); } }
+  // battement visuel (pulse sur le temps)
+  const D=DANSES[danse], spb=60/D.bpm, ph=((now-startT)/spb)%1;
+  beatFx=Math.max(0,1-ph*3);
+  if (judgeFx) judgeFx.t-=0.016;
+  hitFx.L=Math.max(0,hitFx.L-0.07); hitFx.R=Math.max(0,hitFx.R-0.07);
+  if (shake>0) shake=Math.max(0,shake-0.8);
+  // fin de danse
+  if (now>endT) endDanse();
+  // progression
+  document.getElementById("prog").firstElementChild.style.width=clamp((now-startT)/(endT-startT)*100,0,100)+"%";
+}
+
+/* ---- rendu ---- */
+function draw(){
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  const cx=W/2, cy=H*0.56, R=Math.min(W,H)*0.16+26;
+  const transe=combo>=20;
+  // nuit
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0, transe?"#2a1438":"#191226"); g.addColorStop(1,"#0d0a14");
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  // lune
+  ctx.fillStyle="#e8e2d0"; ctx.beginPath(); ctx.arc(W*0.82,H*0.16,26,0,TAU); ctx.fill();
+  ctx.fillStyle="#191226"; ctx.beginPath(); ctx.arc(W*0.82+10,H*0.16-6,22,0,TAU); ctx.fill();
+  if (state==="menu"){ drawDrummer(cx,cy,R,0); return; }
+  ctx.save();
+  if (shake) ctx.translate(rand(-shake,shake), rand(-shake,shake));
+  // cercle de feu (pulse au temps)
+  for (const s of [-1,1]){
+    const x=cx+s*R;
+    ctx.strokeStyle = s<0 ? "rgba(80,220,190,"+(0.5+beatFx*0.5)+")" : "rgba(255,160,80,"+(0.5+beatFx*0.5)+")";
+    ctx.lineWidth=3+beatFx*3+(s<0?hitFx.L:hitFx.R)*5;
+    ctx.beginPath(); ctx.arc(x,cy,30+beatFx*4,0,TAU); ctx.stroke();
+  }
+  // onde du temps
+  if (beatFx>0.02){ ctx.strokeStyle="rgba(255,210,140,"+(beatFx*0.25)+")"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(cx,cy,R*(2.4-beatFx*1.2),0,TAU); ctx.stroke(); }
+  // esprits (projection visuelle des notes en approche)
+  const now=nowSec();
+  for (const n of notes){
+    if (n.st==="hit") continue;
+    const dt=n.t-now; if (dt>TRAVEL||dt<-WIN_GOOD-0.1) continue;
+    const s=n.side==="L"?-1:1, edge=W/2-30;
+    const x=cx+s*(30+(edge-30)*clamp(dt/TRAVEL,0,1));
+    const y=cy, r=13+3*(1-clamp(dt/TRAVEL,0,1));
+    const col=n.side==="L"?"#50dcbe":"#ffa050";
+    if (transe){ const gg=ctx.createRadialGradient(x,y,0,x,y,r*2.2); gg.addColorStop(0,col+"55"); gg.addColorStop(1,col+"00"); ctx.fillStyle=gg; ctx.beginPath(); ctx.arc(x,y,r*2.2,0,TAU); ctx.fill(); }
+    ctx.fillStyle=n.st==="miss"?"#5a4a66":col;
+    ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill();
+    ctx.fillStyle="#14101e";   // masque
+    ctx.beginPath(); ctx.arc(x-r*0.32,y-r*0.15,r*0.16,0,TAU); ctx.arc(x+r*0.32,y-r*0.15,r*0.16,0,TAU); ctx.fill();
+    ctx.fillRect(x-r*0.3,y+r*0.3,r*0.6,2);
+    ctx.strokeStyle="#14101e"; ctx.lineWidth=1.5;
+    for (let k=-1;k<=1;k++){ ctx.beginPath(); ctx.moveTo(x+k*r*0.3,y-r); ctx.lineTo(x+k*r*0.34,y-r-5); ctx.stroke(); }
+  }
+  drawDrummer(cx,cy,R,beatFx);
+  ctx.restore();
+  // jugement
+  if (judgeFx && judgeFx.t>0){ ctx.globalAlpha=clamp(judgeFx.t,0,1);
+    ctx.fillStyle=judgeFx.c; ctx.font="800 "+(22+(1-judgeFx.t)*6)+"px system-ui"; ctx.textAlign="center";
+    ctx.fillText(judgeFx.txt,cx,cy-R-34); ctx.globalAlpha=1; ctx.textAlign="left"; }
+  // vignette
+  const v=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.32,W/2,H/2,Math.max(W,H)*0.72);
+  v.addColorStop(0,"#0000"); v.addColorStop(1,"#000b"); ctx.fillStyle=v; ctx.fillRect(0,0,W,H);
+}
+function drawDrummer(cx,cy,R,pulse){
+  // feu central
+  const fg=ctx.createRadialGradient(cx,cy+14,0,cx,cy+14,40+pulse*14);
+  fg.addColorStop(0,"#ffd07a"); fg.addColorStop(.5,"#e8702a88"); fg.addColorStop(1,"#e8702a00");
+  ctx.fillStyle=fg; ctx.beginPath(); ctx.arc(cx,cy+14,40+pulse*14,0,TAU); ctx.fill();
+  // djembé
+  ctx.fillStyle="#6a4226"; ctx.beginPath();
+  ctx.moveTo(cx-16,cy-6); ctx.lineTo(cx+16,cy-6); ctx.lineTo(cx+9,cy+26); ctx.lineTo(cx-9,cy+26); ctx.closePath(); ctx.fill();
+  ctx.fillStyle="#e8d8b8"; ctx.beginPath(); ctx.ellipse(cx,cy-8,17,6,0,0,TAU); ctx.fill();
+  ctx.strokeStyle="#3a2412"; ctx.lineWidth=1.5;
+  for (let k=-2;k<=2;k++){ ctx.beginPath(); ctx.moveTo(cx+k*6,cy-4); ctx.lineTo(cx+k*7,cy+22); ctx.stroke(); }
+  // le batteur (buste au-dessus)
+  ctx.fillStyle="#2a1c38"; ctx.beginPath(); ctx.arc(cx,cy-34,11,0,TAU); ctx.fill();   // tête
+  ctx.fillStyle="#3a2a4e"; ctx.beginPath();
+  ctx.moveTo(cx-15,cy-26); ctx.quadraticCurveTo(cx,cy-18,cx+15,cy-26); ctx.lineTo(cx+11,cy-4); ctx.lineTo(cx-11,cy-4); ctx.closePath(); ctx.fill();
+  // mains (frappe)
+  ctx.fillStyle="#caa46a";
+  ctx.beginPath(); ctx.arc(cx-13,cy-10+hitFx.L*6,4.5,0,TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx+13,cy-10+hitFx.R*6,4.5,0,TAU); ctx.fill();
+}
+
+/* ---- HUD ---- */
+function syncHUD(){
+  document.getElementById("danseNom").textContent=`Danse ${danse+1}/3 — ${DANSES[danse].name} (${DANSES[danse].bpm} BPM)`;
+  document.getElementById("coeurs").textContent="❤".repeat(Math.max(0,hearts))+"🖤".repeat(Math.max(0,5-hearts));
+  document.getElementById("score").textContent=score;
+  const mult=1+Math.min(3,Math.floor(combo/10));
+  document.getElementById("comboTxt").textContent=combo>1?`combo ${combo} · ×${mult}`:"";
+}
+
+/* ---- entrées ---- */
+addEventListener("keydown",e=>{ const k=e.key.toLowerCase();
+  if (k==="q"||k==="arrowleft"||k==="a") handleHit("L");
+  if (k==="d"||k==="arrowright") handleHit("R"); });
+cv.addEventListener("pointerdown",e=>{ initAudio(); if (state==="play") handleHit(e.clientX<W/2?"L":"R"); });
+document.addEventListener("visibilitychange",()=>{ if (!ac) return;
+  if (document.hidden && state==="play"){ try{ ac.suspend(); }catch(e){} }
+  else { try{ ac.resume(); }catch(e){} } });
+
+/* ---- boucle (rAF planifié AVANT le rendu) ---- */
+function frame(){ requestAnimationFrame(frame);
+  if (W!==innerWidth||H!==innerHeight) resize();
+  update(); draw(); }
+requestAnimationFrame(frame);
+
+(function(){ try{ const b=+(localStorage.getItem(BEST_KEY)||0);
+  if (b) document.getElementById("bestTxt").textContent="Record : "+b; }catch(e){} })();
+</script>
+</body>
+</html>

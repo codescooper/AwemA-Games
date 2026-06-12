@@ -93,10 +93,11 @@ function resize(){ DPR=Math.min(devicePixelRatio||1,2); W=innerWidth; H=innerHei
   cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR); ctx.setTransform(DPR,0,0,DPR,0,0); }
 addEventListener("resize", resize); resize();
 // erreurs visibles à l'écran (sinon « ça ne démarre pas » sans explication)
-addEventListener("error", ev=>{ try{ const d=document.createElement("div");
-  d.style.cssText="position:fixed;left:8px;top:8px;right:8px;z-index:99;background:#5a1410;color:#ffd9d0;border:1px solid #ff6b6b;border-radius:8px;padding:8px 10px;font:13px/1.4 system-ui;white-space:pre-wrap";
-  d.textContent="⛔ Erreur : "+(ev.message||"inconnue")+(ev.lineno?" (ligne "+ev.lineno+")":"");
-  document.body.appendChild(d); }catch(e){} });
+addEventListener("error", ev=>{ try{ let d=document.getElementById("errband");
+  if(!d){ d=document.createElement("div"); d.id="errband"; d._n=0;
+    d.style.cssText="position:fixed;left:8px;top:8px;right:8px;z-index:99;background:#5a1410;color:#ffd9d0;border:1px solid #ff6b6b;border-radius:8px;padding:8px 10px;font:13px/1.4 system-ui;white-space:pre-wrap";
+    document.body.appendChild(d); }
+  d._n++; d.textContent="⛔ Erreur"+(d._n>1?" ×"+d._n:"")+" : "+(ev.message||"inconnue")+(ev.lineno?" (ligne "+ev.lineno+")":""); }catch(e){} });
 
 const TAU=Math.PI*2, rand=(a,b)=>a+Math.random()*(b-a), ri=(a,b)=>Math.floor(rand(a,b+1));
 const dist2=(ax,ay,bx,by)=>{const dx=ax-bx,dy=ay-by;return dx*dx+dy*dy;};
@@ -332,7 +333,8 @@ function draw(){
   const v=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.3,W/2,H/2,Math.max(W,H)*0.72);
   v.addColorStop(0,"#0000"); v.addColorStop(1,"#000a"); ctx.fillStyle=v; ctx.fillRect(0,0,W,H);
 }
-function rg(x,y,r,c){ const g=ctx.createRadialGradient(x,y,0,x,y,r); g.addColorStop(0,c); g.addColorStop(1,c+"00"); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill(); }
+function rg(x,y,r,c){ const g=ctx.createRadialGradient(x,y,0,x,y,r); const base=c.length>7?c.slice(0,7):c;   // si la couleur porte déjà un alpha (#rrggbbaa), repartir de #rrggbb
+  g.addColorStop(0,c); g.addColorStop(1,base+"00"); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill(); }
 function drawSun(){ const x=W/2,y=H*0.42; ctx.globalCompositeOperation="lighter"; rg(x,y,220,"#ff9a3c55"); ctx.globalCompositeOperation="source-over"; ctx.fillStyle="#ffcf7a"; ctx.beginPath(); ctx.arc(x,y,60,0,TAU); ctx.fill(); }
 function drawEnemy(e){
   const col=e.kind==="boss"?"#7a3aa0":e.kind==="brute"?"#7a4a26":e.kind==="wisp"?"#8b6ad0":"#5a3f86";
@@ -371,8 +373,9 @@ cv.addEventListener("touchend",()=>{ ptr.down=false; });
 
 /* ---- boucle ---- */
 let last=performance.now();
-function frame(t){ if (W!==innerWidth || H!==innerHeight) resize();   // auto-guérison : panneau/onglet chargé replié, resize manqué, barre d'URL mobile…
-  const dt=(t-last)/1000; last=t; if(state==="play") update(dt); draw(); requestAnimationFrame(frame); }
+function frame(t){ requestAnimationFrame(frame);   // planifié AVANT le rendu : une exception dans update/draw ne tue plus la boucle
+  if (W!==innerWidth || H!==innerHeight) resize();   // auto-guérison : panneau/onglet chargé replié, resize manqué, barre d'URL mobile…
+  const dt=(t-last)/1000; last=t; if(state==="play") update(dt); draw(); }
 requestAnimationFrame(frame);
 
 // record au menu

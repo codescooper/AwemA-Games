@@ -5,6 +5,7 @@
 Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zéro dépendance) en repoussant le graphisme et le réalisme au maximum des performances du navigateur. Horizon : installation en PWA, puis multijoueur.
 
 ## ✅ Fait (cette semaine)
+- **Nouveau jeu A — « Harmattan »** : bullet‑heaven / survie en horde (armes automatiques, montée de niveau + builds, 4 armes, boss, glow/particules/screen‑shake). Vérifié (équilibrage OK : niv 15 / 4 armes / survie >2 min en simulation), ajouté au menu + README. Commit `ba21b6a`.
 - **L'Âge des Sables** (RTS) enrichi : son procédural, commerce de caravanes, victoire par Merveille + écran de score, brouillard de guerre + éclaireurs, arbre d'améliorations + passe d'équilibrage, navigation A\* + formation anti-empilement, démolition / portails.
 - **Rendu pixel art animé** : basse résolution + nearest-neighbor, contours noirs, réglable (touches `[ ]` / `P`), défaut « max netteté » adapté au DPR.
 - **Nouveau jeu — Échecs à l'Ivoirienne** : pièces inspirées de la culture ivoirienne, moteur complet **validé par perft** (20/400/8902/197281), IA minimax α-β.
@@ -12,11 +13,11 @@ Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zér
 - **Menu** (`engine/index.html`) et **README** à jour : 5 entrées (Atelier, Lignées, Sables, Échecs, Voraces).
 
 ## 🚧 En cours
-- [ ] Rien de non committé — repo propre, branche `main`. Le prochain jeu n'a pas encore démarré.
+- [ ] File des 4 jeux (veille tendances 2025‑2026), livrés un par un : **A — Harmattan ✅ fait**. Restent : **B — Banco** (démolition physique, verlet) · **C — Awalé Royal** (roguelike de combos façon Balatro) · **D — Tam‑Tam** (combat rythmique).
 
 ## ⏭️ Prochaine étape (la SEULE chose à faire ensuite)
-Ajouter **un nouveau jeu** qui présente une **mécanique ou une expérience de jeu inédite** dans le navigateur, en poussant le rendu (graphisme + réalisme) au maximum.
-→ *Justif : on est en phase d'exploration/prototypage ; un jeu de plus éprouve la plateforme et l'ambition graphique. PWA puis multijoueur restent le cap, abordés ensuite.*
+Construire et committer **le jeu B — « Banco »** (démolition / stabilité avec **vraie simulation physique** : intégration verlet + contraintes, effondrements, poussière, débris).
+→ *Justif : c'est le jeu de la file qui sert le plus la décision « réalisme au max » (le réalisme vient de la simulation elle‑même) ; tendance « physics‑first » 2026.*
 
 ## 🧱 Décisions verrouillées
 - **100 % local / offline-first** : chaque jeu = 1 fichier HTML autonome, JS vanilla, **zéro dépendance runtime**, lançable au double-clic.

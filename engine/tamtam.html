@@ -242,9 +242,10 @@ function update(){
     n.st="miss"; stats.miss++; combo=0; hearts--; shake=8;
     judgeFx={txt:"Raté !",c:"#ff7b6b",t:1};
     if (hearts<=0){ syncHUD(); return loseRun(); } syncHUD(); } }
-  // battement visuel (pulse sur le temps)
-  const D=DANSES[danse], spb=60/D.bpm, ph=((now-startT)/spb)%1;
-  beatFx=Math.max(0,1-ph*3);
+  // battement visuel (pulse sur le temps) — modulo POSITIF : avant startT (compte
+  // d'appel), le modulo JS est négatif et beatFx explosait (>1 → rayon d'arc négatif)
+  const D=DANSES[danse], spb=60/D.bpm, ph=(((now-startT)/spb)%1+1)%1;
+  beatFx=clamp(1-ph*3,0,1);
   if (judgeFx) judgeFx.t-=0.016;
   hitFx.L=Math.max(0,hitFx.L-0.07); hitFx.R=Math.max(0,hitFx.R-0.07);
   if (shake>0) shake=Math.max(0,shake-0.8);
@@ -278,7 +279,7 @@ function draw(){
   }
   // onde du temps
   if (beatFx>0.02){ ctx.strokeStyle="rgba(255,210,140,"+(beatFx*0.25)+")"; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.arc(cx,cy,R*(2.4-beatFx*1.2),0,TAU); ctx.stroke(); }
+    ctx.beginPath(); ctx.arc(cx,cy,Math.max(1,R*(2.4-beatFx*1.2)),0,TAU); ctx.stroke(); }   // rayon jamais négatif (ceinture+bretelles)
   // esprits (projection visuelle des notes en approche)
   const now=nowSec();
   for (const n of notes){

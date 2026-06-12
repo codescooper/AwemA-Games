@@ -12,6 +12,7 @@ Double-clic sur le fichier (ou glisse-le dans un onglet du navigateur — marche
 - **`engine/voraces.html` → JOUER (Voraces).** Jeu d'arcade temps réel : une créature façon serpent gobe des fruits pour évoluer, dévore les plus petits, noue des alliances, fuit les géants (plus gros = plus lent). Adversaires IA ; multijoueur prévu plus tard.
 - **`engine/sables.html` → JOUER (L'Âge des Sables).** RTS temps réel façon Age of Empires, dans l'univers du Sahel médiéval : récolte (caravaniers auto-employés), construction, **Âges Ghana→Mali→Songhaï**, combat lancier/archer/cavalier (système de contres), tours de défense. IA adverse ; multijoueur prévu plus tard.
 - **`engine/echecs.html` → JOUER (Échecs à l'Ivoirienne).** Le jeu d'échecs complet (roque, prise en passant, promotion, échec et mat, pat) avec des pièces inspirées de la culture ivoirienne : **Nanan** (roi), **Reine Pokou** (dame), **Tata** (tour), **Komian** (fou), **Dozo** (cavalier), **Planteur** (pion). IA hors-ligne (3 niveaux) ou à 2 joueurs. Moteur validé par perft.
+- **`engine/harmattan.html` → JOUER (Harmattan).** Bullet-heaven / survie en horde façon *Vampire Survivors* : tu te déplaces, tes talismans frappent seuls ; survis aux vagues d'esprits, ramasse les graines d'âme (XP) et choisis tes pouvoirs à chaque niveau (souffle, talismans, cercle sacré, tam-tam). Rendu « crépuscule » (glow additif, particules, screen-shake). Tactile + clavier.
 - **`engine/prototype.html` → VÉRIFIER.** Joue 1 tick de démo de Lignées et affiche les 7 contrôles (doit montrer ✅ 7/7).
 
 ## Lancer — option B : avec Node (pour le futur vrai build)
@@ -56,6 +57,7 @@ Si tous les contrôles passent, **ton moteur est juste** : c'est l'étape 4 du s
 - **`voraces.html`** — *Voraces — Le Vivier*, jeu d'arcade temps réel (créatures, fruits, IA, alliances), autonome et hors-ligne. Toute la balance est dans l'objet `CFG` en haut du script.
 - **`sables.html`** — *L'Âge des Sables*, RTS temps réel façon Age of Empires (récolte, Âges Ghana→Mali→Songhaï, combat avec contres, tours, IA), autonome et hors-ligne. Toute la balance est dans l'objet `CFG` en haut du script.
 - **`echecs.html`** — *Échecs à l'Ivoirienne*, jeu d'échecs complet avec pièces inspirées de la culture ivoirienne (Nanan, Reine Pokou, Tata, Komian, Dozo, Planteur) + IA (minimax α-β) hors-ligne. Moteur validé par perft (20/400/8902/197281). Autonome et hors-ligne.
+- **`harmattan.html`** — *Harmattan*, bullet-heaven / survie en horde (armes automatiques, montée de niveau + builds, vagues d'esprits, boss, particules/glow/screen-shake). Autonome et hors-ligne ; toute la balance est en haut du script (objets `WEAPONS` / `upgradePool` / `spawnEnemy`).
 - **`prototype.html`** — le **harnais de test** de Lignées (moteur + 7 contrôles), zéro install. À ouvrir pour *vérifier*.
 - **`prototype.ts`** — **même moteur** que Lignées, version typée, pour le futur vrai build (via Node, option B).
 

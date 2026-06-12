@@ -92,6 +92,11 @@ let DPR=1, W=0, H=0;
 function resize(){ DPR=Math.min(devicePixelRatio||1,2); W=innerWidth; H=innerHeight;
   cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR); ctx.setTransform(DPR,0,0,DPR,0,0); }
 addEventListener("resize", resize); resize();
+// erreurs visibles à l'écran (sinon « ça ne démarre pas » sans explication)
+addEventListener("error", ev=>{ try{ const d=document.createElement("div");
+  d.style.cssText="position:fixed;left:8px;top:8px;right:8px;z-index:99;background:#5a1410;color:#ffd9d0;border:1px solid #ff6b6b;border-radius:8px;padding:8px 10px;font:13px/1.4 system-ui;white-space:pre-wrap";
+  d.textContent="⛔ Erreur : "+(ev.message||"inconnue")+(ev.lineno?" (ligne "+ev.lineno+")":"");
+  document.body.appendChild(d); }catch(e){} });
 
 const TAU=Math.PI*2, rand=(a,b)=>a+Math.random()*(b-a), ri=(a,b)=>Math.floor(rand(a,b+1));
 const dist2=(ax,ay,bx,by)=>{const dx=ax-bx,dy=ay-by;return dx*dx+dy*dy;};
@@ -262,8 +267,8 @@ function update(dt){
 
 function gameOver(){
   state="over"; shake=16;
-  const best=Math.max(+(localStorage.getItem(BEST_KEY)||0), Math.floor(time));
-  try{ localStorage.setItem(BEST_KEY,best); }catch(e){}
+  let best=Math.floor(time);
+  try{ best=Math.max(+(localStorage.getItem(BEST_KEY)||0), best); localStorage.setItem(BEST_KEY,best); }catch(e){}
   document.getElementById("overStats").innerHTML =
     `Tu as tenu <b>${fmtT(time)}</b> · niveau <b>${level}</b> · <b>${kills}</b> esprits dissipés.<br><span class="hint">Record : ${fmtT(best)}</span>`;
   document.getElementById("hud").classList.add("hide");
@@ -366,11 +371,12 @@ cv.addEventListener("touchend",()=>{ ptr.down=false; });
 
 /* ---- boucle ---- */
 let last=performance.now();
-function frame(t){ const dt=(t-last)/1000; last=t; if(state==="play") update(dt); draw(); requestAnimationFrame(frame); }
+function frame(t){ if (W!==innerWidth || H!==innerHeight) resize();   // auto-guérison : panneau/onglet chargé replié, resize manqué, barre d'URL mobile…
+  const dt=(t-last)/1000; last=t; if(state==="play") update(dt); draw(); requestAnimationFrame(frame); }
 requestAnimationFrame(frame);
 
 // record au menu
-(function(){ const b=+(localStorage.getItem(BEST_KEY)||0); if(b) document.getElementById("bestMenu").textContent="Record : "+fmtT(b); })();
+(function(){ try{ const b=+(localStorage.getItem(BEST_KEY)||0); if(b) document.getElementById("bestMenu").textContent="Record : "+fmtT(b); }catch(e){} })();
 </script>
 </body>
 </html>

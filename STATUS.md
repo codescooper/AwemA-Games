@@ -1,10 +1,12 @@
 # STATUS — AWEMA Light Games Prototype
-> Dernière MAJ : 2026-06-10
+> Dernière MAJ : 2026-06-12
 
 ## 🎯 Objectif de la phase actuelle
 Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zéro dépendance) en repoussant le graphisme et le réalisme au maximum des performances du navigateur. Horizon : installation en PWA, puis multijoueur.
 
 ## ✅ Fait (cette semaine)
+- **Nouveau jeu B — « Banco — Démolition »** : puzzle à **vraie physique** (Verlet + contraintes, casse à l'impact, soudage des pièces, poutres colorées par la contrainte, poussière, son procédural). 7 chantiers, étoiles, sauvegarde. Vérifié (stabilité au repos 0 casse, victoire/défaite E2E, 1,8 ms/frame). Commit `949cf1b`.
+- **Robustesse plateforme** : auto‑guérison de la taille du canvas sur tous les jeux canvas (panneau replié → `innerWidth=2`), bandeau d'erreur visible, boucle insensible aux exceptions (Harmattan). Commits `0388793`, `8563f91`, `baa8ab5`.
 - **Nouveau jeu A — « Harmattan »** : bullet‑heaven / survie en horde (armes automatiques, montée de niveau + builds, 4 armes, boss, glow/particules/screen‑shake). Vérifié (équilibrage OK : niv 15 / 4 armes / survie >2 min en simulation), ajouté au menu + README. Commit `ba21b6a`.
 - **L'Âge des Sables** (RTS) enrichi : son procédural, commerce de caravanes, victoire par Merveille + écran de score, brouillard de guerre + éclaireurs, arbre d'améliorations + passe d'équilibrage, navigation A\* + formation anti-empilement, démolition / portails.
 - **Rendu pixel art animé** : basse résolution + nearest-neighbor, contours noirs, réglable (touches `[ ]` / `P`), défaut « max netteté » adapté au DPR.
@@ -13,11 +15,11 @@ Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zér
 - **Menu** (`engine/index.html`) et **README** à jour : 5 entrées (Atelier, Lignées, Sables, Échecs, Voraces).
 
 ## 🚧 En cours
-- [ ] File des 4 jeux (veille tendances 2025‑2026), livrés un par un : **A — Harmattan ✅ fait**. Restent : **B — Banco** (démolition physique, verlet) · **C — Awalé Royal** (roguelike de combos façon Balatro) · **D — Tam‑Tam** (combat rythmique).
+- [ ] File des 4 jeux (veille tendances 2025‑2026), livrés un par un : **A — Harmattan ✅** · **B — Banco ✅**. Restent : **C — Awalé Royal** (roguelike de combos façon Balatro) · **D — Tam‑Tam** (combat rythmique).
 
 ## ⏭️ Prochaine étape (la SEULE chose à faire ensuite)
-Construire et committer **le jeu B — « Banco »** (démolition / stabilité avec **vraie simulation physique** : intégration verlet + contraintes, effondrements, poussière, débris).
-→ *Justif : c'est le jeu de la file qui sert le plus la décision « réalisme au max » (le réalisme vient de la simulation elle‑même) ; tendance « physics‑first » 2026.*
+Construire et committer **le jeu C — « Awalé Royal »** (roguelike de combos façon Balatro : composer une main, déclencher des synergies, améliorer son deck entre les manches).
+→ *Justif : suite de la file validée ; mécanique « cartes/combos » = la tendance innovation n°1 repérée dans la veille ; D (rythme) en dernier car le plus risqué (timing audio).*
 
 ## 🧱 Décisions verrouillées
 - **100 % local / offline-first** : chaque jeu = 1 fichier HTML autonome, JS vanilla, **zéro dépendance runtime**, lançable au double-clic.

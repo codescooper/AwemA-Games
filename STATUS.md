@@ -5,6 +5,7 @@
 Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zéro dépendance) en repoussant le graphisme et le réalisme au maximum des performances du navigateur. Horizon : installation en PWA, puis multijoueur.
 
 ## ✅ Fait (cette semaine)
+- **Nouveau jeu D — « Tam-Tam »** : combat rythmique (3 danses 92→132 BPM, jugements ±75/160 ms, combos ×4, transe). Synchro audio par construction (une seule horloge WebAudio pour sons + esprits), percussions 100 % procédurales. Vérifié E2E (victoire/défaite, jugements exacts, 0 erreur). **File A-B-C-D terminée.** Commit `ac1b6f4`.
 - **Nouveau jeu C — « Awalé Royal »** : roguelike de combos façon Balatro (48 graines en 4 familles Or/Sel/Cola/Mil, 9 combos culturels, 10 gri-gris, proverbes, 12 enchères, 5 malus de chef). Équilibrage validé par simulation (IA gloutonne : 2 victoires / 8, morts enchères 9–12). Commit `5340583`.
 - **Nouveau jeu B — « Banco — Démolition »** : puzzle à **vraie physique** (Verlet + contraintes, casse à l'impact, soudage des pièces, poutres colorées par la contrainte, poussière, son procédural). 7 chantiers, étoiles, sauvegarde. Vérifié (stabilité au repos 0 casse, victoire/défaite E2E, 1,8 ms/frame). Commit `949cf1b`.
 - **Robustesse plateforme** : auto‑guérison de la taille du canvas sur tous les jeux canvas (panneau replié → `innerWidth=2`), bandeau d'erreur visible, boucle insensible aux exceptions (Harmattan). Commits `0388793`, `8563f91`, `baa8ab5`.
@@ -16,11 +17,11 @@ Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zér
 - **Menu** (`engine/index.html`) et **README** à jour : 5 entrées (Atelier, Lignées, Sables, Échecs, Voraces).
 
 ## 🚧 En cours
-- [ ] File des 4 jeux (veille tendances 2025‑2026), livrés un par un : **A — Harmattan ✅** · **B — Banco ✅** · **C — Awalé Royal ✅**. Reste : **D — Tam‑Tam** (combat rythmique).
+- [ ] Rien de non committé — repo propre. **File des 4 jeux terminée** (A — Harmattan ✅ · B — Banco ✅ · C — Awalé Royal ✅ · D — Tam‑Tam ✅) : la plateforme compte 9 entrées.
 
 ## ⏭️ Prochaine étape (la SEULE chose à faire ensuite)
-Construire et committer **le jeu D — « Tam‑Tam »** (combat rythmique : frapper le djembé en tempo, le monde pulse à la musique, audio 100 % WebAudio procédural).
-→ *Justif : dernier jeu de la file validée ; gardé pour la fin car le plus risqué (synchronisation audio/timing) — les 3 autres sont livrés et sûrs.*
+Transformer la plateforme en **PWA installable** : `manifest.webmanifest` + **service worker** de cache hors‑ligne (tous les jeux), branchés sur `engine/index.html`, icône incluse.
+→ *Justif : c'était la prochaine étape avant la file des 4 jeux ; débloque l'installation sur smartphones modestes (décision verrouillée « PWA + marchés émergents ») ; le multijoueur reste pour après.*
 
 ## 🧱 Décisions verrouillées
 - **100 % local / offline-first** : chaque jeu = 1 fichier HTML autonome, JS vanilla, **zéro dépendance runtime**, lançable au double-clic.

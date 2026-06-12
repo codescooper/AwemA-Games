@@ -5,6 +5,7 @@
 Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zéro dépendance) en repoussant le graphisme et le réalisme au maximum des performances du navigateur. Horizon : installation en PWA, puis multijoueur.
 
 ## ✅ Fait (cette semaine)
+- **Nouveau jeu C — « Awalé Royal »** : roguelike de combos façon Balatro (48 graines en 4 familles Or/Sel/Cola/Mil, 9 combos culturels, 10 gri-gris, proverbes, 12 enchères, 5 malus de chef). Équilibrage validé par simulation (IA gloutonne : 2 victoires / 8, morts enchères 9–12). Commit `5340583`.
 - **Nouveau jeu B — « Banco — Démolition »** : puzzle à **vraie physique** (Verlet + contraintes, casse à l'impact, soudage des pièces, poutres colorées par la contrainte, poussière, son procédural). 7 chantiers, étoiles, sauvegarde. Vérifié (stabilité au repos 0 casse, victoire/défaite E2E, 1,8 ms/frame). Commit `949cf1b`.
 - **Robustesse plateforme** : auto‑guérison de la taille du canvas sur tous les jeux canvas (panneau replié → `innerWidth=2`), bandeau d'erreur visible, boucle insensible aux exceptions (Harmattan). Commits `0388793`, `8563f91`, `baa8ab5`.
 - **Nouveau jeu A — « Harmattan »** : bullet‑heaven / survie en horde (armes automatiques, montée de niveau + builds, 4 armes, boss, glow/particules/screen‑shake). Vérifié (équilibrage OK : niv 15 / 4 armes / survie >2 min en simulation), ajouté au menu + README. Commit `ba21b6a`.
@@ -15,11 +16,11 @@ Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zér
 - **Menu** (`engine/index.html`) et **README** à jour : 5 entrées (Atelier, Lignées, Sables, Échecs, Voraces).
 
 ## 🚧 En cours
-- [ ] File des 4 jeux (veille tendances 2025‑2026), livrés un par un : **A — Harmattan ✅** · **B — Banco ✅**. Restent : **C — Awalé Royal** (roguelike de combos façon Balatro) · **D — Tam‑Tam** (combat rythmique).
+- [ ] File des 4 jeux (veille tendances 2025‑2026), livrés un par un : **A — Harmattan ✅** · **B — Banco ✅** · **C — Awalé Royal ✅**. Reste : **D — Tam‑Tam** (combat rythmique).
 
 ## ⏭️ Prochaine étape (la SEULE chose à faire ensuite)
-Construire et committer **le jeu C — « Awalé Royal »** (roguelike de combos façon Balatro : composer une main, déclencher des synergies, améliorer son deck entre les manches).
-→ *Justif : suite de la file validée ; mécanique « cartes/combos » = la tendance innovation n°1 repérée dans la veille ; D (rythme) en dernier car le plus risqué (timing audio).*
+Construire et committer **le jeu D — « Tam‑Tam »** (combat rythmique : frapper le djembé en tempo, le monde pulse à la musique, audio 100 % WebAudio procédural).
+→ *Justif : dernier jeu de la file validée ; gardé pour la fin car le plus risqué (synchronisation audio/timing) — les 3 autres sont livrés et sûrs.*
 
 ## 🧱 Décisions verrouillées
 - **100 % local / offline-first** : chaque jeu = 1 fichier HTML autonome, JS vanilla, **zéro dépendance runtime**, lançable au double-clic.

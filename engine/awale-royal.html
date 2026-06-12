@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Awalé Royal — combos & gri-gris</title>
+<style>
+  :root { color-scheme: dark;
+    --bg1:#1a1430; --bg2:#0c0a18; --gold:#f0c64a; --ink:#efe9f7; --vio:#7c5cff; }
+  * { box-sizing: border-box; }
+  html,body { margin:0; min-height:100%; background:radial-gradient(1100px 600px at 50% -10%, var(--bg1), var(--bg2) 64%);
+    color:var(--ink); font-family:system-ui,-apple-system,sans-serif; -webkit-user-select:none; user-select:none; }
+  body { display:flex; flex-direction:column; align-items:center; padding:.6rem .6rem 2rem; }
+  a { color:#cdbcff; }
+  .top { width:100%; max-width:980px; display:flex; flex-wrap:wrap; gap:.4rem .8rem; align-items:center;
+    padding:.4rem .2rem; font-size:.9rem; }
+  .top .sp { flex:1; }
+  .chip { background:#ffffff12; border:1px solid #ffffff22; border-radius:1rem; padding:.22rem .6rem; white-space:nowrap; }
+  .chip b { color:var(--gold); }
+  .tbtn { font:inherit; color:#fff; background:#ffffff14; border:1px solid #ffffff2e; border-radius:.5rem;
+    padding:.3rem .6rem; cursor:pointer; text-decoration:none; font-size:.85rem; }
+  .tbtn:hover { background:#ffffff24; }
+  /* cible / score de manche */
+  .board { width:100%; max-width:980px; display:flex; flex-direction:column; gap:.6rem; }
+  .blind { display:flex; align-items:center; gap:.8rem; background:#ffffff0c; border:1px solid #ffffff1c;
+    border-radius:.8rem; padding:.55rem .8rem; flex-wrap:wrap; }
+  .blind .nm { font-weight:800; font-size:1.02rem; }
+  .blind .malus { color:#ff9a9a; font-size:.85rem; }
+  .gauge { flex:1; min-width:160px; height:12px; background:#0008; border:1px solid #ffffff22; border-radius:7px; overflow:hidden; }
+  .gauge>i { display:block; height:100%; width:0; background:linear-gradient(90deg,var(--vio),var(--gold)); transition:width .3s; }
+  .blind .nums { font-variant-numeric:tabular-nums; font-size:.92rem; }
+  /* gri-gris */
+  .grigris { display:flex; gap:.45rem; flex-wrap:wrap; min-height:2.4rem; }
+  .gg { background:linear-gradient(180deg,#2a2348,#1b1733); border:1px solid #7c5cff66; border-radius:.6rem;
+    padding:.3rem .55rem; font-size:.82rem; cursor:help; }
+  .gg .ic { font-size:1rem; }
+  .gg.empty { opacity:.32; border-style:dashed; cursor:default; }
+  /* zone de jeu */
+  .playzone { min-height:5.2rem; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:#ffffff08; border:1px solid #ffffff14; border-radius:.8rem; padding:.5rem; text-align:center; }
+  .combo-name { font-weight:800; font-size:1.12rem; color:var(--gold); }
+  .combo-calc { font-size:.95rem; opacity:.9; }
+  .combo-calc b { color:#8fe0d4; }
+  .pop { animation:pop .45s ease; }
+  @keyframes pop { 0%{transform:scale(.6);opacity:0} 60%{transform:scale(1.12)} 100%{transform:scale(1)} }
+  /* main */
+  .hand { display:flex; gap:.45rem; flex-wrap:wrap; justify-content:center; padding:.3rem 0 .1rem; min-height:7.6rem; }
+  .card { width:66px; height:96px; border-radius:.6rem; background:linear-gradient(165deg,#fdf6e6,#e8d9bc);
+    color:#241a08; position:relative; cursor:pointer; border:2px solid #0004;
+    box-shadow:0 3px 8px #0007; transition:transform .12s, box-shadow .12s; flex-shrink:0; }
+  .card:hover { transform:translateY(-4px); }
+  .card.sel { transform:translateY(-14px); box-shadow:0 10px 18px #000a, 0 0 0 2px var(--gold); }
+  .card .v { position:absolute; top:4px; left:7px; font-weight:900; font-size:1.15rem; }
+  .card .ic { position:absolute; bottom:6px; right:7px; font-size:1.5rem; }
+  .card .ic2 { position:absolute; top:6px; right:7px; font-size:.8rem; opacity:.8; }
+  .card .nom { position:absolute; bottom:6px; left:7px; font-size:.6rem; font-weight:700; opacity:.75; }
+  /* boutons d'action */
+  .actions { display:flex; gap:.6rem; justify-content:center; flex-wrap:wrap; padding:.2rem 0 0; }
+  .big { font:inherit; font-weight:800; font-size:1rem; padding:.6rem 1.2rem; border-radius:.65rem; border:0; cursor:pointer;
+    background:linear-gradient(180deg,#ffd76a,#e8a82a); color:#2a1c04; box-shadow:0 6px 22px #e8a82a44; }
+  .big:disabled { filter:grayscale(.8); opacity:.5; cursor:default; }
+  .big.alt { background:linear-gradient(180deg,#9c84ff,#6a4ce0); color:#140e2e; box-shadow:0 6px 22px #6a4ce044; }
+  .big:active:not(:disabled) { transform:translateY(1px); }
+  /* overlays */
+  .ov { position:fixed; inset:0; z-index:8; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:#0c0a18ef; padding:1rem; text-align:center; gap:.6rem; overflow:auto; }
+  .ov.hide { display:none; }
+  .ov h1 { margin:.2rem; font-size:clamp(1.5rem,6vw,2.6rem); text-shadow:0 0 26px #7c5cff66; }
+  .sub { opacity:.85; max-width:640px; line-height:1.55; font-size:.95rem; }
+  .shoprow { display:flex; gap:.7rem; flex-wrap:wrap; justify-content:center; }
+  .item { width:200px; background:linear-gradient(180deg,#241c44,#171230); border:1px solid #7c5cff55; border-radius:.8rem;
+    padding:.8rem .7rem; cursor:pointer; transition:transform .1s,border-color .1s; }
+  .item:hover { transform:translateY(-4px); border-color:#b9a8ff; }
+  .item.off { opacity:.45; cursor:default; }
+  .item .ic { font-size:1.9rem; } .item h3 { margin:.25rem 0 .2rem; font-size:.98rem; }
+  .item p { margin:0; font-size:.8rem; opacity:.85; line-height:1.4; }
+  .item .pr { margin-top:.4rem; font-weight:800; color:var(--gold); }
+  table.codex { border-collapse:collapse; font-size:.88rem; }
+  table.codex td { padding:.18rem .6rem; border-bottom:1px solid #ffffff14; text-align:left; }
+  table.codex td:nth-child(2),table.codex td:nth-child(3) { text-align:right; font-variant-numeric:tabular-nums; }
+  .lvl { color:#8fe0d4; font-size:.78rem; }
+</style>
+</head>
+<body>
+  <div class="top">
+    <span class="chip">🏮 <b id="village">—</b></span>
+    <span class="chip">🐚 Cauris : <b id="cauris">0</b></span>
+    <span class="chip">🖐 Mains : <b id="hands">0</b></span>
+    <span class="chip">♻ Défausses : <b id="discards">0</b></span>
+    <span class="sp"></span>
+    <button class="tbtn" onclick="openCodex()">📖 Codex</button>
+    <a class="tbtn" href="index.html">≡ Menu</a>
+  </div>
+
+  <div class="board">
+    <div class="blind">
+      <span class="nm" id="blindName">—</span>
+      <span class="malus" id="blindMalus"></span>
+      <div class="gauge"><i id="gaugeFill"></i></div>
+      <span class="nums"><b id="score">0</b> / <span id="target">0</span></span>
+    </div>
+    <div class="grigris" id="ggRow"></div>
+    <div class="playzone" id="playzone"><span class="sub">Sélectionne 1 à 5 graines, puis <b>Jouer la main</b>.</span></div>
+    <div class="hand" id="hand"></div>
+    <div class="actions">
+      <button class="big" id="playBtn" onclick="playHand()">🎴 Jouer la main</button>
+      <button class="big alt" id="discBtn" onclick="discardSel()">♻ Défausser</button>
+    </div>
+  </div>
+
+  <div id="menu" class="ov">
+    <h1>🐚 AWALÉ ROYAL</h1>
+    <div class="sub">Les <b>48 graines</b> de l'awalé sont devenues 48 cartes — quatre familles, les richesses des routes :
+      🪙 <b>Or</b>, 🧂 <b>Sel</b>, 🌰 <b>Cola</b>, 🌾 <b>Mil</b>.<br>
+      Compose des <b>combos</b>, paie l'<b>enchère</b> de chaque village, achète des <b>gri-gris</b> au marché…
+      et méfie-toi des <b>Chefs de village</b> et de leurs caprices. Jusqu'où ira ta caravane ?</div>
+    <div class="sub" style="opacity:.6;font-size:.82rem">Roguelike de combos : 4 villages × 3 enchères. Une défaite = retour au départ.</div>
+    <button class="big" onclick="startRun()">Prendre la route ▶</button>
+    <div class="sub" id="bestTxt" style="opacity:.6;font-size:.82rem"></div>
+  </div>
+
+  <div id="shop" class="ov hide">
+    <h1>🏮 Le Marché de nuit</h1>
+    <div class="sub" id="shopInfo"></div>
+    <div class="shoprow" id="shopRow"></div>
+    <div class="actions">
+      <button class="tbtn" id="rerollBtn" onclick="reroll()">🎲 Autres marchandises (2 🐚)</button>
+      <button class="big" onclick="nextBlind()">Reprendre la route ▶</button>
+    </div>
+  </div>
+
+  <div id="won" class="ov hide">
+    <h1>👑 Reine des routes !</h1>
+    <div class="sub" id="wonTxt"></div>
+    <button class="big" onclick="startRun()">Repartir ▶</button>
+  </div>
+
+  <div id="lost" class="ov hide">
+    <h1>🌑 La caravane s'arrête là…</h1>
+    <div class="sub" id="lostTxt"></div>
+    <button class="big" onclick="startRun()">Retenter ▶</button>
+    <a class="tbtn" href="index.html">≡ Menu</a>
+  </div>
+
+  <div id="codex" class="ov hide">
+    <h1>📖 Codex</h1>
+    <div class="sub">Le score d'une main = (<b>base du combo</b> + <b>somme des graines jouées</b>) × <b>multiplicateur</b>.
+      Les <b>Proverbes</b> achetés au marché améliorent un combo pour toute la partie.</div>
+    <table class="codex" id="codexTable"></table>
+    <button class="big" onclick="closeCodex()">Fermer</button>
+  </div>
+
+<script>
+/* ============================================================================
+   AWALÉ ROYAL — roguelike de combos (façon Balatro), 100% local & hors-ligne.
+   48 cartes (valeurs 1..12 × 4 familles). Score = (base + somme) × mult.
+   4 villages × 3 enchères ; gri-gris (passifs) + proverbes (améliorations).
+   ========================================================================== */
+addEventListener("error", ev=>{ try{ let d=document.getElementById("errband");
+  if(!d){ d=document.createElement("div"); d.id="errband"; d._n=0;
+    d.style.cssText="position:fixed;left:8px;top:8px;right:8px;z-index:99;background:#5a1410;color:#ffd9d0;border:1px solid #ff6b6b;border-radius:8px;padding:8px 10px;font:13px/1.4 system-ui;white-space:pre-wrap";
+    document.body.appendChild(d); }
+  d._n++; d.textContent="⛔ Erreur"+(d._n>1?" ×"+d._n:"")+" : "+(ev.message||"inconnue")+(ev.lineno?" (ligne "+ev.lineno+")":""); }catch(e){} });
+
+const SUITS = {
+  or:   { name:"Or",   ic:"🪙", c:"#b8860b" },
+  sel:  { name:"Sel",  ic:"🧂", c:"#7a8a99" },
+  cola: { name:"Cola", ic:"🌰", c:"#a0522d" },
+  mil:  { name:"Mil",  ic:"🌾", c:"#5a8a3a" },
+};
+const COMBOS = {   // base/mult de départ + gain par niveau (proverbe)
+  graine:      { name:"La Graine",            base:5,   mult:1, lb:5,  lm:1 },
+  paire:       { name:"La Paire",             base:10,  mult:2, lb:10, lm:1 },
+  double:      { name:"Les Jumelles",         base:20,  mult:2, lb:15, lm:1 },
+  brelan:      { name:"Le Brelan du Forgeron",base:30,  mult:3, lb:15, lm:2 },
+  suite:       { name:"La Caravane",          base:30,  mult:4, lb:20, lm:2 },
+  couleur:     { name:"Le Grenier plein",     base:35,  mult:4, lb:20, lm:2 },
+  full:        { name:"Le Marché comble",     base:40,  mult:4, lb:25, lm:2 },
+  carre:       { name:"Les Quatre Royaumes",  base:60,  mult:7, lb:30, lm:3 },
+  quinteflush: { name:"La Route de l'Or",     base:100, mult:8, lb:40, lm:3 },
+};
+const GRIGRIS = [
+  { id:"masqueOr",  ic:"🎭", name:"Masque de l'Or",      desc:"Les graines Or comptent double.",                     pr:7 },
+  { id:"amuletteSel",ic:"🧿", name:"Amulette de Sel",     desc:"+10 base par graine Sel jouée.",                      pr:6 },
+  { id:"tambour",   ic:"🥁", name:"Tambour parleur",      desc:"+1 main à chaque enchère.",                           pr:7 },
+  { id:"balance",   ic:"⚖️", name:"Balance honnête",      desc:"+1 défausse à chaque enchère.",                       pr:6 },
+  { id:"python",    ic:"🐍", name:"Python sacré",         desc:"La 1re main de chaque enchère : mult ×2.",            pr:7 },
+  { id:"forgeron",  ic:"🔨", name:"Marteau du forgeron",  desc:"Brelan ou mieux : +4 mult.",                          pr:6 },
+  { id:"caravanier",ic:"🐪", name:"Bâton du caravanier",  desc:"La Caravane (suite) : +30 base, +2 mult.",            pr:5 },
+  { id:"tisserand", ic:"🧶", name:"Fil du tisserand",     desc:"+1 mult par graine jouée.",                           pr:6 },
+  { id:"griot",     ic:"🎙️", name:"Mémoire du griot",     desc:"+3 base par main jouée depuis le départ.",            pr:5 },
+  { id:"etoile",    ic:"⭐", name:"Étoile du berger",      desc:"+1 mult par gri-gri possédé.",                        pr:6 },
+];
+const BOSSES = [
+  { id:"secheresse", name:"La Sécheresse",   desc:"1 seule défausse" },
+  { id:"taxe",       name:"La Taxe du Chef", desc:"base des combos ÷ 2" },
+  { id:"harmattan",  name:"L'Harmattan",     desc:"main de 6 graines" },
+  { id:"interdit",   name:"L'Interdit de l'Or", desc:"les graines Or valent 0" },
+  { id:"impatience", name:"L'Impatience",    desc:"3 mains seulement" },
+];
+const VILLAGES = ["Tiassalé", "Korhogo", "Bouaké", "Grand-Bassam"];
+const BLIND_NAMES = ["Petite enchère", "Grande enchère", "Le Chef du village"];
+const TARGETS = [100,160,260, 420,650,1000, 1450,2100,3000, 4200,5800,8000];
+const HANDS_BASE=4, DISC_BASE=3, HAND_SIZE=8, GG_SLOTS=5;
+const BEST_KEY="awale_royal_best";
+
+let deck=[], hand=[], sel=new Set();
+let blind=0, score=0, cauris=4, handsLeft=0, discardsLeft=0, handSize=HAND_SIZE;
+let grigris=[], comboLevels={}, boss=null, handsPlayedRun=0, firstHandOfBlind=true;
+let state="menu";   // menu | play | shop | won | lost
+let shopStock=[];
+
+const rnd=n=>Math.floor(Math.random()*n);
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=rnd(i+1); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function freshDeck(){ const d=[]; for (const s in SUITS) for (let v=1;v<=12;v++) d.push({s,v}); return shuffle(d); }
+const has=id=>grigris.some(g=>g.id===id);
+const isBoss=()=>blind%3===2;
+
+/* ---------- évaluation des combos ---------- */
+function evaluate(cards){
+  const n=cards.length; if (!n) return null;
+  const byV={}, byS={};
+  for (const c of cards){ byV[c.v]=(byV[c.v]||0)+1; byS[c.s]=(byS[c.s]||0)+1; }
+  const counts=Object.values(byV).sort((a,b)=>b-a);
+  const flush = n===5 && Object.keys(byS).length===1;
+  let straight=false;
+  if (n===5 && Object.keys(byV).length===5){
+    const vs=cards.map(c=>c.v).sort((a,b)=>a-b); straight = vs[4]-vs[0]===4;
+  }
+  if (straight&&flush) return "quinteflush";
+  if (counts[0]===4) return "carre";
+  if (counts[0]===3&&counts[1]===2) return "full";
+  if (flush) return "couleur";
+  if (straight) return "suite";
+  if (counts[0]===3) return "brelan";
+  if (counts[0]===2&&counts[1]===2) return "double";
+  if (counts[0]===2) return "paire";
+  return "graine";
+}
+function computeScore(cards, key, dry){
+  const C=COMBOS[key], lvl=comboLevels[key]||0;
+  let base=C.base+lvl*C.lb, mult=C.mult+lvl*C.lm;
+  if (boss==="taxe") base=Math.ceil(base/2);
+  for (const c of cards){
+    let v=c.v;
+    if (boss==="interdit" && c.s==="or") v=0;
+    if (has("masqueOr") && c.s==="or") v*=2;
+    base+=v;
+    if (has("amuletteSel") && c.s==="sel") base+=10;
+  }
+  if (has("griot")) base+=3*handsPlayedRun;
+  if (has("caravanier") && key==="suite"){ base+=30; mult+=2; }
+  if (has("forgeron") && ["brelan","suite","couleur","full","carre","quinteflush"].includes(key)) mult+=4;
+  if (has("tisserand")) mult+=cards.length;
+  if (has("etoile")) mult+=grigris.length;
+  if (has("python") && firstHandOfBlind) mult*=2;
+  return { base, mult, total: base*mult };
+}
+
+/* ---------- déroulement ---------- */
+function startRun(){
+  blind=0; cauris=4; grigris=[]; comboLevels={}; handsPlayedRun=0;
+  for (const o of ["menu","shop","won","lost","codex"]) document.getElementById(o).classList.add("hide");
+  startBlind();
+}
+function startBlind(){
+  boss = isBoss()? BOSSES[rnd(BOSSES.length)].id : null;
+  score=0; handSize=HAND_SIZE; handsLeft=HANDS_BASE; discardsLeft=DISC_BASE; firstHandOfBlind=true;
+  if (has("tambour")) handsLeft++;
+  if (has("balance")) discardsLeft++;
+  if (boss==="secheresse") discardsLeft=1;
+  if (boss==="harmattan") handSize=6;
+  if (boss==="impatience") handsLeft=3;
+  deck=freshDeck(); hand=[]; sel.clear(); drawTo();
+  state="play";
+  render(); preview();
+}
+function drawTo(){ while (hand.length<handSize && deck.length) hand.push(deck.pop()); }
+function selCards(){ return [...sel].map(i=>hand[i]).filter(Boolean); }
+
+function playHand(){
+  if (state!=="play"||!sel.size) return;
+  const cards=selCards(), key=evaluate(cards), r=computeScore(cards,key);
+  score+=r.total; handsLeft--; handsPlayedRun++; firstHandOfBlind=false;
+  showPlay(COMBOS[key].name, r, cards);
+  hand=hand.filter((c,i)=>!sel.has(i)); sel.clear(); drawTo();
+  if (score>=TARGETS[blind]) return winBlind();
+  if (handsLeft<=0) return lose();
+  render();
+}
+function discardSel(){
+  if (state!=="play"||!sel.size||discardsLeft<=0) return;
+  discardsLeft--;
+  hand=hand.filter((c,i)=>!sel.has(i)); sel.clear(); drawTo();
+  render(); preview();
+}
+function winBlind(){
+  const gain=4+Math.max(0,handsLeft)+Math.min(5,Math.floor(cauris/5));
+  cauris+=gain;
+  state="shop"; stockShop();
+  document.getElementById("shopInfo").innerHTML=
+    `Enchère payée ! <b>+${gain} 🐚</b> (4 + ${Math.max(0,handsLeft)} mains restantes + intérêts).<br>Tu as <b>${cauris} 🐚</b>.`;
+  document.getElementById("shop").classList.remove("hide");
+  render();
+}
+function nextBlind(){
+  document.getElementById("shop").classList.add("hide");
+  blind++;
+  if (blind>=TARGETS.length){ state="won";
+    try{ localStorage.setItem(BEST_KEY,"12"); }catch(e){}
+    document.getElementById("wonTxt").innerHTML=`Les 4 villages ont payé tribut à ta caravane.<br>Les griots chanteront « <b>la Route de l'Or</b> » pour toi. 🐚 ${cauris} cauris en poche.`;
+    document.getElementById("won").classList.remove("hide");
+    return;
+  }
+  startBlind();
+}
+function lose(){
+  state="lost";
+  try{ const b=+(localStorage.getItem(BEST_KEY)||0); if (blind+1>b) localStorage.setItem(BEST_KEY,String(blind+1)); }catch(e){}
+  document.getElementById("lostTxt").innerHTML=
+    `Enchère ${blind+1}/12 — il manquait <b>${TARGETS[blind]-score}</b> points à « ${VILLAGES[Math.floor(blind/3)]} ».<br>Astuce : les <b>Proverbes</b> font grimper les combos que tu joues le plus.`;
+  document.getElementById("lost").classList.remove("hide");
+  render();
+}
+
+/* ---------- marché ---------- */
+function stockShop(){
+  const pool=GRIGRIS.filter(g=>!has(g.id));
+  shuffle(pool);
+  shopStock=[];
+  for (let i=0;i<2 && i<pool.length;i++) shopStock.push({ kind:"gg", ...pool[i] });
+  const keys=Object.keys(COMBOS); const k=keys[rnd(keys.length)];
+  shopStock.push({ kind:"prov", key:k, ic:"📜", pr:5, name:"Proverbe : "+COMBOS[k].name,
+    desc:`Améliore « ${COMBOS[k].name} » (niv ${(comboLevels[k]||0)} → ${(comboLevels[k]||0)+1}) : +${COMBOS[k].lb} base, +${COMBOS[k].lm} mult, pour toute la partie.` });
+  renderShop();
+}
+function buy(i){
+  const it=shopStock[i]; if (!it||it.sold) return;
+  if (cauris<it.pr) return;
+  if (it.kind==="gg" && grigris.length>=GG_SLOTS) return;
+  cauris-=it.pr; it.sold=true;
+  if (it.kind==="gg") grigris.push(GRIGRIS.find(g=>g.id===it.id));
+  else comboLevels[it.key]=(comboLevels[it.key]||0)+1;
+  renderShop(); render();
+}
+function reroll(){ if (cauris<2) return; cauris-=2; stockShop(); render(); }
+function renderShop(){
+  const row=document.getElementById("shopRow"); row.innerHTML="";
+  shopStock.forEach((it,i)=>{
+    const d=document.createElement("div");
+    const off=it.sold||cauris<it.pr||(it.kind==="gg"&&grigris.length>=GG_SLOTS);
+    d.className="item"+(off?" off":"");
+    d.innerHTML=`<div class="ic">${it.ic}</div><h3>${it.name}</h3><p>${it.desc}</p><div class="pr">${it.sold?"— vendu —":it.pr+" 🐚"}</div>`;
+    if (!off) d.onclick=()=>buy(i);
+    row.appendChild(d);
+  });
+  document.getElementById("rerollBtn").disabled=cauris<2;
+}
+
+/* ---------- rendu ---------- */
+function render(){
+  const v=Math.floor(blind/3);
+  document.getElementById("village").textContent=(VILLAGES[v]||"—")+" · enchère "+(blind+1)+"/12";
+  document.getElementById("cauris").textContent=cauris;
+  document.getElementById("hands").textContent=handsLeft;
+  document.getElementById("discards").textContent=discardsLeft;
+  const bn=BLIND_NAMES[blind%3]||"—";
+  document.getElementById("blindName").textContent=bn;
+  const bossDef=boss?BOSSES.find(b=>b.id===boss):null;
+  document.getElementById("blindMalus").textContent=bossDef?("👺 "+bossDef.name+" — "+bossDef.desc):"";
+  document.getElementById("score").textContent=Math.round(score);
+  document.getElementById("target").textContent=TARGETS[blind]||"—";
+  document.getElementById("gaugeFill").style.width=Math.min(100,score/(TARGETS[blind]||1)*100)+"%";
+  // gri-gris
+  const row=document.getElementById("ggRow"); row.innerHTML="";
+  for (let i=0;i<GG_SLOTS;i++){ const g=grigris[i]; const d=document.createElement("div");
+    d.className="gg"+(g?"":" empty"); d.title=g?(g.name+" — "+g.desc):"emplacement libre";
+    d.innerHTML=g?`<span class="ic">${g.ic}</span> ${g.name}`:"◌";
+    row.appendChild(d); }
+  // main
+  const h=document.getElementById("hand"); h.innerHTML="";
+  hand.forEach((c,i)=>{
+    const d=document.createElement("div");
+    d.className="card"+(sel.has(i)?" sel":"");
+    d.innerHTML=`<div class="v" style="color:${SUITS[c.s].c}">${c.v}</div><div class="ic2">${SUITS[c.s].ic}</div>
+      <div class="nom">${SUITS[c.s].name}</div><div class="ic">${SUITS[c.s].ic}</div>`;
+    d.onclick=()=>{ if (state!=="play") return;
+      if (sel.has(i)) sel.delete(i); else { if (sel.size>=5) return; sel.add(i); }
+      render(); preview(); };
+    h.appendChild(d);
+  });
+  document.getElementById("playBtn").disabled=!(state==="play"&&sel.size>=1);
+  document.getElementById("discBtn").disabled=!(state==="play"&&sel.size>=1&&discardsLeft>0);
+  document.getElementById("discBtn").textContent=`♻ Défausser (${discardsLeft})`;
+}
+function preview(){
+  const z=document.getElementById("playzone");
+  const cards=selCards();
+  if (!cards.length){ z.innerHTML='<span class="sub">Sélectionne 1 à 5 graines, puis <b>Jouer la main</b>.</span>'; return; }
+  const key=evaluate(cards), r=computeScore(cards,key);
+  z.innerHTML=`<div class="combo-name">${COMBOS[key].name}${comboLevels[key]?` <span class="lvl">niv ${comboLevels[key]+1}</span>`:""}</div>
+    <div class="combo-calc">(${r.base} base) × <b>${r.mult}</b> = <b>${r.total}</b> points</div>`;
+}
+function showPlay(name,r,cards){
+  const z=document.getElementById("playzone");
+  z.innerHTML=`<div class="combo-name pop">✨ ${name}</div>
+    <div class="combo-calc pop">${cards.map(c=>c.v+SUITS[c.s].ic).join(" ")} → (${r.base}) × <b>${r.mult}</b> = <b>+${r.total}</b></div>`;
+}
+
+/* ---------- codex ---------- */
+function openCodex(){
+  const t=document.getElementById("codexTable");
+  let html="<tr><td><b>Combo</b></td><td><b>base</b></td><td><b>mult</b></td></tr>";
+  for (const k in COMBOS){ const C=COMBOS[k], lvl=comboLevels[k]||0;
+    html+=`<tr><td>${C.name}${lvl?` <span class="lvl">niv ${lvl+1}</span>`:""}</td><td>${C.base+lvl*C.lb}</td><td>×${C.mult+lvl*C.lm}</td></tr>`; }
+  t.innerHTML=html;
+  document.getElementById("codex").classList.remove("hide");
+}
+function closeCodex(){ document.getElementById("codex").classList.add("hide"); }
+
+/* ---------- clavier ---------- */
+addEventListener("keydown",e=>{
+  if (state!=="play") return;
+  const k=e.key.toLowerCase();
+  if (k>="1"&&k<="8"){ const i=+k-1; if (i<hand.length){ if (sel.has(i)) sel.delete(i); else if (sel.size<5) sel.add(i); render(); preview(); } }
+  if (k==="enter") playHand();
+  if (k==="d") discardSel();
+});
+
+(function(){ try{ const b=+(localStorage.getItem(BEST_KEY)||0);
+  if (b) document.getElementById("bestTxt").textContent="Record : enchère "+b+"/12"+(b>=12?" — victoire !":""); }catch(e){} })();
+render();
+</script>
+</body>
+</html>

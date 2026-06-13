@@ -4,6 +4,14 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>AwemA — Choisis ton jeu</title>
+<!-- PWA : installable + hors-ligne (actif quand la plateforme est servie en http(s)/localhost ; sans effet en double-clic file://) -->
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#e8702a" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="AwemA" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="icon.svg" />
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -71,12 +79,16 @@
          font-weight: 800; padding: .2rem .5rem; border-radius: 1rem; letter-spacing: .5px; }
   footer { margin-top: 1.8rem; text-align: center; font-size: .82rem; opacity: .6; line-height: 1.7; }
   footer a { color: #9fd0ff; }
+  .install { margin: .7rem auto 0; display: inline-block; font: inherit; font-weight: 800; cursor: pointer;
+    background: #e8702a; color: #2a1404; border: 0; border-radius: .6rem; padding: .5rem 1rem; box-shadow: 0 6px 22px #e8702a44; }
+  .install:active { transform: translateY(1px); }
 </style>
 </head>
 <body>
   <header>
     <h1>🎮 AwemA — TheGame</h1>
-    <p>Choisis ton jeu. Tout tourne <b>en local, hors-ligne</b> — aucune installation.</p>
+    <p>Choisis ton jeu. Tout tourne <b>en local, hors-ligne</b> — et tu peux <b>installer la plateforme</b> sur ton téléphone.</p>
+    <button id="installBtn" class="install" hidden>⬇️ Installer l'app</button>
   </header>
 
   <main class="grid">
@@ -158,5 +170,21 @@
     🔧 Outils&nbsp;: <a href="prototype.html">vérifier le moteur de Lignées</a> (7 contrôles)<br>
     <small>AwemA · prototypes locaux — voir <code>docs/</code></small>
   </footer>
+
+  <script>
+    // Enregistrement défensif : seulement en contexte sécurisé (pas en file://), n'échoue jamais bruyamment.
+    if ("serviceWorker" in navigator && location.protocol !== "file:") {
+      addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+    }
+    // Bouton d'installation (Chrome/Edge/Android) : apparaît quand la PWA est installable.
+    let deferredPrompt = null;
+    const installBtn = document.getElementById("installBtn");
+    addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredPrompt = e; if (installBtn) installBtn.hidden = false; });
+    if (installBtn) installBtn.onclick = async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null; installBtn.hidden = true;
+    };
+    addEventListener("appinstalled", () => { if (installBtn) installBtn.hidden = true; });
+  </script>
 </body>
 </html>

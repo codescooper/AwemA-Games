@@ -1,10 +1,11 @@
 # STATUS — AWEMA Light Games Prototype
-> Dernière MAJ : 2026-06-12
+> Dernière MAJ : 2026-06-13
 
 ## 🎯 Objectif de la phase actuelle
 Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zéro dépendance) en repoussant le graphisme et le réalisme au maximum des performances du navigateur. Horizon : installation en PWA, puis multijoueur.
 
 ## ✅ Fait (cette semaine)
+- **PWA installable** : `manifest.webmanifest` + service worker (`sw.js`, cache `awema-v1` *cache-first* hors-ligne de tout l'app-shell) + icône SVG maskable, branchés sur le menu (bouton « Installer », enregistrement défensif hors `file://`). Vérifié sur localhost (manifest, SW scope `/`, 14 entrées cachées, ressource servable hors-ligne, 0 erreur). Commit `195e0fa`.
 - **Nouveau jeu D — « Tam-Tam »** : combat rythmique (3 danses 92→132 BPM, jugements ±75/160 ms, combos ×4, transe). Synchro audio par construction (une seule horloge WebAudio pour sons + esprits), percussions 100 % procédurales. Vérifié E2E (victoire/défaite, jugements exacts, 0 erreur). **File A-B-C-D terminée.** Commit `ac1b6f4`.
 - **Nouveau jeu C — « Awalé Royal »** : roguelike de combos façon Balatro (48 graines en 4 familles Or/Sel/Cola/Mil, 9 combos culturels, 10 gri-gris, proverbes, 12 enchères, 5 malus de chef). Équilibrage validé par simulation (IA gloutonne : 2 victoires / 8, morts enchères 9–12). Commit `5340583`.
 - **Nouveau jeu B — « Banco — Démolition »** : puzzle à **vraie physique** (Verlet + contraintes, casse à l'impact, soudage des pièces, poutres colorées par la contrainte, poussière, son procédural). 7 chantiers, étoiles, sauvegarde. Vérifié (stabilité au repos 0 casse, victoire/défaite E2E, 1,8 ms/frame). Commit `949cf1b`.
@@ -17,11 +18,11 @@ Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zér
 - **Menu** (`engine/index.html`) et **README** à jour : 5 entrées (Atelier, Lignées, Sables, Échecs, Voraces).
 
 ## 🚧 En cours
-- [ ] Rien de non committé — repo propre. **File des 4 jeux terminée** (A — Harmattan ✅ · B — Banco ✅ · C — Awalé Royal ✅ · D — Tam‑Tam ✅) : la plateforme compte 9 entrées.
+- [ ] Rien de non committé — repo propre. Plateforme : **9 jeux + atelier + PWA**. Reste à **publier en ligne** puis (cap) **multijoueur**.
 
 ## ⏭️ Prochaine étape (la SEULE chose à faire ensuite)
-Transformer la plateforme en **PWA installable** : `manifest.webmanifest` + **service worker** de cache hors‑ligne (tous les jeux), branchés sur `engine/index.html`, icône incluse.
-→ *Justif : c'était la prochaine étape avant la file des 4 jeux ; débloque l'installation sur smartphones modestes (décision verrouillée « PWA + marchés émergents ») ; le multijoueur reste pour après.*
+**Publier la plateforme en ligne** (dépôt public **AwemA-Games** → **GitHub Pages**) pour que la PWA soit réellement **installable sur téléphone**. Pré-requis utilisateur : `gh auth login`, puis `gh repo create AwemA-Games --public --source=. --remote=origin --push` et activer Pages (servir `engine/`).
+→ *Justif : la PWA tout juste construite n'a de valeur qu'**hébergée** (le service worker exige https) ; étape courte, fort effet, débloque la cible « smartphones / marchés émergents ». Le **multijoueur** (gros chantier, async) reste le cap suivant. Action bloquée tant que l'utilisateur n'a pas fait `gh auth login`.*
 
 ## 🧱 Décisions verrouillées
 - **100 % local / offline-first** : chaque jeu = 1 fichier HTML autonome, JS vanilla, **zéro dépendance runtime**, lançable au double-clic.

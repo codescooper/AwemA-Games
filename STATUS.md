@@ -5,6 +5,7 @@
 Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zéro dépendance) en repoussant le graphisme et le réalisme au maximum des performances du navigateur. Horizon : installation en PWA, puis multijoueur.
 
 ## ✅ Fait (cette semaine)
+- **Multijoueur — couche ③ : « Le Village » (monde ouvert, prototype simulé).** Place 2D où l'avatar se déplace (clavier/clic, caméra suiveuse), bots qui errent + palabrent (bulles), 9 cases de jeu + le Grand Conseil en bâtiments où l'on entre (→ Jouer). **La vision ①②③ est entièrement prototypée en local.** Vérifié (déplacement, errance, entrée, chat, rendu). Commit `40042a2`.
 - **Multijoueur — couche ② : « La Place » (hub social, prototype simulé).** Présence vivante (bots qui arrivent/partent/entrent dans les salles), **chat** « arbre à palabres » (les présents répondent), **9 salles de jeu** (compteur live + bouton Jouer). Réutilise identité/Indice ; couture `Lobby.*` prête pour PartyKit/Cloudflare. Vérifié (chat, 30 ticks, salles). Commit `e70f900`.
 - **Le Grand Conseil — prototype réseau (cloud simulé, async).** Identité persistante + `Cloud.submit()/global()/game()` asynchrones (latence simulée) sur un faux serveur local (`awema_cloud_v1`) avec bots qui progressent → board « vivant », bouton Synchroniser, badge « en ligne (simulé) ». Couture isolée : passer au vrai mondial = remplacer le corps de `Cloud.*` par des `fetch()`. Vérifié (board 8 joueurs, scores poussés, bots +3016/6 synchros). Commit `49a1134`.
 - **Indice AwemA — couche ① complète : les 9 jeux contribuent.** Échecs (victoires), Sables (score), Lignées (prestige) enregistrent un meilleur score ; Voraces & Atelier en avaient déjà un. Registre étendu + paliers de rang recalibrés (Indice max ~9000). Vérifié (mat→`echecs_best`, `sables_best`, `lignees_best`, Indice 9 jeux). Commit `6bd5bbd`.
@@ -23,11 +24,11 @@ Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zér
 - **Menu** (`engine/index.html`) et **README** à jour : 5 entrées (Atelier, Lignées, Sables, Échecs, Voraces).
 
 ## 🚧 En cours
-- [ ] **Multijoueur — vision : monde-hub social.** Feuille de route en **prototype simulé** : **① classements/Indice ✅ (9 jeux)** · **couture réseau ✅** · **② hub présence+chat+salles ✅** → reste **③ monde ouvert** (déambulation d'avatars). Tout est local ; passage en ligne = remplacer les coutures `Cloud.*` / `Lobby.*` par un vrai client réseau (infra à décider).
+- [ ] **Multijoueur — vision entièrement PROTOTYPÉE en local** : ① classements/Indice ✅ (9 jeux) · ② hub présence+chat+salles ✅ · ③ monde ouvert (Le Village) ✅. Reste **le passage en ligne** : remplacer les coutures simulées (`Cloud.*`, bots de `salon.html`/`monde.html`) par un vrai client temps réel. **Décision d'infra requise.**
 
 ## ⏭️ Prochaine étape (la SEULE chose à faire ensuite)
-**③ Monde ouvert (prototype simulé)** : transformer *La Place* en **lieu 2D** où ton avatar se **déplace**, croise les autres (bots) en mouvement, et où les **salles deviennent des cases/bâtiments** dans lesquels on entre.
-→ *Justif : dernière couche de la vision, toujours en simulé (zéro coût/infra) → valide le ressenti « open world » avant d'investir. Ensuite seulement : **brancher le vrai réseau** (Cloudflare recommandé vs Supabase + anti-triche) qui rendra ①②③ réellement multijoueurs d'un coup.*
+**Brancher le vrai réseau** : choisir l'infra (**Cloudflare recommandé** — Pages+Workers+D1+Durable Objects/PartyKit — vs Supabase), puis (a) classement mondial réel (remplacer le corps de `Cloud.*` par `fetch()`), (b) présence/chat temps réel dans Le Village, (c) **anti-triche minimal** sur les scores. Commencer petit : juste le **classement en ligne** d'abord.
+→ *Justif : la vision est validée en prototype (zéro coût) ; c'est le seul pas qui la rend réellement multijoueur, et il était jusqu'ici différé faute de décision d'infra. À cadrer avec l'utilisateur (compte, coût, modération chat, RGPD).*
 
 ## 🧱 Décisions verrouillées
 - **100 % local / offline-first** : chaque jeu = 1 fichier HTML autonome, JS vanilla, **zéro dépendance runtime**, lançable au double-clic.

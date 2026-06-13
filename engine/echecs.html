@@ -420,7 +420,8 @@ function updateStatus() {
   const ms = legalMoves(S), check = inCheck(S, S.turn);
   if (!ms.length) {
     over = true;
-    if (check) { st.className = "win"; const winner = S.turn === "w" ? "Vert" : "Orange"; st.textContent = "♚ Échec et mat — " + winner + " l'emporte !"; }
+    if (check) { st.className = "win"; const winner = S.turn === "w" ? "Vert" : "Orange"; st.textContent = "♚ Échec et mat — " + winner + " l'emporte !";
+      if (S.turn === "b" && !pvp) { try { localStorage.setItem("echecs_best", (+localStorage.getItem("echecs_best") || 0) + 1); } catch (e) {} } }   // victoire du joueur (Orange) → Indice AwemA
     else st.textContent = "🤝 Pat — partie nulle.";
   } else if (S.half >= 100) { over = true; st.textContent = "🤝 Nulle (règle des 50 coups)."; }
   else if (insufficient()) { over = true; st.textContent = "🤝 Nulle — matériel insuffisant."; }

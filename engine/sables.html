@@ -1991,6 +1991,7 @@ function endGame(victory) {
   const m = Math.floor(gameT / 60), s = Math.floor(gameT % 60);
   const sc = Math.max(0, Math.round(stats.player.kills * 12 + stats.player.peakPop * 6 + age["player"] * 200 + (won ? 800 : 0) - gameT * 0.4));
   document.getElementById("resStats").textContent = `Empire : ${ageOf("player").name} · Durée : ${m}:${s < 10 ? "0" : ""}${s} · ⚔️ ${stats.player.kills} vaincus · 👥 armée max ${stats.player.peakPop} · 🏅 Score ${sc}`;
+  try { localStorage.setItem("sables_best", Math.max(+localStorage.getItem("sables_best") || 0, sc)); } catch (e) {}   // meilleur score → Indice AwemA
   document.getElementById("result").classList.remove("hidden");
 }
 

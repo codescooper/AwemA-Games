@@ -150,7 +150,7 @@ function toggleSound(){ soundOn=!soundOn; try{ localStorage.setItem("lignees_sou
 (function(){ const b=document.getElementById("soundBtn"); if(b)b.textContent=soundOn?"🔊":"🔇"; })();
 
 function load(){ try{ const s=localStorage.getItem(KEY_S),l=localStorage.getItem(KEY_L); state=s?JSON.parse(s):buildScenario(); fullLog=l?JSON.parse(l):[]; }catch(e){ state=buildScenario(); fullLog=[]; } }
-function save(){ try{ localStorage.setItem(KEY_S,JSON.stringify(state)); localStorage.setItem(KEY_L,JSON.stringify(fullLog)); }catch(e){} }
+function save(){ try{ localStorage.setItem(KEY_S,JSON.stringify(state)); localStorage.setItem(KEY_L,JSON.stringify(fullLog)); const p=state.houses[PLAYER]; if(p) localStorage.setItem("lignees_best", Math.max(+localStorage.getItem("lignees_best")||0, Math.round(p.prestige))); }catch(e){} }   /* meilleur prestige -> Indice AwemA */
 function clearTurn(){ selectedOrders=[]; selectedHolding=null; pendingMode=null; pendingFrom=null; eventChoice=null; showDiplo=false; }
 function reset(){ if(!confirm("Recommencer une nouvelle partie ?"))return; localStorage.removeItem(KEY_S); localStorage.removeItem(KEY_L); load(); recap=null; lastInvalid=[]; clearTurn(); setTab("conseil"); }
 function newSeason(){ localStorage.removeItem(KEY_S); localStorage.removeItem(KEY_L); load(); recap=null; lastInvalid=[]; clearTurn(); setTab("conseil"); }

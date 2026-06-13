@@ -99,20 +99,25 @@ const GAMES = [
   { id:"tamtam",    name:"Tam-Tam",     ic:"🥁", key:"tamtam_best",      unit:"pts",     fmt:v=>v.toLocaleString("fr"), read:()=>+lsGet("tamtam_best")||0,     target:30000 },
   { id:"awale",     name:"Awalé Royal", ic:"🐚", key:"awale_royal_best", unit:"enchère", fmt:v=>v+"/12",           read:()=>+lsGet("awale_royal_best")||0,      target:12 },
   { id:"banco",     name:"Banco",       ic:"🧱", key:"banco_save",       unit:"★",       fmt:v=>v+" ★",            read:()=>bancoStars(lsGet("banco_save")),    target:21 },
+  { id:"echecs",    name:"Échecs",      ic:"♟️", key:"echecs_best",      unit:"victoires",fmt:v=>v+" 🏆",          read:()=>+lsGet("echecs_best")||0,           target:8 },
+  { id:"voraces",   name:"Voraces",     ic:"🦠", key:"voraces_best",     unit:"masse",   fmt:v=>(+v).toLocaleString("fr"), read:()=>+lsGet("voraces_best")||0,  target:400 },
+  { id:"sables",    name:"L'Âge des Sables", ic:"🏜️", key:"sables_best", unit:"score",   fmt:v=>(+v).toLocaleString("fr"), read:()=>+lsGet("sables_best")||0,   target:2500 },
+  { id:"lignees",   name:"Lignées",     ic:"👑", key:"lignees_best",     unit:"prestige",fmt:v=>v+" 👑",          read:()=>+lsGet("lignees_best")||0,          target:200 },
+  { id:"atelier",   name:"L'Atelier",   ic:"🎓", key:"awema_atelier_v1", unit:"XP",      fmt:v=>v+" XP",          read:()=>{ try{ return (JSON.parse(lsGet("awema_atelier_v1"))||{}).xp||0; }catch(e){ return 0; } }, target:310 },
 ];
-const FUTURE = [ {ic:"♟️",name:"Échecs"}, {ic:"🏜️",name:"L'Âge des Sables"}, {ic:"🦠",name:"Voraces"}, {ic:"👑",name:"Lignées"} ];
+const FUTURE = [];   // tous les jeux contribuent désormais à l'Indice
 
 const maitrise = (g,score)=> clamp(score/g.target,0,1);            // 0..1
 const gamePoints = (g,score)=> Math.round(maitrise(g,score)*1000); // 0..1000 par jeu
 function indiceOf(scores){ let s=0; for(const g of GAMES) s+=gamePoints(g, scores[g.id]||0); return s; }   // Σ → "tout cumulé"
 
-const TIERS=[
+const TIERS=[   // paliers calibrés pour 9 jeux (Indice max ≈ 9000)
   { min:0,    name:"Voyageur",         ic:"🥾" },
-  { min:300,  name:"Marchand",         ic:"🐪" },
-  { min:900,  name:"Notable",          ic:"🎽" },
-  { min:1700, name:"Chef de village",  ic:"🪘" },
-  { min:2600, name:"Roi des routes",   ic:"👑" },
-  { min:3400, name:"Légende des griots",ic:"🌟" },
+  { min:900,  name:"Marchand",         ic:"🐪" },
+  { min:2200, name:"Notable",          ic:"🎽" },
+  { min:4000, name:"Chef de village",  ic:"🪘" },
+  { min:6000, name:"Roi des routes",   ic:"👑" },
+  { min:8000, name:"Légende des griots",ic:"🌟" },
 ];
 function tierOf(idx){ let t=TIERS[0]; for(const x of TIERS) if(idx>=x.min) t=x; return t; }
 
@@ -124,12 +129,12 @@ function myScores(){ const o={}; for(const g of GAMES) o[g.id]=g.read(); return 
 /* ---- COUTURE BACK-END : aujourd'hui = local + rivaux d'exemple.
         Demain = fetch() vers Cloudflare/Supabase (même forme de données). ---- */
 const RIVALS = [   // rivaux d'exemple (scores par jeu) pour animer les tableaux en attendant le serveur
-  { name:"Awa la griotte", s:{harmattan:172, tamtam:41000, awale:12, banco:21} },
-  { name:"Kouamé",         s:{harmattan:120, tamtam:22000, awale:9,  banco:15} },
-  { name:"Aïssata",        s:{harmattan:95,  tamtam:28000, awale:11, banco:12} },
-  { name:"N'Dri",          s:{harmattan:64,  tamtam:9000,  awale:6,  banco:9}  },
-  { name:"Fatou",          s:{harmattan:140, tamtam:15000, awale:8,  banco:18} },
-  { name:"Kossi",          s:{harmattan:38,  tamtam:5000,  awale:4,  banco:6}  },
+  { name:"Awa la griotte", s:{harmattan:172, tamtam:41000, awale:12, banco:21, echecs:7, voraces:520, sables:3200, lignees:240, atelier:310} },
+  { name:"Kouamé",         s:{harmattan:120, tamtam:22000, awale:9,  banco:15, echecs:4, voraces:300, sables:1800, lignees:150, atelier:120} },
+  { name:"Aïssata",        s:{harmattan:95,  tamtam:28000, awale:11, banco:12, echecs:5, voraces:380, sables:2200, lignees:190, atelier:240} },
+  { name:"N'Dri",          s:{harmattan:64,  tamtam:9000,  awale:6,  banco:9,  echecs:2, voraces:160, sables:900,  lignees:80,  atelier:60}  },
+  { name:"Fatou",          s:{harmattan:140, tamtam:15000, awale:8,  banco:18, echecs:6, voraces:440, sables:2600, lignees:210, atelier:175} },
+  { name:"Kossi",          s:{harmattan:38,  tamtam:5000,  awale:4,  banco:6,  echecs:1, voraces:90,  sables:500,  lignees:40,  atelier:30}  },
 ];
 const Boards = {
   everyone(){

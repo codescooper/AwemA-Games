@@ -75,6 +75,11 @@
   .tamtam:hover { border-color: #ffa050; }
   .tamtam .cta { background: linear-gradient(180deg,#ffb24d,#e8702a); color: #2a1404; }
   .tamtam .tag { color: #ffb88a; }
+  /* Le Grand Conseil — hall doré des classements (multijoueur) */
+  .classement { background: linear-gradient(160deg, #3a2f12, #16110a); border-color: #f0c64a55; }
+  .classement:hover { border-color: #f0c64a; }
+  .classement .cta { background: #f0c64a; color: #2a1c04; }
+  .classement .tag { color: #ffe08a; }
   .new { position: absolute; top: .9rem; right: .9rem; background: #ff5b6e; color: #fff; font-size: .68rem;
          font-weight: 800; padding: .2rem .5rem; border-radius: 1rem; letter-spacing: .5px; }
   footer { margin-top: 1.8rem; text-align: center; font-size: .82rem; opacity: .6; line-height: 1.7; }
@@ -92,6 +97,15 @@
   </header>
 
   <main class="grid">
+    <a class="card classement" href="classements.html">
+      <span class="new">NOUVEAU</span>
+      <div class="emoji">🏆</div>
+      <div class="tag">Multijoueur · classements</div>
+      <h2>Le Grand Conseil</h2>
+      <p>Le hall des classements&nbsp;: ton <b>Indice AwemA</b> synthétise tes points de tous les jeux en un <b>rang</b> (Voyageur → Légende des griots), avec un <b>classement général</b> et un <b>par jeu</b>. La première pierre du multijoueur.</p>
+      <span class="cta">Voir mon rang ▶</span>
+    </a>
+
     <a class="card atelier" href="atelier.html">
       <div class="emoji">🎓</div>
       <div class="tag">Apprendre · créer avec l'IA</div>
@@ -101,7 +115,6 @@
     </a>
 
     <a class="card tamtam" href="tamtam.html">
-      <span class="new">NOUVEAU</span>
       <div class="emoji">🥁</div>
       <div class="tag">Rythme · combat de tempo</div>
       <h2>Tam-Tam</h2>

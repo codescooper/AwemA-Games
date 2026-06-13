@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Classements — AwemA</title>
+<style>
+  :root { color-scheme: dark; --gold:#f0c64a; --vio:#7c5cff; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui,-apple-system,sans-serif; margin:0; min-height:100vh; color:#f3ece0;
+    background: radial-gradient(1100px 600px at 50% -10%, #2a1f3a, #0c0a14 62%); display:flex; flex-direction:column; align-items:center; padding:1rem .8rem 3rem; }
+  a { color:#cdbcff; }
+  .top { width:100%; max-width:920px; display:flex; align-items:center; gap:.7rem; flex-wrap:wrap; }
+  .top h1 { font-size:clamp(1.3rem,4.5vw,2rem); margin:.2rem 0; }
+  .top .sp { flex:1; }
+  .tbtn { font:inherit; color:#fff; background:#ffffff14; border:1px solid #ffffff2e; border-radius:.5rem; padding:.35rem .6rem; cursor:pointer; text-decoration:none; font-size:.85rem; }
+  .tbtn:hover { background:#ffffff24; }
+  .wrap { width:100%; max-width:920px; display:flex; flex-direction:column; gap:1rem; margin-top:.6rem; }
+  .card { background:#ffffff0c; border:1px solid #ffffff1c; border-radius:.9rem; padding:1rem 1.1rem; }
+  .me { display:flex; gap:1rem; align-items:center; flex-wrap:wrap; background:linear-gradient(160deg,#2a2150,#171130); border-color:#7c5cff55; }
+  .ava { width:64px; height:64px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:2rem;
+    background:radial-gradient(circle at 35% 30%, #ffd98a, #c8941f); color:#2a1c04; box-shadow:inset 0 -3px 8px #0005; }
+  .me .who { font-size:1.3rem; font-weight:800; }
+  .me .pen { font-size:.8rem; opacity:.7; cursor:pointer; margin-left:.4rem; }
+  .me .tier { color:var(--gold); font-weight:700; }
+  .me .idx { margin-left:auto; text-align:right; }
+  .me .idx b { font-size:2rem; color:var(--gold); line-height:1; font-variant-numeric:tabular-nums; }
+  .me .idx small { opacity:.7; }
+  h2 { font-size:1rem; margin:.2rem 0 .6rem; opacity:.85; letter-spacing:.5px; }
+  .break { display:flex; flex-direction:column; gap:.45rem; }
+  .brow { display:flex; align-items:center; gap:.6rem; font-size:.9rem; }
+  .brow .nm { width:120px; flex-shrink:0; } .brow .nm .ic { margin-right:.3rem; }
+  .brow .track { flex:1; height:9px; background:#0007; border:1px solid #ffffff1c; border-radius:5px; overflow:hidden; }
+  .brow .track > i { display:block; height:100%; width:0; background:linear-gradient(90deg,var(--vio),var(--gold)); }
+  .brow .val { width:118px; text-align:right; font-variant-numeric:tabular-nums; opacity:.85; font-size:.82rem; }
+  .brow.todo { opacity:.45; }
+  table { width:100%; border-collapse:collapse; font-size:.92rem; }
+  th,td { padding:.4rem .5rem; text-align:left; border-bottom:1px solid #ffffff12; }
+  th { font-size:.74rem; text-transform:uppercase; letter-spacing:1px; opacity:.55; }
+  td.r { text-align:right; font-variant-numeric:tabular-nums; }
+  tr.self { background:#7c5cff22; }
+  tr.self td { font-weight:700; }
+  .medal { width:1.6rem; display:inline-block; }
+  .tabs { display:flex; gap:.4rem; flex-wrap:wrap; margin-bottom:.6rem; }
+  .tab { font:inherit; cursor:pointer; background:#ffffff10; border:1px solid #ffffff22; border-radius:1rem; padding:.3rem .7rem; font-size:.85rem; color:#f3ece0; }
+  .tab.on { background:var(--gold); color:#2a1c04; border-color:transparent; font-weight:800; }
+  .note { font-size:.8rem; opacity:.6; line-height:1.5; text-align:center; }
+  .pill { display:inline-block; font-size:.7rem; background:#ffffff18; border:1px solid #ffffff2e; border-radius:1rem; padding:.05rem .5rem; opacity:.8; }
+</style>
+</head>
+<body>
+  <div class="top">
+    <h1>🏆 Le Grand Conseil <span class="pill">classements</span></h1>
+    <span class="sp"></span>
+    <a class="tbtn" href="index.html">≡ Menu</a>
+  </div>
+
+  <div class="wrap">
+    <div class="card me" id="meCard"></div>
+
+    <div class="card">
+      <h2>👑 Classement général — Indice AwemA</h2>
+      <table id="globalTable"></table>
+    </div>
+
+    <div class="card">
+      <h2>🎮 Classement par jeu</h2>
+      <div class="tabs" id="tabs"></div>
+      <table id="gameTable"></table>
+    </div>
+
+    <div class="note" id="footnote"></div>
+  </div>
+
+<script>
+/* ============================================================================
+   LE GRAND CONSEIL — classements AwemA (couche multijoueur ①), 100% local.
+   Lit les meilleurs scores déjà enregistrés par chaque jeu (localStorage,
+   même origine) → AUCUNE modification des jeux. Calcule l'« Indice AwemA »
+   (synthèse normalisée de la maîtrise sur tous les jeux) + classements.
+   ─ Couture back-end : remplacer Boards.* (mémoire+exemples) par des appels
+     réseau (Cloudflare/Supabase) le jour où l'on branche le serveur. ─
+   ========================================================================== */
+addEventListener("error", ev=>{ try{ let d=document.getElementById("errband");
+  if(!d){ d=document.createElement("div"); d.id="errband"; d._n=0;
+    d.style.cssText="position:fixed;left:8px;top:8px;right:8px;z-index:99;background:#5a1410;color:#ffd9d0;border:1px solid #ff6b6b;border-radius:8px;padding:8px 10px;font:13px/1.4 system-ui;white-space:pre-wrap";
+    document.body.appendChild(d); }
+  d._n++; d.textContent="⛔ Erreur"+(d._n>1?" ×"+d._n:"")+" : "+(ev.message||"inconnue"); }catch(e){} });
+
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const lsGet=k=>{ try{ return localStorage.getItem(k); }catch(e){ return null; } };
+const lsSet=(k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
+function bancoStars(raw){ try{ const s=JSON.parse(raw); return (s&&s.stars||[]).reduce((a,b)=>a+(+b||0),0); }catch(e){ return 0; } }
+
+/* Registre des jeux : comment lire le meilleur score + le convertir en maîtrise 0..1.
+   « cible » = la valeur considérée comme une maîtrise totale (=1000 points). */
+const GAMES = [
+  { id:"harmattan", name:"Harmattan",   ic:"🌪️", key:"harmattan_best",   unit:"s",       fmt:v=>v+" s",            read:()=>+lsGet("harmattan_best")||0,        target:180 },
+  { id:"tamtam",    name:"Tam-Tam",     ic:"🥁", key:"tamtam_best",      unit:"pts",     fmt:v=>v.toLocaleString("fr"), read:()=>+lsGet("tamtam_best")||0,     target:30000 },
+  { id:"awale",     name:"Awalé Royal", ic:"🐚", key:"awale_royal_best", unit:"enchère", fmt:v=>v+"/12",           read:()=>+lsGet("awale_royal_best")||0,      target:12 },
+  { id:"banco",     name:"Banco",       ic:"🧱", key:"banco_save",       unit:"★",       fmt:v=>v+" ★",            read:()=>bancoStars(lsGet("banco_save")),    target:21 },
+];
+const FUTURE = [ {ic:"♟️",name:"Échecs"}, {ic:"🏜️",name:"L'Âge des Sables"}, {ic:"🦠",name:"Voraces"}, {ic:"👑",name:"Lignées"} ];
+
+const maitrise = (g,score)=> clamp(score/g.target,0,1);            // 0..1
+const gamePoints = (g,score)=> Math.round(maitrise(g,score)*1000); // 0..1000 par jeu
+function indiceOf(scores){ let s=0; for(const g of GAMES) s+=gamePoints(g, scores[g.id]||0); return s; }   // Σ → "tout cumulé"
+
+const TIERS=[
+  { min:0,    name:"Voyageur",         ic:"🥾" },
+  { min:300,  name:"Marchand",         ic:"🐪" },
+  { min:900,  name:"Notable",          ic:"🎽" },
+  { min:1700, name:"Chef de village",  ic:"🪘" },
+  { min:2600, name:"Roi des routes",   ic:"👑" },
+  { min:3400, name:"Légende des griots",ic:"🌟" },
+];
+function tierOf(idx){ let t=TIERS[0]; for(const x of TIERS) if(idx>=x.min) t=x; return t; }
+
+/* ---- joueur local (identité) ---- */
+function myName(){ return lsGet("awema_player") || "Toi"; }
+function setName(){ const n=prompt("Ton nom de joueur (visible dans les classements) :", myName()); if(n&&n.trim()){ lsSet("awema_player", n.trim().slice(0,18)); render(); } }
+function myScores(){ const o={}; for(const g of GAMES) o[g.id]=g.read(); return o; }
+
+/* ---- COUTURE BACK-END : aujourd'hui = local + rivaux d'exemple.
+        Demain = fetch() vers Cloudflare/Supabase (même forme de données). ---- */
+const RIVALS = [   // rivaux d'exemple (scores par jeu) pour animer les tableaux en attendant le serveur
+  { name:"Awa la griotte", s:{harmattan:172, tamtam:41000, awale:12, banco:21} },
+  { name:"Kouamé",         s:{harmattan:120, tamtam:22000, awale:9,  banco:15} },
+  { name:"Aïssata",        s:{harmattan:95,  tamtam:28000, awale:11, banco:12} },
+  { name:"N'Dri",          s:{harmattan:64,  tamtam:9000,  awale:6,  banco:9}  },
+  { name:"Fatou",          s:{harmattan:140, tamtam:15000, awale:8,  banco:18} },
+  { name:"Kossi",          s:{harmattan:38,  tamtam:5000,  awale:4,  banco:6}  },
+];
+const Boards = {
+  everyone(){
+    const me={ name:myName(), s:myScores(), self:true };
+    return [me, ...RIVALS.map(r=>({name:r.name, s:r.s}))].map(p=>({ ...p, idx:indiceOf(p.s), tier:tierOf(indiceOf(p.s)) }));
+  },
+  global(){ return this.everyone().sort((a,b)=>b.idx-a.idx); },
+  byGame(id){ const g=GAMES.find(x=>x.id===id); return this.everyone().map(p=>({name:p.name,self:p.self,score:p.s[id]||0})).sort((a,b)=>b.score-a.score); },
+};
+
+/* ---- rendu ---- */
+let curTab = GAMES[0].id;
+const MEDAL=["🥇","🥈","🥉"];
+function render(){
+  const scores=myScores(), idx=indiceOf(scores), tier=tierOf(idx);
+  const next=TIERS.find(t=>t.min>idx);
+  // carte joueur
+  document.getElementById("meCard").innerHTML=`
+    <div class="ava">${tier.ic}</div>
+    <div>
+      <div class="who">${esc(myName())}<span class="pen" onclick="setName()">✏️ changer</span></div>
+      <div class="tier">${tier.ic} ${tier.name}</div>
+      ${next?`<div class="pill">${next.min-idx} pts → ${next.ic} ${next.name}</div>`:`<div class="pill">rang maximal atteint 🌟</div>`}
+    </div>
+    <div class="idx"><b>${idx}</b><br><small>Indice AwemA</small></div>`;
+  // détail par jeu (barres)
+  let bd='<div class="break">';
+  for(const g of GAMES){ const sc=scores[g.id]||0, pts=gamePoints(g,sc);
+    bd+=`<div class="brow"><div class="nm"><span class="ic">${g.ic}</span>${g.name}</div>
+      <div class="track"><i style="width:${maitrise(g,sc)*100}%"></i></div>
+      <div class="val">${sc?g.fmt(sc):"—"} · ${pts} pts</div></div>`; }
+  for(const f of FUTURE) bd+=`<div class="brow todo"><div class="nm"><span class="ic">${f.ic}</span>${f.name}</div><div class="track"></div><div class="val">bientôt</div></div>`;
+  bd+='</div>';
+  document.getElementById("meCard").insertAdjacentHTML("beforeend", bd);
+  // classement général
+  const G=Boards.global();
+  let gt="<tr><th>#</th><th>Joueur</th><th>Rang</th><th class='r'>Indice</th></tr>";
+  G.forEach((p,i)=>{ gt+=`<tr class="${p.self?'self':''}"><td><span class="medal">${MEDAL[i]||(i+1)}</span></td><td>${esc(p.name)}</td><td>${p.tier.ic} ${p.tier.name}</td><td class="r">${p.idx}</td></tr>`; });
+  document.getElementById("globalTable").innerHTML=gt;
+  // onglets par jeu
+  document.getElementById("tabs").innerHTML=GAMES.map(g=>`<button class="tab ${g.id===curTab?'on':''}" onclick="pickTab('${g.id}')">${g.ic} ${g.name}</button>`).join("");
+  const g=GAMES.find(x=>x.id===curTab), B=Boards.byGame(curTab);
+  let bt=`<tr><th>#</th><th>Joueur</th><th class='r'>Meilleur (${g.unit})</th></tr>`;
+  B.forEach((p,i)=>{ bt+=`<tr class="${p.self?'self':''}"><td><span class="medal">${MEDAL[i]||(i+1)}</span></td><td>${esc(p.name)}</td><td class="r">${p.score?g.fmt(p.score):"—"}</td></tr>`; });
+  document.getElementById("gameTable").innerHTML=bt;
+  document.getElementById("footnote").innerHTML=
+    `L'<b>Indice AwemA</b> = somme de ta maîtrise (0–1000 pts) sur chaque jeu — joue à plus de jeux et bats tes records pour grimper.<br>
+     🔌 <span class="pill">prototype local</span> Les rivaux sont des exemples ; le <b>classement mondial en ligne</b> arrive quand on branchera le serveur (couche ② du multijoueur).`;
+}
+function pickTab(id){ curTab=id; render(); }
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+render();
+</script>
+</body>
+</html>

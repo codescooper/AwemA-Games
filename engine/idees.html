@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Les Doléances — propose le prochain jeu</title>
+<style>
+  :root { color-scheme: dark; --gold:#f0c64a; --vio:#7c5cff; --grn:#13875a; }
+  * { box-sizing: border-box; }
+  body { font-family:system-ui,-apple-system,sans-serif; margin:0; min-height:100vh; color:#f3ece0;
+    background: radial-gradient(1100px 600px at 50% -8%, #2a2440, #0c0a16 64%); display:flex; flex-direction:column; align-items:center; padding:1rem .7rem 3rem; }
+  a { color:#cdbcff; }
+  .top { width:100%; max-width:760px; display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
+  .top h1 { font-size:clamp(1.3rem,4.5vw,1.9rem); margin:.2rem 0; }
+  .top .sp { flex:1; }
+  .tbtn { font:inherit; color:#fff; background:#ffffff14; border:1px solid #ffffff2e; border-radius:.5rem; padding:.35rem .6rem; cursor:pointer; text-decoration:none; font-size:.85rem; }
+  .tbtn:hover { background:#ffffff24; }
+  .wrap { width:100%; max-width:760px; display:flex; flex-direction:column; gap:.9rem; margin-top:.7rem; }
+  .card { background:#ffffff0c; border:1px solid #ffffff1c; border-radius:.9rem; padding:.9rem 1rem; }
+  .intro { font-size:.92rem; line-height:1.55; opacity:.9; }
+  .intro b { color:var(--gold); }
+  /* formulaire */
+  .form { display:flex; flex-direction:column; gap:.5rem; }
+  .form .row { display:flex; gap:.5rem; flex-wrap:wrap; }
+  .form input { flex:1; min-width:140px; font:inherit; background:#0b0d16; color:#fff; border:1px solid #ffffff2e; border-radius:.55rem; padding:.55rem .7rem; }
+  .form button { font:inherit; font-weight:800; background:var(--gold); color:#2a1c04; border:0; border-radius:.55rem; padding:.55rem 1rem; cursor:pointer; }
+  /* liste */
+  .req { display:flex; align-items:center; gap:.7rem; background:#ffffff0c; border:1px solid #ffffff18; border-radius:.7rem; padding:.6rem .7rem; }
+  .req.win { border-color:var(--gold); background:linear-gradient(180deg,#322611,#1a1408); }
+  .req .vote { display:flex; flex-direction:column; align-items:center; gap:.1rem; min-width:54px; }
+  .req .vbtn { font:inherit; cursor:pointer; background:#ffffff12; border:1px solid #ffffff2e; border-radius:.5rem; padding:.25rem .5rem; font-size:1rem; }
+  .req .vbtn.on { background:var(--grn); border-color:transparent; }
+  .req .vn { font-variant-numeric:tabular-nums; font-weight:800; font-size:1.05rem; }
+  .req .body { flex:1; min-width:0; }
+  .req .t { font-weight:700; }
+  .req .meta { font-size:.78rem; opacity:.8; margin-top:.15rem; }
+  .tag { display:inline-block; font-size:.72rem; background:#ffffff14; border:1px solid #ffffff2e; border-radius:1rem; padding:.05rem .5rem; margin-right:.3rem; }
+  .tag.by { color:#8fe0d4; } .tag.dev { color:#ffd9a8; }
+  .badge { font-size:.72rem; background:var(--gold); color:#2a1c04; font-weight:800; border-radius:1rem; padding:.1rem .55rem; }
+  .badge.dev { background:var(--grn); color:#eafff4; }
+  .note { font-size:.8rem; opacity:.62; text-align:center; line-height:1.5; }
+</style>
+</head>
+<body>
+  <div class="top">
+    <h1>💡 Les Doléances</h1>
+    <span class="sp"></span>
+    <a class="tbtn" href="monde.html">🗺️ Village</a>
+    <a class="tbtn" href="index.html">≡ Menu</a>
+  </div>
+
+  <div class="wrap">
+    <div class="card intro">
+      Propose le <b>prochain jeu</b> de la plateforme, ou vote pour les idées des autres.
+      Chaque demande porte le <b>nom du demandeur</b> et, une fois prise en charge, le <b>tag du développeur</b>.
+      <br>🏗️ Chaque semaine, la <b>demande la plus votée passe en phase de développement</b>.
+    </div>
+
+    <div class="card">
+      <div class="form">
+        <input id="title" maxlength="60" placeholder="Ton idée de jeu (ex. « Course de pirogues »)" />
+        <div class="row">
+          <input id="dev" maxlength="24" placeholder="Développeur (tag, optionnel)" />
+          <button onclick="addReq()">＋ Proposer</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="list"></div>
+
+    <div class="card" style="text-align:center">
+      <button class="tbtn" onclick="closeWeek()">🗓️ Clôturer la semaine (démo) — envoyer la n°1 en dev</button>
+    </div>
+    <div class="note" id="note"></div>
+  </div>
+
+<script>
+/* ============================================================================
+   LES DOLÉANCES — demandes de jeu votables (couche sociale), 100% local.
+   Chaque demande : titre + demandeur (toi) + tag développeur. Vote 1/personne.
+   Clôture de semaine (démo) : la n°1 passe « en développement ».
+   ─ Couture réseau : remplacer Store.* (localStorage) par des appels serveur. ─
+   ========================================================================== */
+addEventListener("error", ev=>{ try{ let d=document.getElementById("errband");
+  if(!d){ d=document.createElement("div"); d.id="errband"; d._n=0;
+    d.style.cssText="position:fixed;left:8px;top:8px;right:8px;z-index:99;background:#5a1410;color:#ffd9d0;border:1px solid #ff6b6b;border-radius:8px;padding:8px 10px;font:13px/1.4 system-ui;white-space:pre-wrap";
+    document.body.appendChild(d);} d._n++; d.textContent="⛔ "+(ev.message||"erreur"); }catch(e){} });
+
+const lsGet=k=>{ try{ return localStorage.getItem(k); }catch(e){ return null; } };
+const lsSet=(k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+function uid(){ let u=lsGet("awema_uid"); if(!u){ u="u"+Math.random().toString(36).slice(2,9); lsSet("awema_uid",u);} return u; }
+const myName=()=> lsGet("awema_player") || "Toi";
+
+const KEY="awema_requests_v1";
+const SEED=[
+  { title:"Gestion de plantation de cacao", by:"Aïssata", dev:"", votes:23, voters:["s1","s2"] },
+  { title:"Awalé en ligne, 2 joueurs", by:"Awa la griotte", dev:"AwemA Studio", votes:18, voters:["s3"], status:"dev" },
+  { title:"Course de pirogues sur la lagune", by:"Kouamé", dev:"", votes:14, voters:[] },
+  { title:"Combat de masques (baston)", by:"N'Dri", dev:"", votes:9, voters:[] },
+  { title:"Élevage de pintades (idle)", by:"Fatou", dev:"", votes:6, voters:[] },
+];
+let reqs=load();
+function load(){ try{ const r=JSON.parse(lsGet(KEY)); if(Array.isArray(r)&&r.length) return r; }catch(e){}
+  const seeded=SEED.map((s,i)=>({ id:"seed"+i, ...s, voters:s.voters||[], dev:s.dev||"", status:s.status||"open" })); lsSet(KEY,JSON.stringify(seeded)); return seeded; }
+function save(){ lsSet(KEY, JSON.stringify(reqs)); }
+
+function addReq(){
+  const t=document.getElementById("title").value.trim(); if(!t) return;
+  const dev=document.getElementById("dev").value.trim();
+  reqs.push({ id:"r"+Date.now(), title:t.slice(0,60), by:myName(), dev:dev.slice(0,24), votes:1, voters:[uid()], status:"open" });
+  document.getElementById("title").value=""; document.getElementById("dev").value="";
+  save(); render();
+}
+function toggleVote(id){
+  const r=reqs.find(x=>x.id===id); if(!r) return; const u=uid(); const i=r.voters.indexOf(u);
+  if(i>=0){ r.voters.splice(i,1); r.votes=Math.max(0,r.votes-1); } else { r.voters.push(u); r.votes++; }
+  save(); render();
+}
+function closeWeek(){
+  const open=reqs.filter(r=>r.status!=="dev").sort((a,b)=>b.votes-a.votes);
+  if(!open.length) return;
+  const win=open[0]; win.status="dev"; if(!win.dev) win.dev="AwemA Studio";
+  save(); render();
+  document.getElementById("note").innerHTML="🏗️ <b>"+esc(win.title)+"</b> passe en développement ! (proposé par "+esc(win.by)+" · dev : "+esc(win.dev)+")";
+}
+
+function render(){
+  const sorted=reqs.slice().sort((a,b)=>(b.status==="dev")-(a.status==="dev")||b.votes-a.votes);
+  const topOpen=reqs.filter(r=>r.status!=="dev").sort((a,b)=>b.votes-a.votes)[0];
+  const u=uid();
+  document.getElementById("list").innerHTML=sorted.map(r=>{
+    const voted=r.voters.includes(u), isWin=topOpen&&r.id===topOpen.id&&r.status!=="dev";
+    return `<div class="req ${isWin?'win':''}">
+      <div class="vote"><button class="vbtn ${voted?'on':''}" onclick="toggleVote('${r.id}')" ${r.status==="dev"?'disabled':''}>👍</button><span class="vn">${r.votes}</span></div>
+      <div class="body">
+        <div class="t">${esc(r.title)} ${isWin?'<span class="badge">💡 demande de la semaine</span>':''} ${r.status==="dev"?'<span class="badge dev">🏗️ en dev</span>':''}</div>
+        <div class="meta"><span class="tag by">🙋 ${esc(r.by)}</span>${r.dev?`<span class="tag dev">🛠️ ${esc(r.dev)}</span>`:'<span class="tag">🛠️ dev à assigner</span>'}</div>
+      </div></div>`; }).join("");
+  if(!document.getElementById("note").innerHTML)
+    document.getElementById("note").innerHTML="Vote (1 par idée) · la n°1 part en dev chaque semaine. <span class='tag'>prototype local</span> Les votes deviendront mondiaux avec le serveur.";
+}
+render();
+</script>
+</body>
+</html>

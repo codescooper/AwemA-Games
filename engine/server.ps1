@@ -24,7 +24,7 @@ while ($true) {
     if ([string]::IsNullOrEmpty($req)) { $client.Close(); continue }
     $path = "/"; if ($req -match '^GET\s+(\S+)\s') { $path = $Matches[1] }
     $rel = [System.Uri]::UnescapeDataString($path.Split('?')[0]).TrimStart('/')
-    if ([string]::IsNullOrEmpty($rel)) { $rel = "index.html" }   # le menu par défaut
+    if ([string]::IsNullOrEmpty($rel)) { $rel = "monde.html" }   # on arrive sur le Village (plateforme centrale)
     # sécurité : interdire de remonter hors du dossier servi
     $full = Join-Path $root $rel
     $fullResolved = [System.IO.Path]::GetFullPath($full)

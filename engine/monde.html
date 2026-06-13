@@ -40,7 +40,7 @@
     <a class="tbtn" href="classements.html">🏆 Conseil</a>
     <a class="tbtn" href="index.html">≡ Menu</a>
   </div>
-  <div id="help">Déplace-toi : <b>ZQSD/flèches</b> ou <b>clic</b>. Approche une case et entre.</div>
+  <div id="help">Déplace-toi : <b>ZQSD/flèches</b> ou <b>clic/doigt</b> · approche un bâtiment et entre (<b>E</b>) · au centre : 🏆 Conseil · 🪞 Miroir · 💡 Doléances · 🌳 Place</div>
   <button id="prompt" onclick="tryEnter()"></button>
   <div class="chatbar">
     <input id="chatinput" maxlength="120" placeholder="Parler au village…" autocomplete="off" />
@@ -100,7 +100,10 @@ const GAMES=[
 const buildings=[];
 GAMES.forEach((g,i)=>{ const a=-Math.PI/2 + i/GAMES.length*TAU;
   buildings.push({ ...g, kind:"game", x:clamp(CX+Math.cos(a)*580, 120, WW-120), y:clamp(CY+Math.sin(a)*360, 150, WH-120), r:46 }); });
-buildings.push({ id:"board", name:"Le Grand Conseil", ic:"🏆", href:"classements.html", kind:"board", x:CX, y:CY+150, r:40 });
+buildings.push({ id:"board",     name:"Le Grand Conseil", ic:"🏆", href:"classements.html", kind:"link", x:CX,     y:CY+160, r:40 });
+buildings.push({ id:"miroir",    name:"Le Miroir",        ic:"🪞", href:"cinema.html",      kind:"link", x:CX-235, y:CY+95,  r:40 });
+buildings.push({ id:"doleances", name:"Les Doléances",    ic:"💡", href:"idees.html",       kind:"link", x:CX+235, y:CY+95,  r:40 });
+buildings.push({ id:"place",     name:"La Place (chat)",  ic:"🌳", href:"salon.html",       kind:"link", x:CX,     y:CY-170, r:40 });
 
 const DEFAULT_BOTS=[
   {id:"bot0",name:"Awa la griotte",scores:{tamtam:41000,awale:12,banco:21,echecs:7,sables:3200,lignees:240,atelier:310,harmattan:172,voraces:520}},
@@ -161,7 +164,7 @@ function update(dt){
   // proximité d'une case
   let n=null; for(const bd of buildings){ if(Math.hypot(player.x-bd.x, player.y-bd.y)<bd.r+40){ n=bd; break; } }
   near=n; const pr=document.getElementById("prompt");
-  if(near){ pr.style.display="block"; pr.textContent=(near.kind==="board"?"🏆 Voir ":"▶ Entrer : ")+near.ic+" "+near.name+"  (E)"; } else pr.style.display="none";
+  if(near){ pr.style.display="block"; pr.textContent=(near.kind==="game"?"▶ Entrer : ":"▶ Aller : ")+near.ic+" "+near.name+"  (E)"; } else pr.style.display="none";
   cam.x=clamp(player.x-VW/2,0,Math.max(0,WW-VW)); cam.y=clamp(player.y-VH/2,0,Math.max(0,WH-VH));
 }
 
@@ -191,8 +194,8 @@ function drawTree(x,y){
 function drawBuilding(b){
   const w=84,h=64, x=b.x-w/2, y=b.y-h;
   ctx.fillStyle="#00000033"; ctx.beginPath(); ctx.ellipse(b.x,b.y+6,w*0.5,12,0,0,TAU); ctx.fill();
-  ctx.fillStyle=b.kind==="board"?"#7c5cff":"#b07a3e"; ctx.fillRect(x,y,w,h);
-  ctx.fillStyle=b.kind==="board"?"#9a84ff":"#caa46a"; ctx.beginPath(); ctx.moveTo(x-8,y); ctx.lineTo(x+w/2,y-30); ctx.lineTo(x+w+8,y); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=b.kind==="game"?"#b07a3e":"#7c5cff"; ctx.fillRect(x,y,w,h);
+  ctx.fillStyle=b.kind==="game"?"#caa46a":"#9a84ff"; ctx.beginPath(); ctx.moveTo(x-8,y); ctx.lineTo(x+w/2,y-30); ctx.lineTo(x+w+8,y); ctx.closePath(); ctx.fill();
   ctx.fillStyle="#3a2412"; ctx.fillRect(b.x-12,y+h-26,24,26);
   // enseigne
   ctx.font="22px system-ui"; ctx.textAlign="center"; ctx.fillText(b.ic, b.x, y+34);
@@ -222,7 +225,7 @@ function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w
 /* ---- entrer dans une case ---- */
 function tryEnter(){
   if(!near) return;
-  if(near.kind==="board"){ location.href=near.href; return; }
+  if(near.kind!=="game"){ location.href=near.href; return; }   // Conseil / Miroir / Doléances / Place
   const inside=bots.filter(b=>b.at===near.id);
   const mem=[`<b>${esc(myName())}</b> (toi)`].concat(inside.map(b=>esc(b.name))).join(" · ") || "personne pour l'instant";
   document.getElementById("ovbox").innerHTML=`
@@ -260,6 +263,7 @@ function frame(t){ requestAnimationFrame(frame);
   if(VW!==innerWidth||VH!==innerHeight) resize();
   const dt=(t-last)/1000; last=t; update(dt); draw(); }
 refreshChip(); requestAnimationFrame(frame);
+player.bubble={ text:"Akwaba ! Balade-toi et entre dans un bâtiment 🚶", t:0, max:4.5 };
 setTimeout(()=>{ if(bots[0]) emit(bots[0], pick(SAY.hello)); }, 700);
 </script>
 </body>

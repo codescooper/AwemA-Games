@@ -4,7 +4,7 @@
   "description": "Plateforme de mini-jeux 100% locaux et hors-ligne : stratégie, arcade, échecs, démolition physique, rythme, roguelike — plus un atelier pour apprendre à coder.",
   "lang": "fr",
   "dir": "ltr",
-  "start_url": ".",
+  "start_url": "monde.html",
   "scope": ".",
   "display": "standalone",
   "orientation": "any",

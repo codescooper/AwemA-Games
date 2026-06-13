@@ -89,12 +89,8 @@ const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"
 const myName=()=> lsGet("awema_player") || "Toi";
 
 const KEY="awema_cinema_v1";
-const SEED=[
-  { id:"s1", title:"Danse du Zaouli (proposée à l'ouverture)", vid:null, by:"Awa la griotte" },
-  { id:"s2", title:"Mix coupé-décalé", vid:null, by:"Kouamé" },
-];
 let queue=load();
-function load(){ try{ const q=JSON.parse(lsGet(KEY)); if(Array.isArray(q)) return q; }catch(e){} lsSet(KEY,JSON.stringify(SEED)); return SEED.slice(); }
+function load(){ try{ const q=JSON.parse(lsGet(KEY)); if(Array.isArray(q)) return q.filter(v=>v&&v.vid); }catch(e){} return []; }
 function save(){ lsSet(KEY,JSON.stringify(queue)); }
 
 function ytId(url){ const m=String(url).match(/(?:youtu\.be\/|[?&]v=|embed\/|shorts\/)([\w-]{11})/); return m?m[1]:(/^[\w-]{11}$/.test(url)?url:null); }

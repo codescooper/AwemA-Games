@@ -47,6 +47,7 @@
     <button onclick="sendMsg()">Dire</button>
   </div>
   <div class="ov" id="ov"><div class="ovbox" id="ovbox"></div></div>
+  <div id="mirrorVid" style="position:fixed;z-index:1;display:none;overflow:hidden;border-radius:4px;box-shadow:0 0 22px #000a;background:#000"></div>
 
 <script>
 /* ============================================================================
@@ -101,9 +102,9 @@ const buildings=[];
 GAMES.forEach((g,i)=>{ const a=-Math.PI/2 + i/GAMES.length*TAU;
   buildings.push({ ...g, kind:"game", x:clamp(CX+Math.cos(a)*580, 120, WW-120), y:clamp(CY+Math.sin(a)*360, 150, WH-120), r:46 }); });
 buildings.push({ id:"board",     name:"Le Grand Conseil", ic:"🏆", href:"classements.html", kind:"link", x:CX,     y:CY+160, r:40 });
-buildings.push({ id:"miroir",    name:"Le Miroir",        ic:"🪞", href:"cinema.html",      kind:"link", x:CX-235, y:CY+95,  r:40 });
+buildings.push({ id:"place",     name:"La Place (chat)",  ic:"🌳", href:"salon.html",       kind:"link", x:CX-235, y:CY+95,  r:40 });
 buildings.push({ id:"doleances", name:"Les Doléances",    ic:"💡", href:"idees.html",       kind:"link", x:CX+235, y:CY+95,  r:40 });
-buildings.push({ id:"place",     name:"La Place (chat)",  ic:"🌳", href:"salon.html",       kind:"link", x:CX,     y:CY-170, r:40 });
+buildings.push({ id:"miroir",    name:"Le Miroir",        ic:"🪞", kind:"mirror", x:CX, y:CY-250, r:150, w:300, h:172 });   // grand miroir sur la place
 
 const DEFAULT_BOTS=[
   {id:"bot0",name:"Awa la griotte",scores:{tamtam:41000,awale:12,banco:21,echecs:7,sables:3200,lignees:240,atelier:310,harmattan:172,voraces:520}},
@@ -164,7 +165,7 @@ function update(dt){
   // proximité d'une case
   let n=null; for(const bd of buildings){ if(Math.hypot(player.x-bd.x, player.y-bd.y)<bd.r+40){ n=bd; break; } }
   near=n; const pr=document.getElementById("prompt");
-  if(near){ pr.style.display="block"; pr.textContent=(near.kind==="game"?"▶ Entrer : ":"▶ Aller : ")+near.ic+" "+near.name+"  (E)"; } else pr.style.display="none";
+  if(near){ pr.style.display="block"; pr.textContent=(near.kind==="mirror"?"🎬 Le Miroir — proposer / passer ":near.kind==="game"?"▶ Entrer : ":"▶ Aller : ")+(near.kind==="mirror"?"":near.ic+" "+near.name+" ")+" (E)"; } else pr.style.display="none";
   cam.x=clamp(player.x-VW/2,0,Math.max(0,WW-VW)); cam.y=clamp(player.y-VH/2,0,Math.max(0,WH-VH));
 }
 
@@ -182,7 +183,7 @@ function draw(){
   // baobab central
   drawTree(CX,CY-10);
   // entités triées par y
-  const ents=[...buildings.map(b=>({y:b.y,d:()=>drawBuilding(b)})), ...bots.map(b=>({y:b.y,d:()=>drawPerson(b.x,b.y,b.col,b.ic,b.name,b.bubble)})), {y:player.y,d:()=>drawPerson(player.x,player.y,"#ffd24a",myTier()[2],myName()+" (toi)",player.bubble,true)}];
+  const ents=[...buildings.map(b=>({y:b.y,d:()=>b.kind==="mirror"?drawMirror(b):drawBuilding(b)})), ...bots.map(b=>({y:b.y,d:()=>drawPerson(b.x,b.y,b.col,b.ic,b.name,b.bubble)})), {y:player.y,d:()=>drawPerson(player.x,player.y,"#ffd24a",myTier()[2],myName()+" (toi)",player.bubble,true)}];
   ents.sort((a,b)=>a.y-b.y).forEach(e=>e.d());
   ctx.restore();
 }
@@ -222,10 +223,56 @@ function bubbleAt(x,y,text){
 }
 function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 
+/* ---- LE MIROIR : cinéma sur la place (in-situ), file partagée avec cinema.html ---- */
+const QKEY="awema_cinema_v1";
+function loadCine(){ try{ const q=JSON.parse(localStorage.getItem(QKEY)); if(Array.isArray(q)) return q.filter(v=>v&&v.vid); }catch(e){} return []; }   // file vide au départ ; on ne garde que les entrées avec un lien jouable
+function saveCine(){ try{ localStorage.setItem(QKEY,JSON.stringify(queue)); }catch(e){} }
+function ytId(u){ const m=String(u).match(/(?:youtu\.be\/|[?&]v=|embed\/|shorts\/)([\w-]{11})/); return m?m[1]:(/^[\w-]{11}$/.test(u)?u:null); }
+let queue=loadCine(), playingVid=null;
+const MIR=()=>buildings.find(b=>b.id==="miroir");
+function drawMirror(b){
+  const gw=b.w-26, gh=b.h-26, gx=b.x-gw/2, gy=b.y-b.h/2+13, cur=queue[0];
+  ctx.fillStyle="#00000033"; ctx.beginPath(); ctx.ellipse(b.x,b.y+b.h/2+8,b.w*0.42,14,0,0,TAU); ctx.fill();
+  ctx.fillStyle="#caa24a"; roundRect(b.x-b.w/2,b.y-b.h/2,b.w,b.h,14); ctx.fill();
+  ctx.fillStyle="#6a4a1c"; roundRect(b.x-b.w/2+5,b.y-b.h/2+5,b.w-10,b.h-10,10); ctx.fill();
+  const gg=ctx.createLinearGradient(gx,gy,gx+gw,gy+gh); gg.addColorStop(0,"#0b1018"); gg.addColorStop(1,"#1a2230");
+  ctx.fillStyle=gg; ctx.fillRect(gx,gy,gw,gh);
+  if(!(cur&&cur.vid)){
+    ctx.fillStyle="#ffffff12"; ctx.beginPath(); ctx.moveTo(gx,gy); ctx.lineTo(gx+gw*0.45,gy); ctx.lineTo(gx,gy+gh*0.65); ctx.closePath(); ctx.fill();
+    ctx.textAlign="center"; ctx.fillStyle="#cfe0ff"; ctx.font="700 16px system-ui"; ctx.fillText("🪞 Le Miroir", b.x, gy+gh/2-4);
+    ctx.fillStyle="#9fb0c8"; ctx.font="12px system-ui"; ctx.fillText(cur?("« "+cur.title+" » (sans lien)"):"propose une vidéo — touche E", b.x, gy+gh/2+16);
+  }
+  ctx.textAlign="center"; ctx.fillStyle="#fff8e8"; ctx.font="700 13px system-ui"; ctx.fillText("🪞 Le Miroir du village", b.x, b.y-b.h/2-10);
+  if(cur){ ctx.fillStyle="#ffd9a8"; ctx.font="11px system-ui"; ctx.fillText("▶ "+cur.title+" · 🙋 "+cur.by, b.x, b.y+b.h/2+24); }
+}
+function positionMirror(){
+  const m=MIR(), cur=queue[0], div=document.getElementById("mirrorVid");
+  const gw=m.w-26, gh=m.h-26, sx=(m.x-gw/2)-cam.x, sy=(m.y-m.h/2+13)-cam.y;
+  const on = sx<VW && sx+gw>0 && sy<VH && sy+gh>0;
+  if(cur && cur.vid && on){
+    if(playingVid!==cur.vid){ playingVid=cur.vid; div.innerHTML='<iframe width="100%" height="100%" style="border:0;display:block" src="https://www.youtube-nocookie.com/embed/'+cur.vid+'?autoplay=1&rel=0&modestbranding=1&playsinline=1" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>'; }
+    div.style.display="block"; div.style.left=sx+"px"; div.style.top=sy+"px"; div.style.width=gw+"px"; div.style.height=gh+"px";
+  } else { if(playingVid!==null){ playingVid=null; div.innerHTML=""; } div.style.display="none"; }
+}
+function openCinema(){ const cur=queue[0], rest=queue.slice(1);
+  document.getElementById("ovbox").innerHTML='<h3>🪞 Le Miroir — projection du village</h3>'+
+    '<div style="font-size:.88rem;opacity:.85">'+(cur?("À l\'affiche : <b>"+esc(cur.title)+"</b> · 🙋 "+esc(cur.by)):"Rien à l\'affiche — lance la première vidéo !")+'</div>'+
+    '<div style="margin:.6rem 0;display:flex;gap:.4rem;flex-wrap:wrap;justify-content:center"><input id="murl" placeholder="lien YouTube…" style="flex:1;min-width:170px;font:inherit;background:#0b0d16;color:#fff;border:1px solid #ffffff2e;border-radius:.5rem;padding:.5rem .6rem"/><button class="big" onclick="proposeVideo()">＋ File</button></div>'+
+    '<div style="text-align:left;font-size:.84rem;max-height:120px;overflow:auto">'+(rest.length?("<b>File ("+rest.length+") :</b><br>"+rest.map(function(v,i){return (i+1)+". "+esc(v.title)+" — 🙋 "+esc(v.by);}).join("<br>")):"<i>File vide.</i>")+'</div>'+
+    '<div style="margin-top:.7rem;display:flex;gap:.5rem;justify-content:center"><button class="tbtn" onclick="nextVideo()">⏭️ Suivant</button><button class="tbtn" onclick="closeOv()">← Fermer</button></div>'+
+    '<div style="margin-top:.5rem;font-size:.74rem;opacity:.6">La vidéo s\'affiche sur le miroir au milieu de la place — visible par tous. Sync à la seconde près = avec le serveur.</div>';
+  document.getElementById("ov").classList.add("show");
+}
+function proposeVideo(){ const el=document.getElementById("murl"), id=ytId(el.value.trim());
+  if(!id){ el.style.borderColor="#ff6b6b"; return; }
+  queue.push({id:"v"+Date.now(),title:"Vidéo de "+myName(),vid:id,by:myName()}); saveCine(); openCinema(); }
+function nextVideo(){ if(queue.length){ queue.shift(); saveCine(); openCinema(); } }
+
 /* ---- entrer dans une case ---- */
 function tryEnter(){
   if(!near) return;
-  if(near.kind!=="game"){ location.href=near.href; return; }   // Conseil / Miroir / Doléances / Place
+  if(near.kind==="mirror"){ openCinema(); return; }            // Le Miroir : on interagit SUR PLACE
+  if(near.kind!=="game"){ location.href=near.href; return; }   // Conseil / Doléances / Place
   const inside=bots.filter(b=>b.at===near.id);
   const mem=[`<b>${esc(myName())}</b> (toi)`].concat(inside.map(b=>esc(b.name))).join(" · ") || "personne pour l'instant";
   document.getElementById("ovbox").innerHTML=`
@@ -261,7 +308,7 @@ function refreshChip(){ const t=myTier(); document.getElementById("meChip").text
 let last=performance.now();
 function frame(t){ requestAnimationFrame(frame);
   if(VW!==innerWidth||VH!==innerHeight) resize();
-  const dt=(t-last)/1000; last=t; update(dt); draw(); }
+  const dt=(t-last)/1000; last=t; update(dt); draw(); positionMirror(); }
 refreshChip(); requestAnimationFrame(frame);
 player.bubble={ text:"Akwaba ! Balade-toi et entre dans un bâtiment 🚶", t:0, max:4.5 };
 setTimeout(()=>{ if(bots[0]) emit(bots[0], pick(SAY.hello)); }, 700);

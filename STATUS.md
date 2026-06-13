@@ -5,6 +5,7 @@
 Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zéro dépendance) en repoussant le graphisme et le réalisme au maximum des performances du navigateur. Horizon : installation en PWA, puis multijoueur.
 
 ## ✅ Fait (cette semaine)
+- **Le Grand Conseil — prototype réseau (cloud simulé, async).** Identité persistante + `Cloud.submit()/global()/game()` asynchrones (latence simulée) sur un faux serveur local (`awema_cloud_v1`) avec bots qui progressent → board « vivant », bouton Synchroniser, badge « en ligne (simulé) ». Couture isolée : passer au vrai mondial = remplacer le corps de `Cloud.*` par des `fetch()`. Vérifié (board 8 joueurs, scores poussés, bots +3016/6 synchros). Commit `49a1134`.
 - **Indice AwemA — couche ① complète : les 9 jeux contribuent.** Échecs (victoires), Sables (score), Lignées (prestige) enregistrent un meilleur score ; Voraces & Atelier en avaient déjà un. Registre étendu + paliers de rang recalibrés (Indice max ~9000). Vérifié (mat→`echecs_best`, `sables_best`, `lignees_best`, Indice 9 jeux). Commit `6bd5bbd`.
 - **Multijoueur — couche ① : « Le Grand Conseil »** (classements). Page `classements.html` qui lit les scores des jeux (localStorage) et calcule l'**Indice AwemA** (Σ maîtrise normalisée 0–1000/jeu) → rang (Voyageur→Légende), classement général + par jeu, pseudo, rivaux d'exemple. 100 % local (back-end « décidé plus tard »), couture `Boards` prête pour Cloudflare/Supabase. Commit `4d44d92`.
 - **Publication en ligne** 🌍 : dépôt public **AwemA-Games** créé + poussé, **GitHub Pages activé** → **https://codescooper.github.io/AwemA-Games/** (redirection racine vers `engine/`). Manifest + SW + icône SVG servis avec le bon type MIME (vérifié en ligne) → la **PWA est réellement installable**. Commit `306fca7`.
@@ -21,11 +22,11 @@ Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zér
 - **Menu** (`engine/index.html`) et **README** à jour : 5 entrées (Atelier, Lignées, Sables, Échecs, Voraces).
 
 ## 🚧 En cours
-- [ ] **Multijoueur — vision : monde-hub social** (se balader, se croiser, chat, rooms d'affrontement, board + rang). Feuille de route : **① classements/Indice ✅ complète (local, 9 jeux)** → ② hub présence+chat+rooms → ③ monde ouvert. Tout est local pour l'instant ; le 1er passage en ligne est la prochaine étape.
+- [ ] **Multijoueur — vision : monde-hub social** (se balader, se croiser, chat, rooms d'affrontement, board + rang). Feuille de route : **① classements/Indice ✅ (9 jeux) + couture réseau ✅ prototypée (cloud simulé)** → ② hub présence+chat+rooms → ③ monde ouvert. Le client est prêt à passer en ligne ; il manque l'infra réelle.
 
 ## ⏭️ Prochaine étape (la SEULE chose à faire ensuite)
-**Brancher le classement mondial EN LIGNE** : décider l'infra (**Cloudflare recommandé** — Pages+Workers+D1 — vs Supabase) et remplacer l'objet `Boards` de `classements.html` par des appels réseau (envoi de score + lecture du board) → **premier vrai partage entre joueurs**.
-→ *Justif : transforme l'Indice local en classement partagé réel (la 1re fonctionnalité authentiquement multijoueur) ; oblige enfin la décision d'infra (différée par l'utilisateur) ; prérequis naturel de la couche ② (hub), qui réutilisera la même infra. Anti-triche minimal à prévoir (les scores client sont falsifiables).*
+**Brancher le vrai réseau** : choisir l'infra (**Cloudflare recommandé** — Pages+Workers+D1 — vs Supabase) puis remplacer le **corps** de `Cloud.submit/_all` (dans `classements.html`) par des `fetch()` réels, + un **anti-triche minimal** (scores client falsifiables).
+→ *Justif : le prototype a réduit ce passage à un remplacement **isolé** (signatures identiques, UI inchangée) ; c'est le 1er vrai partage entre joueurs et la base que réutilisera la couche ② (hub). Décision d'infra (différée) désormais requise — la seule chose qui bloque.*
 
 ## 🧱 Décisions verrouillées
 - **100 % local / offline-first** : chaque jeu = 1 fichier HTML autonome, JS vanilla, **zéro dépendance runtime**, lançable au double-clic.

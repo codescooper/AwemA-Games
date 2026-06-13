@@ -127,7 +127,7 @@ function botColor(id){ const c=["#e8702a","#7c5cff","#13875a","#d23b6e","#3aa0d2
 const player={ x:CX, y:CY+250, tx:null, ty:null, moving:false, facing:1 };
 const cam={x:0,y:0};
 let bots=loadBots(), bubbles=[], near=null, chatT=3;
-let itId="me", tagCd=0, itx=null, ity=null;   // LE CHAT : qui porte la poisse ("me"=toi) + immunité anti-retour
+let itId="me", infectT=10, itx=null, ity=null;   // LE CHAT : qui porte la poisse ("me"=toi). infectT = délai (10s) avant de pouvoir refiler + ralenti -30%
 const keys={};
 
 const SAY={ hello:["Akwaba 👋","On est ensemble !","Bonsoir 🌙","Me voilà 😄"],
@@ -142,7 +142,7 @@ function updateBot(b,dt){
   // jeu du chat : le porteur de la poisse chasse le plus proche ; les autres le fuient
   if(b.id===itId){ let tx=player.x,ty=player.y,bd=Math.hypot(player.x-b.x,player.y-b.y);
     for(const o of bots){ if(o.id===b.id) continue; const d=Math.hypot(o.x-b.x,o.y-b.y); if(d<bd){bd=d;tx=o.x;ty=o.y;} }
-    const dx=tx-b.x,dy=ty-b.y,dd=Math.hypot(dx,dy)||1; b.x+=dx/dd*135*dt; b.y+=dy/dd*135*dt; b.facing=dx<0?-1:1;
+    const dx=tx-b.x,dy=ty-b.y,dd=Math.hypot(dx,dy)||1; b.x+=dx/dd*(135*(infectT>0?0.7:1))*dt; b.y+=dy/dd*(135*(infectT>0?0.7:1))*dt; b.facing=dx<0?-1:1;
     b.x=clamp(b.x,120,WW-120); b.y=clamp(b.y,160,WH-120); if(b.bubble){b.bubble.t+=dt;if(b.bubble.t>b.bubble.max)b.bubble=null;} return; }
   if(itx!=null){ const fd=Math.hypot(itx-b.x,ity-b.y); if(fd<175){ const dx=b.x-itx,dy=b.y-ity,dd=Math.hypot(dx,dy)||1;
     b.x+=dx/dd*100*dt; b.y+=dy/dd*100*dt; b.x=clamp(b.x,120,WW-120); b.y=clamp(b.y,160,WH-120); b.facing=dx<0?-1:1;
@@ -160,26 +160,30 @@ function updateBot(b,dt){
 
 function update(dt){
   dt=Math.min(dt,0.05);
+  const psp=PSPD*((itId==="me"&&infectT>0)?0.7:1);   // infecté : ralenti -30% pendant le délai
   let vx=0,vy=0;
   if(keys.a||keys.q||keys.arrowleft)vx--; if(keys.d||keys.arrowright)vx++;
   if(keys.w||keys.z||keys.arrowup)vy--; if(keys.s||keys.arrowdown)vy++;
-  if(vx||vy){ player.tx=null; const m=Math.hypot(vx,vy); player.x+=vx/m*PSPD*dt; player.y+=vy/m*PSPD*dt; player.moving=true; if(vx)player.facing=vx<0?-1:1; }
+  if(vx||vy){ player.tx=null; const m=Math.hypot(vx,vy); player.x+=vx/m*psp*dt; player.y+=vy/m*psp*dt; player.moving=true; if(vx)player.facing=vx<0?-1:1; }
   else if(player.tx!=null){ const dx=player.tx-player.x,dy=player.ty-player.y,d=Math.hypot(dx,dy);
-    if(d>5){ player.x+=dx/d*PSPD*dt; player.y+=dy/d*PSPD*dt; player.moving=true; if(dx)player.facing=dx<0?-1:1; } else { player.tx=null; player.moving=false; } }
+    if(d>5){ player.x+=dx/d*psp*dt; player.y+=dy/d*psp*dt; player.moving=true; if(dx)player.facing=dx<0?-1:1; } else { player.tx=null; player.moving=false; } }
   else player.moving=false;
   player.x=clamp(player.x,24,WW-24); player.y=clamp(player.y,40,WH-24);
   if(player.bubble){ player.bubble.t+=dt; if(player.bubble.t>player.bubble.max) player.bubble=null; }
   // ── LE CHAT (la poisse) : position du porteur, transfert au contact, immunité ──
-  tagCd=Math.max(0,tagCd-dt);
+  infectT=Math.max(0,infectT-dt);
   const ib = itId==="me" ? null : bots.find(b=>b.id===itId);
   itx = itId==="me" ? player.x : (ib?ib.x:player.x); ity = itId==="me" ? player.y : (ib?ib.y:player.y);
-  if(tagCd<=0){
-    if(itId==="me"){ for(const b of bots){ if(Math.hypot(b.x-player.x,b.y-player.y)<30){ itId=b.id; tagCd=1.8; emit(b,"😱 La poisse !"); player.bubble={text:"Ouf, refilée ! 😅",t:0,max:2.4}; break; } } }
-    else if(ib){ if(Math.hypot(player.x-ib.x,player.y-ib.y)<30){ itId="me"; tagCd=1.8; player.bubble={text:"😱 J'ai la poisse !",t:0,max:2.6}; }
-      else { for(const b of bots){ if(b.id===itId) continue; if(Math.hypot(b.x-ib.x,b.y-ib.y)<30){ itId=b.id; tagCd=1.8; emit(b,"😱 La poisse !"); break; } } } }
+  if(infectT<=0){
+    if(itId==="me"){ for(const b of bots){ if(Math.hypot(b.x-player.x,b.y-player.y)<30){ itId=b.id; infectT=10; emit(b,"😱 La poisse !"); player.bubble={text:"Ouf, refilée ! 😅",t:0,max:2.4}; break; } } }
+    else if(ib){ if(Math.hypot(player.x-ib.x,player.y-ib.y)<30){ itId="me"; infectT=10; player.bubble={text:"😱 J'ai la poisse !",t:0,max:2.6}; }
+      else { for(const b of bots){ if(b.id===itId) continue; if(Math.hypot(b.x-ib.x,b.y-ib.y)<30){ itId=b.id; infectT=10; emit(b,"😱 La poisse !"); break; } } } }
   }
   { const pz=document.getElementById("poisse"), hp=document.getElementById("help"), me=itId==="me";
-    if(pz) pz.style.display=me?"block":"none"; if(hp) hp.style.display=me?"none":"block"; }
+    if(pz){ pz.style.display=me?"block":"none"; if(me) pz.innerHTML = infectT>0
+      ? ("😱 La poisse te colle ! <b>Refilable dans "+Math.ceil(infectT)+" s</b> · tu es <b>ralenti</b> — les autres filent…")
+      : "😱 <b>Refile la poisse</b> — touche un villageois ! <span style=\"opacity:.85;font-weight:600\">(bâtiments bloqués)</span>"; }
+    if(hp) hp.style.display=me?"none":"block"; }
   for(const b of bots) updateBot(b,dt);
   for(let i=bubbles.length-1;i>=0;i--){ bubbles[i].t+=dt; if(bubbles[i].t>bubbles[i].max) bubbles.splice(i,1); }
   chatT-=dt; if(chatT<=0){ chatT=rand(3.5,7); if(bots.length){ const b=pick(bots); emit(b, pick(anyPool())); } }
@@ -333,7 +337,7 @@ function frame(t){ requestAnimationFrame(frame);
   if(VW!==innerWidth||VH!==innerHeight) resize();
   const dt=(t-last)/1000; last=t; update(dt); draw(); positionMirror(); }
 refreshChip(); requestAnimationFrame(frame);
-player.bubble={ text:"Akwaba ! Tu as la poisse 😱 — touche un villageois pour la refiler, puis entre où tu veux !", t:0, max:5.5 };
+player.bubble={ text:"Akwaba ! Tu as la poisse 😱 (refilable dans 10 s, tu es ralenti) — puis touche un villageois et entre où tu veux !", t:0, max:5.5 };
 setTimeout(()=>{ if(bots[0]) emit(bots[0], pick(SAY.hello)); }, 700);
 </script>
 </body>

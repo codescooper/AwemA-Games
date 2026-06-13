@@ -5,6 +5,7 @@
 Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zéro dépendance) en repoussant le graphisme et le réalisme au maximum des performances du navigateur. Horizon : installation en PWA, puis multijoueur.
 
 ## ✅ Fait (cette semaine)
+- **Multijoueur — couche ① : « Le Grand Conseil »** (classements). Page `classements.html` qui lit les scores des jeux (localStorage) et calcule l'**Indice AwemA** (Σ maîtrise normalisée 0–1000/jeu) → rang (Voyageur→Légende), classement général + par jeu, pseudo, rivaux d'exemple. 100 % local (back-end « décidé plus tard »), couture `Boards` prête pour Cloudflare/Supabase. Commit `4d44d92`.
 - **Publication en ligne** 🌍 : dépôt public **AwemA-Games** créé + poussé, **GitHub Pages activé** → **https://codescooper.github.io/AwemA-Games/** (redirection racine vers `engine/`). Manifest + SW + icône SVG servis avec le bon type MIME (vérifié en ligne) → la **PWA est réellement installable**. Commit `306fca7`.
 - **PWA installable** : `manifest.webmanifest` + service worker (`sw.js`, cache `awema-v1` *cache-first* hors-ligne de tout l'app-shell) + icône SVG maskable, branchés sur le menu (bouton « Installer », enregistrement défensif hors `file://`). Vérifié sur localhost (manifest, SW scope `/`, 14 entrées cachées, ressource servable hors-ligne, 0 erreur). Commit `195e0fa`.
 - **Nouveau jeu D — « Tam-Tam »** : combat rythmique (3 danses 92→132 BPM, jugements ±75/160 ms, combos ×4, transe). Synchro audio par construction (une seule horloge WebAudio pour sons + esprits), percussions 100 % procédurales. Vérifié E2E (victoire/défaite, jugements exacts, 0 erreur). **File A-B-C-D terminée.** Commit `ac1b6f4`.
@@ -19,11 +20,11 @@ Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zér
 - **Menu** (`engine/index.html`) et **README** à jour : 5 entrées (Atelier, Lignées, Sables, Échecs, Voraces).
 
 ## 🚧 En cours
-- [ ] Rien de non committé — repo propre, **publié et installable** (9 jeux + atelier + PWA en ligne). Cap restant : **multijoueur (asynchrone)**.
+- [ ] **Multijoueur — vision : monde-hub social** (se balader, se croiser, chat, rooms d'affrontement, board + rang). Feuille de route validée : **① classements/Indice ✅ (local)** → ② hub présence+chat+rooms → ③ monde ouvert. Approche : commencer client-side, brancher le réseau le plus tard possible (free tier). Pile à décider (Cloudflare *recommandé* vs Supabase) au moment du réseau.
 
 ## ⏭️ Prochaine étape (la SEULE chose à faire ensuite)
-**Démarrer le multijoueur asynchrone** (le cap) : choisir l'approche (échange d'état sans serveur — lien/fichier/QR — vs backend léger), puis une **première tranche verticale sur un seul jeu** (probablement *Lignées*, dont le moteur `prototype.ts` est déjà pur & déterministe → migration serveur sans réécriture, ADR-1).
-→ *Justif : seul cap restant ; commencer par un prototype étroit (1 jeu, 2 joueurs en tour-par-tour async) évite la rupture d'archi décrite dans les risques ; **décision d'approche à valider avec l'utilisateur** avant de coder.*
+**Compléter la couche ① : relier les jeux restants à l'Indice AwemA** — faire enregistrer à Échecs, Voraces, Sables, Lignées (et Atelier) un *meilleur score comparable* (petite édition locale par jeu), puis les ajouter au registre de `classements.html`.
+→ *Justif : entièrement actionnable **sans back-end ni décision d'infra** ; rend l'Indice vraiment transversal (9 jeux) avant d'investir dans le réseau. Ensuite : back-end + classement mondial, puis couche ② (hub présence/chat) — qui, elle, déclenchera la décision Cloudflare/Supabase.*
 
 ## 🧱 Décisions verrouillées
 - **100 % local / offline-first** : chaque jeu = 1 fichier HTML autonome, JS vanilla, **zéro dépendance runtime**, lançable au double-clic.

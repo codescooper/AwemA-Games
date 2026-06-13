@@ -5,6 +5,7 @@
 Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zéro dépendance) en repoussant le graphisme et le réalisme au maximum des performances du navigateur. Horizon : installation en PWA, puis multijoueur.
 
 ## ✅ Fait (cette semaine)
+- **Publication en ligne** 🌍 : dépôt public **AwemA-Games** créé + poussé, **GitHub Pages activé** → **https://codescooper.github.io/AwemA-Games/** (redirection racine vers `engine/`). Manifest + SW + icône SVG servis avec le bon type MIME (vérifié en ligne) → la **PWA est réellement installable**. Commit `306fca7`.
 - **PWA installable** : `manifest.webmanifest` + service worker (`sw.js`, cache `awema-v1` *cache-first* hors-ligne de tout l'app-shell) + icône SVG maskable, branchés sur le menu (bouton « Installer », enregistrement défensif hors `file://`). Vérifié sur localhost (manifest, SW scope `/`, 14 entrées cachées, ressource servable hors-ligne, 0 erreur). Commit `195e0fa`.
 - **Nouveau jeu D — « Tam-Tam »** : combat rythmique (3 danses 92→132 BPM, jugements ±75/160 ms, combos ×4, transe). Synchro audio par construction (une seule horloge WebAudio pour sons + esprits), percussions 100 % procédurales. Vérifié E2E (victoire/défaite, jugements exacts, 0 erreur). **File A-B-C-D terminée.** Commit `ac1b6f4`.
 - **Nouveau jeu C — « Awalé Royal »** : roguelike de combos façon Balatro (48 graines en 4 familles Or/Sel/Cola/Mil, 9 combos culturels, 10 gri-gris, proverbes, 12 enchères, 5 malus de chef). Équilibrage validé par simulation (IA gloutonne : 2 victoires / 8, morts enchères 9–12). Commit `5340583`.
@@ -18,11 +19,11 @@ Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zér
 - **Menu** (`engine/index.html`) et **README** à jour : 5 entrées (Atelier, Lignées, Sables, Échecs, Voraces).
 
 ## 🚧 En cours
-- [ ] Rien de non committé — repo propre. Plateforme : **9 jeux + atelier + PWA**. Reste à **publier en ligne** puis (cap) **multijoueur**.
+- [ ] Rien de non committé — repo propre, **publié et installable** (9 jeux + atelier + PWA en ligne). Cap restant : **multijoueur (asynchrone)**.
 
 ## ⏭️ Prochaine étape (la SEULE chose à faire ensuite)
-**Publier la plateforme en ligne** (dépôt public **AwemA-Games** → **GitHub Pages**) pour que la PWA soit réellement **installable sur téléphone**. Pré-requis utilisateur : `gh auth login`, puis `gh repo create AwemA-Games --public --source=. --remote=origin --push` et activer Pages (servir `engine/`).
-→ *Justif : la PWA tout juste construite n'a de valeur qu'**hébergée** (le service worker exige https) ; étape courte, fort effet, débloque la cible « smartphones / marchés émergents ». Le **multijoueur** (gros chantier, async) reste le cap suivant. Action bloquée tant que l'utilisateur n'a pas fait `gh auth login`.*
+**Démarrer le multijoueur asynchrone** (le cap) : choisir l'approche (échange d'état sans serveur — lien/fichier/QR — vs backend léger), puis une **première tranche verticale sur un seul jeu** (probablement *Lignées*, dont le moteur `prototype.ts` est déjà pur & déterministe → migration serveur sans réécriture, ADR-1).
+→ *Justif : seul cap restant ; commencer par un prototype étroit (1 jeu, 2 joueurs en tour-par-tour async) évite la rupture d'archi décrite dans les risques ; **décision d'approche à valider avec l'utilisateur** avant de coder.*
 
 ## 🧱 Décisions verrouillées
 - **100 % local / offline-first** : chaque jeu = 1 fichier HTML autonome, JS vanilla, **zéro dépendance runtime**, lançable au double-clic.
@@ -37,5 +38,5 @@ Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zér
 - **Pas encore de build ni de PWA** : on en est au « double-clic » (aucun manifest / service worker).
 - **Tension perf vs légèreté** : pousser le réalisme graphique au max sans casser l'offline ni alourdir (rester en Canvas/WebGL natif, sans moteur lourd).
 - **Multijoueur = rupture d'architecture** (serveur, réseau, état partagé) ; le temps réel « tue le budget serveur » d'un solo (cf. `docs/`) → privilégier l'**asynchrone**.
-- **Push GitHub** (dépôt public « AwemA-Games ») en attente d'un `gh auth login` ; rien n'est encore poussé.
+- ~~Push GitHub en attente~~ → **fait** : publié sur https://codescooper.github.io/AwemA-Games/ (Pages sert depuis `main`/racine ; le menu vit sous `/engine/`).
 - **Distribution PWA pure fragile** (fermeture des Meta Instant Games en 2026, cf. étude de marché).

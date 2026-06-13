@@ -41,6 +41,7 @@
     <a class="tbtn" href="index.html">≡ Menu</a>
   </div>
   <div id="help">Déplace-toi : <b>ZQSD/flèches</b> ou <b>clic/doigt</b> · approche un bâtiment et entre (<b>E</b>) · au centre : 🏆 Conseil · 🪞 Miroir · 💡 Doléances · 🌳 Place</div>
+  <div id="poisse" style="position:fixed;top:2.4rem;left:50%;transform:translateX(-50%);z-index:6;display:none;background:#b3261e;color:#fff;font-weight:800;padding:.45rem .9rem;border-radius:.6rem;box-shadow:0 4px 16px #0008;text-align:center;font-size:.9rem">😱 Tu as LA POISSE — touche un villageois pour la refiler ! <span style="opacity:.85;font-weight:600">(bâtiments bloqués)</span></div>
   <button id="prompt" onclick="tryEnter()"></button>
   <div class="chatbar">
     <input id="chatinput" maxlength="120" placeholder="Parler au village…" autocomplete="off" />
@@ -126,6 +127,7 @@ function botColor(id){ const c=["#e8702a","#7c5cff","#13875a","#d23b6e","#3aa0d2
 const player={ x:CX, y:CY+250, tx:null, ty:null, moving:false, facing:1 };
 const cam={x:0,y:0};
 let bots=loadBots(), bubbles=[], near=null, chatT=3;
+let itId="me", tagCd=0, itx=null, ity=null;   // LE CHAT : qui porte la poisse ("me"=toi) + immunité anti-retour
 const keys={};
 
 const SAY={ hello:["Akwaba 👋","On est ensemble !","Bonsoir 🌙","Me voilà 😄"],
@@ -137,6 +139,14 @@ const anyPool=()=>pick([SAY.hello,SAY.proverb,SAY.brag,SAY.challenge]);
 function emit(owner,text){ owner.bubble={text,t:0,max:3.4}; }
 
 function updateBot(b,dt){
+  // jeu du chat : le porteur de la poisse chasse le plus proche ; les autres le fuient
+  if(b.id===itId){ let tx=player.x,ty=player.y,bd=Math.hypot(player.x-b.x,player.y-b.y);
+    for(const o of bots){ if(o.id===b.id) continue; const d=Math.hypot(o.x-b.x,o.y-b.y); if(d<bd){bd=d;tx=o.x;ty=o.y;} }
+    const dx=tx-b.x,dy=ty-b.y,dd=Math.hypot(dx,dy)||1; b.x+=dx/dd*135*dt; b.y+=dy/dd*135*dt; b.facing=dx<0?-1:1;
+    b.x=clamp(b.x,120,WW-120); b.y=clamp(b.y,160,WH-120); if(b.bubble){b.bubble.t+=dt;if(b.bubble.t>b.bubble.max)b.bubble=null;} return; }
+  if(itx!=null){ const fd=Math.hypot(itx-b.x,ity-b.y); if(fd<175){ const dx=b.x-itx,dy=b.y-ity,dd=Math.hypot(dx,dy)||1;
+    b.x+=dx/dd*100*dt; b.y+=dy/dd*100*dt; b.x=clamp(b.x,120,WW-120); b.y=clamp(b.y,160,WH-120); b.facing=dx<0?-1:1;
+    if(b.bubble){b.bubble.t+=dt;if(b.bubble.t>b.bubble.max)b.bubble=null;} return; } }
   if(b.pause>0){ b.pause-=dt; }
   else if(b.tx==null){
     if(Math.random()<0.4){ const bd=pick(buildings); b.tx=bd.x+rand(-40,40); b.ty=bd.y+50+rand(0,30); b.at=bd.id; }
@@ -159,6 +169,17 @@ function update(dt){
   else player.moving=false;
   player.x=clamp(player.x,24,WW-24); player.y=clamp(player.y,40,WH-24);
   if(player.bubble){ player.bubble.t+=dt; if(player.bubble.t>player.bubble.max) player.bubble=null; }
+  // ── LE CHAT (la poisse) : position du porteur, transfert au contact, immunité ──
+  tagCd=Math.max(0,tagCd-dt);
+  const ib = itId==="me" ? null : bots.find(b=>b.id===itId);
+  itx = itId==="me" ? player.x : (ib?ib.x:player.x); ity = itId==="me" ? player.y : (ib?ib.y:player.y);
+  if(tagCd<=0){
+    if(itId==="me"){ for(const b of bots){ if(Math.hypot(b.x-player.x,b.y-player.y)<30){ itId=b.id; tagCd=1.8; emit(b,"😱 La poisse !"); player.bubble={text:"Ouf, refilée ! 😅",t:0,max:2.4}; break; } } }
+    else if(ib){ if(Math.hypot(player.x-ib.x,player.y-ib.y)<30){ itId="me"; tagCd=1.8; player.bubble={text:"😱 J'ai la poisse !",t:0,max:2.6}; }
+      else { for(const b of bots){ if(b.id===itId) continue; if(Math.hypot(b.x-ib.x,b.y-ib.y)<30){ itId=b.id; tagCd=1.8; emit(b,"😱 La poisse !"); break; } } } }
+  }
+  { const pz=document.getElementById("poisse"), hp=document.getElementById("help"), me=itId==="me";
+    if(pz) pz.style.display=me?"block":"none"; if(hp) hp.style.display=me?"none":"block"; }
   for(const b of bots) updateBot(b,dt);
   for(let i=bubbles.length-1;i>=0;i--){ bubbles[i].t+=dt; if(bubbles[i].t>bubbles[i].max) bubbles.splice(i,1); }
   chatT-=dt; if(chatT<=0){ chatT=rand(3.5,7); if(bots.length){ const b=pick(bots); emit(b, pick(anyPool())); } }
@@ -183,7 +204,7 @@ function draw(){
   // baobab central
   drawTree(CX,CY-10);
   // entités triées par y
-  const ents=[...buildings.map(b=>({y:b.y,d:()=>b.kind==="mirror"?drawMirror(b):drawBuilding(b)})), ...bots.map(b=>({y:b.y,d:()=>drawPerson(b.x,b.y,b.col,b.ic,b.name,b.bubble)})), {y:player.y,d:()=>drawPerson(player.x,player.y,"#ffd24a",myTier()[2],myName()+" (toi)",player.bubble,true)}];
+  const ents=[...buildings.map(b=>({y:b.y,d:()=>b.kind==="mirror"?drawMirror(b):drawBuilding(b)})), ...bots.map(b=>({y:b.y,d:()=>drawPerson(b.x,b.y,b.col,b.ic,b.name,b.bubble,false,b.id===itId)})), {y:player.y,d:()=>drawPerson(player.x,player.y,"#ffd24a",myTier()[2],myName()+" (toi)",player.bubble,true,itId==="me")}];
   ents.sort((a,b)=>a.y-b.y).forEach(e=>e.d());
   ctx.restore();
 }
@@ -204,11 +225,12 @@ function drawBuilding(b){
   // occupants
   const oc=bots.filter(z=>z.at===b.id).length; if(oc){ ctx.fillStyle="#13875a"; ctx.font="11px system-ui"; ctx.fillText("● "+oc, b.x, b.y+36); }
 }
-function drawPerson(x,y,col,emoji,name,bubble,self){
+function drawPerson(x,y,col,emoji,name,bubble,self,it){
   ctx.fillStyle="#00000033"; ctx.beginPath(); ctx.ellipse(x,y+2,13,5,0,0,TAU); ctx.fill();
   ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(x,y-26); ctx.lineTo(x+11,y); ctx.lineTo(x-11,y); ctx.closePath(); ctx.fill();   // corps
   ctx.fillStyle="#e8c89a"; ctx.beginPath(); ctx.arc(x,y-30,8,0,TAU); ctx.fill();                                                // tête
   if(self){ ctx.strokeStyle="#ffd24a"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(x,y-12,20,0,TAU); ctx.stroke(); }
+  if(it){ ctx.strokeStyle="#ff3b3b"; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(x,y-12,24,0,TAU); ctx.stroke(); ctx.fillStyle="#fff"; ctx.font="15px system-ui"; ctx.textAlign="center"; ctx.fillText("😱",x,y-47); }
   ctx.font="13px system-ui"; ctx.textAlign="center"; ctx.fillText(emoji, x, y-40);
   ctx.fillStyle="#fff"; ctx.font="700 11px system-ui"; ctx.strokeStyle="#0008"; ctx.lineWidth=3;
   ctx.strokeText(name,x,y+18); ctx.fillText(name,x,y+18);
@@ -271,6 +293,7 @@ function nextVideo(){ if(queue.length){ queue.shift(); saveCine(); openCinema();
 /* ---- entrer dans une case ---- */
 function tryEnter(){
   if(!near) return;
+  if(itId==="me"){ player.bubble={text:"😱 Refile la poisse d'abord — touche un villageois !",t:0,max:2.8}; return; }   // bloqué tant qu'on a la poisse
   if(near.kind==="mirror"){ openCinema(); return; }            // Le Miroir : on interagit SUR PLACE
   if(near.kind!=="game"){ location.href=near.href; return; }   // Conseil / Doléances / Place
   const inside=bots.filter(b=>b.at===near.id);
@@ -310,7 +333,7 @@ function frame(t){ requestAnimationFrame(frame);
   if(VW!==innerWidth||VH!==innerHeight) resize();
   const dt=(t-last)/1000; last=t; update(dt); draw(); positionMirror(); }
 refreshChip(); requestAnimationFrame(frame);
-player.bubble={ text:"Akwaba ! Balade-toi et entre dans un bâtiment 🚶", t:0, max:4.5 };
+player.bubble={ text:"Akwaba ! Tu as la poisse 😱 — touche un villageois pour la refiler, puis entre où tu veux !", t:0, max:5.5 };
 setTimeout(()=>{ if(bots[0]) emit(bots[0], pick(SAY.hello)); }, 700);
 </script>
 </body>

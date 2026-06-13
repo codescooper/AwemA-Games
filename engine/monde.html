@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Le Village — monde AwemA</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html,body { margin:0; height:100%; overflow:hidden; background:#1a140c; color:#f3ece0;
+    font-family:system-ui,-apple-system,sans-serif; -webkit-user-select:none; user-select:none; touch-action:none; }
+  #cv { display:block; width:100vw; height:100vh; cursor:pointer; }
+  .top { position:fixed; top:.55rem; left:.6rem; right:.6rem; z-index:5; display:flex; align-items:center; gap:.5rem; pointer-events:none; }
+  .top .sp { flex:1; }
+  .chip { background:#0008; border:1px solid #ffffff22; border-radius:1rem; padding:.2rem .55rem; font-size:.8rem; pointer-events:auto; }
+  .tbtn { pointer-events:auto; font:inherit; color:#fff; background:#0008; border:1px solid #ffffff2e; border-radius:.5rem; padding:.3rem .55rem; cursor:pointer; text-decoration:none; font-size:.82rem; }
+  .tbtn:hover { background:#ffffff24; }
+  /* barre de chat */
+  .chatbar { position:fixed; left:50%; bottom:.7rem; transform:translateX(-50%); z-index:5; display:flex; gap:.4rem; width:min(92vw,520px); }
+  .chatbar input { flex:1; font:inherit; background:#0009; color:#fff; border:1px solid #ffffff2e; border-radius:.6rem; padding:.5rem .7rem; }
+  .chatbar button { font:inherit; font-weight:700; background:#13875a; color:#eafff4; border:0; border-radius:.6rem; padding:.5rem .8rem; cursor:pointer; }
+  /* invite d'entrée */
+  #prompt { position:fixed; left:50%; bottom:3.6rem; transform:translateX(-50%); z-index:5; display:none;
+    background:linear-gradient(180deg,#ffd76a,#e8a82a); color:#2a1c04; font-weight:800; border:0; border-radius:.6rem; padding:.5rem 1rem; cursor:pointer; box-shadow:0 6px 20px #0007; }
+  #help { position:fixed; left:50%; top:2.6rem; transform:translateX(-50%); z-index:4; font-size:.78rem; opacity:.7; text-align:center; pointer-events:none; }
+  /* overlay salle */
+  .ov { position:fixed; inset:0; z-index:8; display:none; align-items:center; justify-content:center; background:#1a140ce8; padding:1rem; }
+  .ov.show { display:flex; }
+  .ovbox { background:#241a10; border:1px solid #ffffff2e; border-radius:.9rem; padding:1.1rem; width:min(92vw,420px); text-align:center; }
+  .ovbox h3 { margin:.1rem 0 .5rem; }
+  .ovbox .mem { display:flex; flex-wrap:wrap; gap:.3rem; justify-content:center; margin:.5rem 0 .9rem; font-size:.85rem; }
+  .big { font:inherit; font-weight:800; font-size:1rem; padding:.6rem 1.2rem; border-radius:.6rem; border:0; cursor:pointer; background:#f0c64a; color:#2a1c04; text-decoration:none; display:inline-block; }
+</style>
+</head>
+<body>
+  <canvas id="cv"></canvas>
+  <div class="top">
+    <span class="chip" id="meChip">🥾 Toi</span>
+    <span class="sp"></span>
+    <a class="tbtn" href="classements.html">🏆 Conseil</a>
+    <a class="tbtn" href="index.html">≡ Menu</a>
+  </div>
+  <div id="help">Déplace-toi : <b>ZQSD/flèches</b> ou <b>clic</b>. Approche une case et entre.</div>
+  <button id="prompt" onclick="tryEnter()"></button>
+  <div class="chatbar">
+    <input id="chatinput" maxlength="120" placeholder="Parler au village…" autocomplete="off" />
+    <button onclick="sendMsg()">Dire</button>
+  </div>
+  <div class="ov" id="ov"><div class="ovbox" id="ovbox"></div></div>
+
+<script>
+/* ============================================================================
+   LE VILLAGE — monde ouvert social (couche ③), PROTOTYPE SIMULÉ, 100% local.
+   Ton avatar se déplace dans une place 2D, croise les autres (bots qui errent
+   et palabrent), et entre dans les cases de jeu. Réutilise identité + Indice.
+   ─ Couture réseau : positions, bulles et présence = mêmes événements qu'un
+     vrai temps réel (PartyKit/Cloudflare) ; remplacer la simulation des bots
+     par les messages du serveur, sans toucher le rendu. ─
+   ========================================================================== */
+const cv=document.getElementById("cv"), ctx=cv.getContext("2d");
+let DPR=1, VW=0, VH=0;
+function resize(){ DPR=Math.min(devicePixelRatio||1,2); VW=innerWidth; VH=innerHeight;
+  cv.width=Math.round(VW*DPR); cv.height=Math.round(VH*DPR); ctx.setTransform(DPR,0,0,DPR,0,0); }
+addEventListener("resize", resize); resize();
+addEventListener("error", ev=>{ try{ let d=document.getElementById("errband");
+  if(!d){ d=document.createElement("div"); d.id="errband"; d._n=0;
+    d.style.cssText="position:fixed;left:8px;top:8px;right:8px;z-index:99;background:#5a1410;color:#ffd9d0;border:1px solid #ff6b6b;border-radius:8px;padding:8px 10px;font:13px/1.4 system-ui;white-space:pre-wrap";
+    document.body.appendChild(d); }
+  d._n++; d.textContent="⛔ Erreur"+(d._n>1?" ×"+d._n:"")+" : "+(ev.message||"inconnue"); }catch(e){} });
+
+const TAU=Math.PI*2, clamp=(v,a,b)=>v<a?a:v>b?b:v, pick=a=>a[Math.floor(Math.random()*a.length)], rand=(a,b)=>a+Math.random()*(b-a);
+const lsGet=k=>{ try{ return localStorage.getItem(k); }catch(e){ return null; } };
+
+/* identité + Indice (mêmes clés que la plateforme) */
+const TARGETS={harmattan:180,tamtam:30000,awale:12,banco:21,echecs:8,voraces:400,sables:2500,lignees:200,atelier:310};
+function indiceOf(s){ let t=0; for(const k in TARGETS) t+=Math.round(Math.min(1,(s&&s[k]||0)/TARGETS[k])*1000); return t; }
+const TIERS=[[0,"Voyageur","🥾"],[900,"Marchand","🐪"],[2200,"Notable","🎽"],[4000,"Chef de village","🪘"],[6000,"Roi des routes","👑"],[8000,"Légende des griots","🌟"]];
+const tierOf=i=>{ let t=TIERS[0]; for(const x of TIERS) if(i>=x[0]) t=x; return t; };
+const myName=()=> lsGet("awema_player") || "Toi";
+function myScores(){ const o={},map={harmattan:"harmattan_best",tamtam:"tamtam_best",awale:"awale_royal_best",echecs:"echecs_best",voraces:"voraces_best",sables:"sables_best",lignees:"lignees_best"};
+  for(const k in map) o[k]=+lsGet(map[k])||0;
+  try{ const b=JSON.parse(lsGet("banco_save")); o.banco=(b&&b.stars||[]).reduce((a,x)=>a+(+x||0),0); }catch(e){ o.banco=0; }
+  try{ o.atelier=(JSON.parse(lsGet("awema_atelier_v1"))||{}).xp||0; }catch(e){ o.atelier=0; }
+  return o; }
+const myTier=()=>tierOf(indiceOf(myScores()));
+
+/* monde */
+const WW=1500, WH=1050, CX=750, CY=500, PSPD=200;
+const GAMES=[
+  {id:"tamtam",name:"Tam-Tam",ic:"🥁",href:"tamtam.html"},
+  {id:"awale",name:"Awalé Royal",ic:"🐚",href:"awale-royal.html"},
+  {id:"echecs",name:"Échecs",ic:"♟️",href:"echecs.html"},
+  {id:"harmattan",name:"Harmattan",ic:"🌪️",href:"harmattan.html"},
+  {id:"banco",name:"Banco",ic:"🧱",href:"banco.html"},
+  {id:"sables",name:"Sables",ic:"🏜️",href:"sables.html"},
+  {id:"voraces",name:"Voraces",ic:"🦠",href:"voraces.html"},
+  {id:"lignees",name:"Lignées",ic:"👑",href:"conseil.html"},
+  {id:"atelier",name:"Atelier",ic:"🎓",href:"atelier.html"},
+];
+const buildings=[];
+GAMES.forEach((g,i)=>{ const a=-Math.PI/2 + i/GAMES.length*TAU;
+  buildings.push({ ...g, kind:"game", x:clamp(CX+Math.cos(a)*580, 120, WW-120), y:clamp(CY+Math.sin(a)*360, 150, WH-120), r:46 }); });
+buildings.push({ id:"board", name:"Le Grand Conseil", ic:"🏆", href:"classements.html", kind:"board", x:CX, y:CY+150, r:40 });
+
+const DEFAULT_BOTS=[
+  {id:"bot0",name:"Awa la griotte",scores:{tamtam:41000,awale:12,banco:21,echecs:7,sables:3200,lignees:240,atelier:310,harmattan:172,voraces:520}},
+  {id:"bot1",name:"Kouamé",scores:{tamtam:22000,awale:9,banco:15,sables:1800,lignees:150}},
+  {id:"bot2",name:"Aïssata",scores:{tamtam:28000,awale:11,banco:12,echecs:5,sables:2200,atelier:240}},
+  {id:"bot3",name:"N'Dri",scores:{tamtam:9000,awale:6,banco:9,voraces:160}},
+  {id:"bot4",name:"Fatou",scores:{tamtam:15000,banco:18,sables:2600,lignees:210}},
+  {id:"bot5",name:"Kossi",scores:{tamtam:5000,banco:6,voraces:90}},
+  {id:"bot6",name:"Mariam",scores:{tamtam:33000,awale:10,sables:2900,atelier:290}},
+  {id:"bot7",name:"Ibrahim",scores:{tamtam:12000,awale:7,banco:11,voraces:220}},
+];
+function loadBots(){ let d=null; try{ d=JSON.parse(lsGet("awema_cloud_v1")); }catch(e){}
+  let list=(d&&d.players)? Object.entries(d.players).filter(([,p])=>p.bot).map(([id,p])=>({id,name:p.name,scores:p.scores})):null;
+  if(!list||!list.length) list=DEFAULT_BOTS;
+  return list.map(b=>{ const t=tierOf(indiceOf(b.scores)); return { id:b.id, name:b.name, ic:t[2], col:botColor(b.id),
+    x:rand(200,WW-200), y:rand(200,WH-200), tx:null, ty:null, pause:rand(0,2), at:null, bubble:null }; }); }
+function botColor(id){ const c=["#e8702a","#7c5cff","#13875a","#d23b6e","#3aa0d2","#c89a2a","#9a4cd2","#2ab0a0"]; let h=0; for(const ch of id) h=(h*31+ch.charCodeAt(0))%c.length; return c[h]; }
+
+const player={ x:CX, y:CY+250, tx:null, ty:null, moving:false, facing:1 };
+const cam={x:0,y:0};
+let bots=loadBots(), bubbles=[], near=null, chatT=3;
+const keys={};
+
+const SAY={ hello:["Akwaba 👋","On est ensemble !","Bonsoir 🌙","Me voilà 😄"],
+  proverb:["« Un seul doigt ne ramasse pas la farine. »","« Petit à petit, l'oiseau fait son nid. »","« Le savoir est un baobab. »"],
+  brag:["Record battu à Harmattan !","Awa règne au Tam-Tam…","Trois étoiles à Banco ✨"],
+  challenge:["Qui ose au Tam-Tam ? 🥁","Un Awalé ? 🐚","Une partie d'Échecs ? ♟️"],
+  react:["Bien dit ! 👏","Haha 😄","Akwaba à toi !","Trop fort 🔥"] };
+const anyPool=()=>pick([SAY.hello,SAY.proverb,SAY.brag,SAY.challenge]);
+function emit(owner,text){ owner.bubble={text,t:0,max:3.4}; }
+
+function updateBot(b,dt){
+  if(b.pause>0){ b.pause-=dt; }
+  else if(b.tx==null){
+    if(Math.random()<0.4){ const bd=pick(buildings); b.tx=bd.x+rand(-40,40); b.ty=bd.y+50+rand(0,30); b.at=bd.id; }
+    else { b.tx=rand(120,WW-120); b.ty=rand(160,WH-120); b.at=null; }
+  } else {
+    const dx=b.tx-b.x, dy=b.ty-b.y, d=Math.hypot(dx,dy), sp=rand(70,105);
+    if(d>4){ b.x+=dx/d*sp*dt; b.y+=dy/d*sp*dt; b.facing=dx<0?-1:1; } else { b.tx=null; b.pause=rand(1.2,3.5); }
+  }
+  if(b.bubble){ b.bubble.t+=dt; if(b.bubble.t>b.bubble.max) b.bubble=null; }
+}
+
+function update(dt){
+  dt=Math.min(dt,0.05);
+  let vx=0,vy=0;
+  if(keys.a||keys.q||keys.arrowleft)vx--; if(keys.d||keys.arrowright)vx++;
+  if(keys.w||keys.z||keys.arrowup)vy--; if(keys.s||keys.arrowdown)vy++;
+  if(vx||vy){ player.tx=null; const m=Math.hypot(vx,vy); player.x+=vx/m*PSPD*dt; player.y+=vy/m*PSPD*dt; player.moving=true; if(vx)player.facing=vx<0?-1:1; }
+  else if(player.tx!=null){ const dx=player.tx-player.x,dy=player.ty-player.y,d=Math.hypot(dx,dy);
+    if(d>5){ player.x+=dx/d*PSPD*dt; player.y+=dy/d*PSPD*dt; player.moving=true; if(dx)player.facing=dx<0?-1:1; } else { player.tx=null; player.moving=false; } }
+  else player.moving=false;
+  player.x=clamp(player.x,24,WW-24); player.y=clamp(player.y,40,WH-24);
+  if(player.bubble){ player.bubble.t+=dt; if(player.bubble.t>player.bubble.max) player.bubble=null; }
+  for(const b of bots) updateBot(b,dt);
+  for(let i=bubbles.length-1;i>=0;i--){ bubbles[i].t+=dt; if(bubbles[i].t>bubbles[i].max) bubbles.splice(i,1); }
+  chatT-=dt; if(chatT<=0){ chatT=rand(3.5,7); if(bots.length){ const b=pick(bots); emit(b, pick(anyPool())); } }
+  // proximité d'une case
+  let n=null; for(const bd of buildings){ if(Math.hypot(player.x-bd.x, player.y-bd.y)<bd.r+40){ n=bd; break; } }
+  near=n; const pr=document.getElementById("prompt");
+  if(near){ pr.style.display="block"; pr.textContent=(near.kind==="board"?"🏆 Voir ":"▶ Entrer : ")+near.ic+" "+near.name+"  (E)"; } else pr.style.display="none";
+  cam.x=clamp(player.x-VW/2,0,Math.max(0,WW-VW)); cam.y=clamp(player.y-VH/2,0,Math.max(0,WH-VH));
+}
+
+/* ---- rendu ---- */
+function draw(){
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.fillStyle="#3a2a16"; ctx.fillRect(0,0,VW,VH);
+  ctx.save(); ctx.translate(-cam.x,-cam.y);
+  // sol
+  const g=ctx.createRadialGradient(CX,CY,80,CX,CY,900); g.addColorStop(0,"#c9a36a"); g.addColorStop(1,"#7a5a34");
+  ctx.fillStyle=g; ctx.fillRect(0,0,WW,WH);
+  // chemins vers les cases
+  ctx.strokeStyle="#00000022"; ctx.lineWidth=22; ctx.lineCap="round";
+  for(const bd of buildings){ ctx.beginPath(); ctx.moveTo(CX,CY+150); ctx.lineTo(bd.x,bd.y); ctx.stroke(); }
+  // baobab central
+  drawTree(CX,CY-10);
+  // entités triées par y
+  const ents=[...buildings.map(b=>({y:b.y,d:()=>drawBuilding(b)})), ...bots.map(b=>({y:b.y,d:()=>drawPerson(b.x,b.y,b.col,b.ic,b.name,b.bubble)})), {y:player.y,d:()=>drawPerson(player.x,player.y,"#ffd24a",myTier()[2],myName()+" (toi)",player.bubble,true)}];
+  ents.sort((a,b)=>a.y-b.y).forEach(e=>e.d());
+  ctx.restore();
+}
+function drawTree(x,y){
+  ctx.fillStyle="#5a3a1c"; ctx.fillRect(x-12,y,24,70);
+  ctx.fillStyle="#3f7a3a"; for(const o of [[-50,-20,60],[40,-30,55],[0,-60,66],[-30,-70,44],[34,-66,40]]){ ctx.beginPath(); ctx.arc(x+o[0],y+o[1],o[2],0,TAU); ctx.fill(); }
+  ctx.fillStyle="#4f9a48"; for(const o of [[-30,-30,34],[20,-44,30],[0,-72,30]]){ ctx.beginPath(); ctx.arc(x+o[0],y+o[1],o[2],0,TAU); ctx.fill(); }
+}
+function drawBuilding(b){
+  const w=84,h=64, x=b.x-w/2, y=b.y-h;
+  ctx.fillStyle="#00000033"; ctx.beginPath(); ctx.ellipse(b.x,b.y+6,w*0.5,12,0,0,TAU); ctx.fill();
+  ctx.fillStyle=b.kind==="board"?"#7c5cff":"#b07a3e"; ctx.fillRect(x,y,w,h);
+  ctx.fillStyle=b.kind==="board"?"#9a84ff":"#caa46a"; ctx.beginPath(); ctx.moveTo(x-8,y); ctx.lineTo(x+w/2,y-30); ctx.lineTo(x+w+8,y); ctx.closePath(); ctx.fill();
+  ctx.fillStyle="#3a2412"; ctx.fillRect(b.x-12,y+h-26,24,26);
+  // enseigne
+  ctx.font="22px system-ui"; ctx.textAlign="center"; ctx.fillText(b.ic, b.x, y+34);
+  ctx.fillStyle="#fff8e8"; ctx.font="700 12px system-ui"; ctx.fillText(b.name, b.x, b.y+22);
+  // occupants
+  const oc=bots.filter(z=>z.at===b.id).length; if(oc){ ctx.fillStyle="#13875a"; ctx.font="11px system-ui"; ctx.fillText("● "+oc, b.x, b.y+36); }
+}
+function drawPerson(x,y,col,emoji,name,bubble,self){
+  ctx.fillStyle="#00000033"; ctx.beginPath(); ctx.ellipse(x,y+2,13,5,0,0,TAU); ctx.fill();
+  ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(x,y-26); ctx.lineTo(x+11,y); ctx.lineTo(x-11,y); ctx.closePath(); ctx.fill();   // corps
+  ctx.fillStyle="#e8c89a"; ctx.beginPath(); ctx.arc(x,y-30,8,0,TAU); ctx.fill();                                                // tête
+  if(self){ ctx.strokeStyle="#ffd24a"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(x,y-12,20,0,TAU); ctx.stroke(); }
+  ctx.font="13px system-ui"; ctx.textAlign="center"; ctx.fillText(emoji, x, y-40);
+  ctx.fillStyle="#fff"; ctx.font="700 11px system-ui"; ctx.strokeStyle="#0008"; ctx.lineWidth=3;
+  ctx.strokeText(name,x,y+18); ctx.fillText(name,x,y+18);
+  if(bubble){ bubbleAt(x,y-52,bubble.text); }
+}
+function bubbleAt(x,y,text){
+  ctx.font="12px system-ui"; const w=Math.min(220,ctx.measureText(text).width+18);
+  ctx.fillStyle="#fff"; ctx.strokeStyle="#0006"; ctx.lineWidth=1;
+  roundRect(x-w/2,y-22,w,24,8); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x-5,y+2); ctx.lineTo(x+5,y+2); ctx.lineTo(x,y+9); ctx.closePath(); ctx.fill();
+  ctx.fillStyle="#1a140c"; ctx.textAlign="center"; ctx.fillText(text, x, y-6);
+}
+function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+/* ---- entrer dans une case ---- */
+function tryEnter(){
+  if(!near) return;
+  if(near.kind==="board"){ location.href=near.href; return; }
+  const inside=bots.filter(b=>b.at===near.id);
+  const mem=[`<b>${esc(myName())}</b> (toi)`].concat(inside.map(b=>esc(b.name))).join(" · ") || "personne pour l'instant";
+  document.getElementById("ovbox").innerHTML=`
+    <h3>${near.ic} Case de ${near.name}</h3>
+    <div style="opacity:.8;font-size:.88rem">Dans la case :</div>
+    <div class="mem">${mem}</div>
+    <a class="big" href="${near.href}">▶ Jouer</a>
+    <div style="margin-top:.7rem"><button class="tbtn" onclick="closeOv()">← Ressortir</button></div>
+    <div style="margin-top:.5rem;font-size:.75rem;opacity:.6">Ton score rejoint <b>Le Grand Conseil</b>. Le duel en direct viendra avec le serveur.</div>`;
+  document.getElementById("ov").classList.add("show");
+}
+function closeOv(){ document.getElementById("ov").classList.remove("show"); }
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+/* ---- chat ---- */
+function sendMsg(){ const inp=document.getElementById("chatinput"); const v=inp.value.trim(); if(!v) return;
+  player.bubble={text:v,t:0,max:3.6}; inp.value=""; inp.blur();
+  // un bot proche réagit
+  const nearBots=bots.filter(b=>Math.hypot(b.x-player.x,b.y-player.y)<220);
+  if(nearBots.length && Math.random()<0.8){ const b=pick(nearBots); setTimeout(()=>emit(b, pick(SAY.react)), 600+Math.random()*1200); }
+}
+document.getElementById("chatinput").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.stopPropagation(); sendMsg(); } });
+
+/* ---- entrées ---- */
+addEventListener("keydown",e=>{ if(e.target&&e.target.id==="chatinput") return; const k=e.key.toLowerCase(); keys[k]=true;
+  if(k==="e") tryEnter(); if(k==="escape") closeOv();
+  if([" ","arrowup","arrowdown","arrowleft","arrowright"].includes(k)) e.preventDefault(); });
+addEventListener("keyup",e=>{ keys[e.key.toLowerCase()]=false; });
+cv.addEventListener("pointerdown",e=>{ player.tx=cam.x+e.clientX; player.ty=cam.y+e.clientY; });
+
+/* ---- boucle ---- */
+function refreshChip(){ const t=myTier(); document.getElementById("meChip").textContent=t[2]+" "+myName()+" · "+t[1]; }
+let last=performance.now();
+function frame(t){ requestAnimationFrame(frame);
+  if(VW!==innerWidth||VH!==innerHeight) resize();
+  const dt=(t-last)/1000; last=t; update(dt); draw(); }
+refreshChip(); requestAnimationFrame(frame);
+setTimeout(()=>{ if(bots[0]) emit(bots[0], pick(SAY.hello)); }, 700);
+</script>
+</body>
+</html>

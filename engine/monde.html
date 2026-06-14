@@ -142,10 +142,16 @@ function updateBot(b,dt){
   // jeu du chat : le porteur de la poisse chasse le plus proche ; les autres le fuient
   if(b.id===itId){ let tx=player.x,ty=player.y,bd=Math.hypot(player.x-b.x,player.y-b.y);
     for(const o of bots){ if(o.id===b.id) continue; const d=Math.hypot(o.x-b.x,o.y-b.y); if(d<bd){bd=d;tx=o.x;ty=o.y;} }
-    const dx=tx-b.x,dy=ty-b.y,dd=Math.hypot(dx,dy)||1; b.x+=dx/dd*(135*(infectT>0?0.7:1))*dt; b.y+=dy/dd*(135*(infectT>0?0.7:1))*dt; b.facing=dx<0?-1:1;
+    let dx=tx-b.x,dy=ty-b.y,dd=Math.hypot(dx,dy); if(dd<2){ const a=Math.random()*TAU; dx=Math.cos(a); dy=Math.sin(a); dd=1; }   // jamais figé sur la cible
+    const cs=135*(infectT>0?0.7:1); b.x+=dx/dd*cs*dt; b.y+=dy/dd*cs*dt; b.facing=dx<0?-1:1;
     b.x=clamp(b.x,120,WW-120); b.y=clamp(b.y,160,WH-120); if(b.bubble){b.bubble.t+=dt;if(b.bubble.t>b.bubble.max)b.bubble=null;} return; }
-  if(itx!=null){ const fd=Math.hypot(itx-b.x,ity-b.y); if(fd<175){ const dx=b.x-itx,dy=b.y-ity,dd=Math.hypot(dx,dy)||1;
-    b.x+=dx/dd*100*dt; b.y+=dy/dd*100*dt; b.x=clamp(b.x,120,WW-120); b.y=clamp(b.y,160,WH-120); b.facing=dx<0?-1:1;
+  if(itx!=null){ const fd=Math.hypot(itx-b.x,ity-b.y); if(fd<175){
+    let dx=b.x-itx, dy=b.y-ity, dd=Math.hypot(dx,dy); if(dd<1){ const a=Math.random()*TAU; dx=Math.cos(a); dy=Math.sin(a); dd=1; }
+    let fx=dx/dd, fy=dy/dd, mg=170;                                  // anti-coin : glisser vers l'espace libre près d'un mur
+    if(b.x<120+mg) fx+=0.9; else if(b.x>WW-120-mg) fx-=0.9;
+    if(b.y<160+mg) fy+=0.9; else if(b.y>WH-120-mg) fy-=0.9;
+    const fl=Math.hypot(fx,fy)||1; b.x+=fx/fl*100*dt; b.y+=fy/fl*100*dt;
+    b.x=clamp(b.x,120,WW-120); b.y=clamp(b.y,160,WH-120); b.facing=fx<0?-1:1;
     if(b.bubble){b.bubble.t+=dt;if(b.bubble.t>b.bubble.max)b.bubble=null;} return; } }
   if(b.pause>0){ b.pause-=dt; }
   else if(b.tx==null){

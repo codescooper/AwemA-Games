@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "AwemA — backend API de classement (v1). Zéro dépendance runtime.",
+  "description": "AwemA — backend : API de classement + WebSocket présence/chat du Village.",
   "engines": { "node": ">=18" },
-  "scripts": { "start": "node index.js" }
+  "scripts": { "start": "node index.js" },
+  "dependencies": { "ws": "^8.18.0" }
 }

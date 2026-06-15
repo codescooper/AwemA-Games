@@ -12,6 +12,7 @@
 import http from "node:http";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { WebSocketServer } from "ws";
 
 const PORT = Number(process.env.PORT) || 8090;
 const DATA_FILE = process.env.DATA_FILE || "";
@@ -48,6 +49,8 @@ const num = (v, lo, hi) => { v = Number(v); if (!Number.isFinite(v)) return lo; 
 const clean = s => Array.from(String(s == null ? "" : s))
   .filter(ch => ch.charCodeAt(0) >= 32 && ch !== "<" && ch !== ">")
   .join("").trim().slice(0, 24);
+// chat : on garde les imprimables, on retire les caractères de contrôle, cap 140 (rendu canvas, pas de HTML)
+const cleanChat = s => Array.from(String(s == null ? "" : s)).filter(ch => ch.charCodeAt(0) >= 32).join("").trim().slice(0, 140);
 
 function originAllowed(o) {
   if (!o) return false;
@@ -121,4 +124,66 @@ const server = http.createServer(async (req, res) => {
     console.error("handler error:", e && e.message);
   }
 });
-server.listen(PORT, () => console.log("AwemA leaderboard API on :" + PORT + " (persist=" + (DATA_FILE || "memory") + ")"));
+/* ---------- WebSocket : présence + chat temps réel du Village ----------
+   Protocole compact (clés courtes -> egress minimal) :
+     client -> serveur : {t:"hi",n} hello · {t:"m",x,y,d} move · {t:"c",m} chat
+     serveur -> client : {t:"w",you,peers} welcome+roster · {t:"j",id,n,x,y,d} join
+                        · {t:"m",id,x,y,d} · {t:"c",id,n,m} · {t:"l",id} leave
+   État volatile (aucune persistance) ; un humain dans le village = une connexion. */
+const wss = new WebSocketServer({ server, path: "/ws", maxPayload: 4096 });
+let seq = 0;
+const peers = new Map(); // cid -> { ws, name, x, y, d, lastChat, alive }
+
+function wsBroadcast(obj, exceptCid) {
+  const msg = JSON.stringify(obj);
+  for (const [cid, p] of peers) {
+    if (cid === exceptCid || p.ws.readyState !== 1) continue;
+    try { p.ws.send(msg); } catch (e) { }
+  }
+}
+
+wss.on("connection", (ws, req) => {
+  const o = req.headers.origin;
+  if (o && !originAllowed(o)) { try { ws.close(1008, "origin"); } catch (e) { } return; }  // navigateur d'origine inconnue
+  if (peers.size >= 200) { try { ws.close(1013, "full"); } catch (e) { } return; }          // garde-fou ressources
+
+  const cid = "p" + (++seq).toString(36) + Math.random().toString(36).slice(2, 5);
+  const peer = { ws, name: "Villageois", x: 750, y: 500, d: 1, lastChat: 0, alive: true };
+  peers.set(cid, peer);
+  ws.on("pong", () => { peer.alive = true; });
+
+  ws.on("message", (buf) => {
+    let m; try { m = JSON.parse(String(buf)); } catch (e) { return; }
+    if (!m || typeof m !== "object") return;
+    if (m.t === "hi") {
+      peer.name = clean(m.n) || "Villageois";
+      peer.x = num(m.x, 0, 4000); peer.y = num(m.y, 0, 4000);
+      const roster = [];
+      for (const [id, p] of peers) if (id !== cid) roster.push({ id, n: p.name, x: Math.round(p.x), y: Math.round(p.y), d: p.d });
+      try { ws.send(JSON.stringify({ t: "w", you: cid, peers: roster })); } catch (e) { }
+      wsBroadcast({ t: "j", id: cid, n: peer.name, x: Math.round(peer.x), y: Math.round(peer.y), d: peer.d }, cid);
+    } else if (m.t === "m") {
+      peer.x = num(m.x, 0, 4000); peer.y = num(m.y, 0, 4000); peer.d = m.d < 0 ? -1 : 1;
+      wsBroadcast({ t: "m", id: cid, x: Math.round(peer.x), y: Math.round(peer.y), d: peer.d }, cid);
+    } else if (m.t === "c") {
+      const now = Date.now();
+      if (now - peer.lastChat < 600) return;               // anti-spam : 1 message / 600 ms
+      peer.lastChat = now;
+      const text = cleanChat(m.m);
+      if (text) wsBroadcast({ t: "c", id: cid, n: peer.name, m: text }, cid);  // l'émetteur affiche sa bulle localement
+    }
+  });
+  ws.on("close", () => { peers.delete(cid); wsBroadcast({ t: "l", id: cid }, cid); });
+  ws.on("error", () => { try { ws.close(); } catch (e) { } });
+});
+
+// heartbeat : éliminer les connexions mortes + garder le canal vivant à travers les proxies
+const wsHeartbeat = setInterval(() => {
+  for (const [cid, p] of peers) {
+    if (!p.alive) { try { p.ws.terminate(); } catch (e) { } peers.delete(cid); wsBroadcast({ t: "l", id: cid }, cid); continue; }
+    p.alive = false; try { p.ws.ping(); } catch (e) { }
+  }
+}, 30000);
+wss.on("close", () => clearInterval(wsHeartbeat));
+
+server.listen(PORT, () => console.log("AwemA backend on :" + PORT + " — API classement + WS /ws (persist=" + (DATA_FILE || "memory") + ")"));

@@ -154,7 +154,8 @@ function evolve(d){ for(const id in d.players){ const p=d.players[id]; if(!p.bot
   if(Math.random()<0.6){ const g=GAMES[Math.floor(Math.random()*GAMES.length)], cur=p.scores[g.id]||0, ceil=(p.ceil&&p.ceil[g.id])||g.target;
     if(cur<ceil) p.scores[g.id]=Math.min(ceil, Math.round(cur+(ceil-cur)*(0.05+Math.random()*0.2)+1)); } } }
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
-const Cloud = {                                  // ← seul ce corps changera pour le vrai réseau
+/* simulation locale (repli hors-ligne) — l'ancien « cloud » : bots + évolution */
+const Sim = {
   async submit(scores){ await delay(120+Math.random()*160); const d=dbGet()||seed(), u=uid();
     const me=d.players[u]||{scores:{}}; me.name=myName(); me.self=true; me.bot=false;
     for(const k in scores) me.scores[k]=Math.max(me.scores[k]||0, scores[k]||0);
@@ -165,11 +166,34 @@ const Cloud = {                                  // ← seul ce corps changera p
   async game(id){ return (await this._all()).map(p=>({name:p.name,self:p.self,score:p.scores[id]||0})).sort((a,b)=>b.score-a.score); },
 };
 
+/* ─── VRAI RÉSEAU : back-end AwemA hébergé sur Railway ──────────────────────
+   BACKEND_URL vide → 100 % simulation locale. Sinon on appelle le serveur, avec
+   repli AUTOMATIQUE sur Sim si injoignable (offline-first préservé, rien ne casse). */
+const BACKEND_URL = "https://awema-games-production.up.railway.app";
+let ONLINE = null;   // null = inconnu · true = en ligne · false = repli local
+async function jfetch(url, opts){ const c=new AbortController(), t=setTimeout(()=>c.abort(),5000);
+  try{ return await fetch(url, Object.assign({}, opts||{}, {signal:c.signal})); } finally { clearTimeout(t); } }
+const Net = {
+  async submit(scores){ const r=await jfetch(BACKEND_URL+"/api/score",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({uid:uid(),name:myName(),indice:indiceOf(scores),games:scores})}); if(!r.ok) throw new Error("submit "+r.status); return r.json(); },
+  async global(){ const r=await jfetch(BACKEND_URL+"/api/leaderboard"); if(!r.ok) throw new Error("global "+r.status);
+    const d=await r.json(), u=uid(); return (d.board||[]).map(e=>({name:e.name,self:e.uid===u,idx:e.indice||0,tier:tierOf(e.indice||0)})); },
+  async game(id){ const r=await jfetch(BACKEND_URL+"/api/leaderboard?game="+encodeURIComponent(id)); if(!r.ok) throw new Error("game "+r.status);
+    const d=await r.json(), u=uid(); return (d.board||[]).map(e=>({name:e.name,self:e.uid===u,score:e.score||0})); },
+};
+/* dispatcher : réseau réel si dispo, sinon repli local — signatures identiques, l'UI ne change pas */
+const Cloud = {
+  async submit(s){ if(BACKEND_URL && ONLINE!==false){ try{ const r=await Net.submit(s); ONLINE=true; return r; }catch(e){ ONLINE=false; } } return Sim.submit(s); },
+  async global(){ if(BACKEND_URL && ONLINE!==false){ try{ const r=await Net.global(); ONLINE=true; return r; }catch(e){ ONLINE=false; } } return Sim.global(); },
+  async game(id){ if(BACKEND_URL && ONLINE!==false){ try{ const r=await Net.game(id); ONLINE=true; return r; }catch(e){ ONLINE=false; } } return Sim.game(id); },
+};
+
 /* ---- rendu ---- */
 let curTab = GAMES[0].id;
 const MEDAL=["🥇","🥈","🥉"];
 async function render(){
   const sb=document.getElementById("syncBtn"); if(sb){ sb.disabled=true; sb.textContent="🔄 …"; }
+  ONLINE=null;   // re-sonde le réseau à chaque synchro
   const scores=myScores(), idx=indiceOf(scores), tier=tierOf(idx);
   const next=TIERS.find(t=>t.min>idx);
   // carte joueur
@@ -202,9 +226,14 @@ async function render(){
   let bt=`<tr><th>#</th><th>Joueur</th><th class='r'>Meilleur (${g.unit})</th></tr>`;
   B.forEach((p,i)=>{ bt+=`<tr class="${p.self?'self':''}"><td><span class="medal">${MEDAL[i]||(i+1)}</span></td><td>${esc(p.name)}</td><td class="r">${p.score?g.fmt(p.score):"—"}</td></tr>`; });
   document.getElementById("gameTable").innerHTML=bt;
-  document.getElementById("footnote").innerHTML=
-    `L'<b>Indice AwemA</b> = somme de ta maîtrise (0–1000 pts) sur les ${GAMES.length} jeux — joue à plus de jeux et bats tes records pour grimper.<br>
-     🔌 <span class="pill">réseau simulé</span> Identité, envoi de score et synchro fonctionnent <b>exactement comme en ligne</b> (faux serveur local, bots qui progressent). Passer en vrai mondial = remplacer le corps de <code>Cloud.*</code> par des <code>fetch()</code>, sans toucher l'écran.`;
+  const _badge=document.getElementById("netBadge");
+  if(ONLINE===true){
+    if(_badge){ _badge.textContent="🟢 en ligne"; _badge.title="Connecté au serveur AwemA (Railway)"; }
+    document.getElementById("footnote").innerHTML=`L'<b>Indice AwemA</b> = somme de ta maîtrise (0–1000 pts) sur les ${GAMES.length} jeux — joue à plus de jeux et bats tes records.<br>🌍 <span class="pill">mondial</span> Classement <b>en ligne réel</b> : tes scores et ceux des autres joueurs sont partagés via le serveur AwemA (Railway).`;
+  } else {
+    if(_badge){ _badge.textContent=BACKEND_URL?"🟡 hors-ligne — local":"🟢 local (démo)"; _badge.title=BACKEND_URL?"Serveur injoignable : classement local de secours":"Mode démonstration local"; }
+    document.getElementById("footnote").innerHTML=`L'<b>Indice AwemA</b> = somme de ta maîtrise (0–1000 pts) sur les ${GAMES.length} jeux — joue à plus de jeux et bats tes records.<br>🔌 <span class="pill">${BACKEND_URL?"hors-ligne":"démo"}</span> ${BACKEND_URL?"Serveur injoignable — classement local de secours (tes scores partiront en ligne au retour du réseau).":"Classement local de démonstration (bots qui progressent)."}`;
+  }
   if(sb){ sb.disabled=false; sb.textContent="🔄 Synchroniser"; }
 }
 function pickTab(id){ curTab=id; render(); }

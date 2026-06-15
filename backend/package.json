@@ -1,0 +1,9 @@
+{
+  "name": "awema-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AwemA — backend API de classement (v1). Zéro dépendance runtime.",
+  "engines": { "node": ">=18" },
+  "scripts": { "start": "node index.js" }
+}

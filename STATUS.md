@@ -1,10 +1,11 @@
 # STATUS — AWEMA Light Games Prototype
-> Dernière MAJ : 2026-06-13
+> Dernière MAJ : 2026-06-15
 
 ## 🎯 Objectif de la phase actuelle
 Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zéro dépendance) en repoussant le graphisme et le réalisme au maximum des performances du navigateur. Horizon : installation en PWA, puis multijoueur.
 
 ## ✅ Fait (cette semaine)
+- **🌍 MULTIJOUEUR EN LIGNE — le classement mondial est RÉEL (back-end Railway).** Premier maillon serveur live : API de classement (`backend/`, Node `node:http`, **zéro dépendance**) déployée sur **Railway** (projet `awema-games` → **https://awema-games-production.up.railway.app**), **persistante** (volume `/data`, `DATA_FILE`), CORS (GitHub Pages + tout `localhost`). `classements.html` appelle ce serveur (`Cloud.*` → `Net`/`fetch()`), avec **repli automatique sur la simulation locale** si injoignable → **offline-first intact**. Le board général masque les Indice 0. Vérifié bout-en-bout : API en ligne (health/submit/leaderboard), CORS (localhost reflété, origine inconnue refusée), front `online:true` **sans erreur console**. CLI + MCP Railway installés/loggués. `sw.js` → cache `awema-v6`.
 - **Village — jeu du « chat » (la poisse) par défaut + Miroir intégré à la place.** On arrive avec **la poisse** (bâtiments **bloqués** tant qu'on ne l'a pas **refilée en touchant un villageois**) ; le porteur chasse, les autres fuient, immunité anti‑retour. **Le Miroir** est désormais un **grand objet de la place** qui **joue la vidéo en direct** sur sa vitre (interaction in‑situ, sans quitter le Village). Vérifié (transfert toi↔bot, blocage, lecteur, rendu).
 - **Refonte UX : le Village comme accueil central + 2 nouvelles zones.** On **atterrit sur le Village** (redirection racine + `start_url` PWA + serveur local → `monde.html`) et on navigue de là (bâtiments 🏆 Conseil · 🪞 Miroir · 💡 Doléances · 🌳 Place + 9 cases de jeu). **🪞 Le Miroir** (`cinema.html`) : file de vidéos une à la fois, taguée par demandeur, lecteur YouTube, spectateurs. **💡 Les Doléances** (`idees.html`) : demandes de jeu votables (demandeur + tag dev), clôture hebdo → la n°1 « passe en dev ». Vérifié (nav, vote, file/parse YT). Commit `7b290c2`.
 - **Multijoueur — couche ③ : « Le Village » (monde ouvert, prototype simulé).** Place 2D où l'avatar se déplace (clavier/clic, caméra suiveuse), bots qui errent + palabrent (bulles), 9 cases de jeu + le Grand Conseil en bâtiments où l'on entre (→ Jouer). **La vision ①②③ est entièrement prototypée en local.** Vérifié (déplacement, errance, entrée, chat, rendu). Commit `40042a2`.
@@ -26,17 +27,18 @@ Explorer et prototyper des mini-jeux 100 % locaux (HTML/Canvas, JS vanilla, zér
 - **Menu** (`engine/index.html`) et **README** à jour : 5 entrées (Atelier, Lignées, Sables, Échecs, Voraces).
 
 ## 🚧 En cours
-- [ ] **Multijoueur — vision entièrement PROTOTYPÉE en local** : ① classements/Indice ✅ (9 jeux) · ② hub présence+chat+salles ✅ · ③ monde ouvert (Le Village) ✅. Reste **le passage en ligne** : remplacer les coutures simulées (`Cloud.*`, bots de `salon.html`/`monde.html`) par un vrai client temps réel. **Décision d'infra requise.**
+- [ ] **Passage en ligne — DÉMARRÉ.** ✅ Infra choisie = **Railway** (compte existant). ✅ Couche ① **classement mondial réel** live + branché + vérifié. Reste : (a) **publier le front branché** sur GitHub Pages (push) pour que le site live l'utilise ; (b) étendre au **temps réel** — présence/chat du Village + synchro du Miroir + votes des Doléances via **WebSocket** sur le même serveur (couture `Lobby.*`), en pesant le coût d'un process 24/7 + anti-triche + modération.
 
 ## ⏭️ Prochaine étape (la SEULE chose à faire ensuite)
-**Brancher le vrai réseau** : choisir l'infra (**Cloudflare recommandé** — Pages+Workers+D1+Durable Objects/PartyKit — vs Supabase), puis remplacer les coutures simulées par du réseau réel — (a) classement mondial (`Cloud.*`→`fetch()`), (b) présence/chat/positions dans Le Village + La Place, (c) **file vidéo du Miroir synchronisée** à la seconde + (d) **votes des Doléances** partagés ; avec **anti-triche minimal**. Commencer petit : le **classement en ligne** d'abord.
-→ *Justif : toute l'expérience sociale (hub Village, Miroir, Doléances, classements, chat) est validée en prototype local (zéro coût) ; le passage en ligne est le seul pas restant, différé faute de décision d'infra. À cadrer (compte, coût, modération chat/vidéo, RGPD).*
+**Publier le branchement en ligne** : commiter (`backend/` + `classements.html` + `sw.js` v6) et pousser sur GitHub Pages pour que **https://codescooper.github.io/AwemA-Games/** utilise réellement le classement mondial Railway (le back-end est déjà live ; il ne reste que la mise en ligne du front).
+→ *Justif : back-end Railway déployé + vérifié bout-en-bout ; mais le site live sert encore la version simulée tant que le front branché n'est pas poussé. Ensuite seulement : temps réel (WebSocket présence/chat/Miroir), à cadrer côté coût serveur 24/7 + anti-triche + modération.*
 
 ## 🧱 Décisions verrouillées
 - **100 % local / offline-first** : chaque jeu = 1 fichier HTML autonome, JS vanilla, **zéro dépendance runtime**, lançable au double-clic.
 - **Ambition graphique** : explorer et **pousser le graphisme et le réalisme au maximum des performances du navigateur** (Canvas/WebGL, pixel art, effets, animation) — sans rompre l'offline ni la légèreté.
 - **Solo / bootstrap** (<50 k€), **F2P éthique** (pas de pay-to-win, pas de loot boxes).
 - Cible : **PWA + smartphones modestes + marchés émergents**.
+- **Infra back-end : Railway** (compte existant) — un process Node + volume hébergent l'API ; le front statique reste sur GitHub Pages et l'appelle via la couture `Cloud.*`/`Lobby.*`. Le classement (async HTTP) est peu coûteux ; le temps réel (WebSocket 24/7) sera pesé avant d'être branché.
 - Moteur de *Lignées* **pur & déterministe** (`engine/prototype.ts`), destiné à migrer côté serveur sans réécriture (ADR-1).
 - Cap produit long terme : **« Lignées »** (stratégie asynchrone persistante) ; les autres jeux élargissent la plateforme et le savoir-faire.
 

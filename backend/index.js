@@ -134,6 +134,20 @@ const wss = new WebSocketServer({ server, path: "/ws", maxPayload: 4096 });
 let seq = 0;
 const peers = new Map(); // cid -> { ws, name, x, y, d, lastChat, alive }
 
+/* ----- état partagé du Village (volatile) : LA POISSE + la file du MIROIR ----- */
+let itCid = null, itUntil = 0;                  // qui porte la poisse + fin d'immunité (ms epoch)
+const TAG_DIST = 38, IMMUNE_MS = Number(process.env.IMMUNE_MS) || 10000;
+let cine = { queue: [], startedAt: 0 };         // file vidéo du Miroir ; startedAt = début du n°1
+const validVid = s => { s = String(s || ""); if (s.length !== 11) return null; for (const c of s) { const ok = (c >= "A" && c <= "Z") || (c >= "a" && c <= "z") || (c >= "0" && c <= "9") || c === "_" || c === "-"; if (!ok) return null; } return s; };
+function itState() { return { t: "it", id: itCid, until: itUntil, now: Date.now() }; }
+function cineState() { return { t: "cine", queue: cine.queue, startedAt: cine.startedAt, now: Date.now() }; }
+function ensureIt() {           // garantir un porteur tant qu'il y a du monde ; renvoie true si l'état change
+  if (itCid && peers.has(itCid)) return false;
+  const ids = Array.from(peers.keys());
+  if (!ids.length) { const ch = itCid !== null; itCid = null; return ch; }
+  itCid = ids[Math.floor(Math.random() * ids.length)]; itUntil = Date.now() + IMMUNE_MS; return true;
+}
+
 function wsBroadcast(obj, exceptCid) {
   const msg = JSON.stringify(obj);
   for (const [cid, p] of peers) {
@@ -160,8 +174,9 @@ wss.on("connection", (ws, req) => {
       peer.x = num(m.x, 0, 4000); peer.y = num(m.y, 0, 4000);
       const roster = [];
       for (const [id, p] of peers) if (id !== cid) roster.push({ id, n: p.name, x: Math.round(p.x), y: Math.round(p.y), d: p.d });
-      try { ws.send(JSON.stringify({ t: "w", you: cid, peers: roster })); } catch (e) { }
+      try { ws.send(JSON.stringify({ t: "w", you: cid, peers: roster, it: itCid, until: itUntil, cine: cine.queue, startedAt: cine.startedAt, now: Date.now() })); } catch (e) { }
       wsBroadcast({ t: "j", id: cid, n: peer.name, x: Math.round(peer.x), y: Math.round(peer.y), d: peer.d }, cid);
+      if (ensureIt()) wsBroadcast(itState(), null);   // 1er arrivé = porteur de la poisse
     } else if (m.t === "m") {
       peer.x = num(m.x, 0, 4000); peer.y = num(m.y, 0, 4000); peer.d = m.d < 0 ? -1 : 1;
       wsBroadcast({ t: "m", id: cid, x: Math.round(peer.x), y: Math.round(peer.y), d: peer.d }, cid);
@@ -171,9 +186,16 @@ wss.on("connection", (ws, req) => {
       peer.lastChat = now;
       const text = cleanChat(m.m);
       if (text) wsBroadcast({ t: "c", id: cid, n: peer.name, m: text }, cid);  // l'émetteur affiche sa bulle localement
+    } else if (m.t === "cine_add") {
+      const vid = validVid(m.vid); if (!vid || cine.queue.length >= 50) return;
+      cine.queue.push({ id: "v" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), title: cleanChat(m.title).slice(0, 60) || "Vidéo", vid, by: peer.name });
+      if (cine.queue.length === 1) cine.startedAt = Date.now();
+      wsBroadcast(cineState(), null);
+    } else if (m.t === "cine_next") {
+      if (cine.queue.length) { cine.queue.shift(); cine.startedAt = Date.now(); wsBroadcast(cineState(), null); }
     }
   });
-  ws.on("close", () => { peers.delete(cid); wsBroadcast({ t: "l", id: cid }, cid); });
+  ws.on("close", () => { peers.delete(cid); wsBroadcast({ t: "l", id: cid }, cid); if (cid === itCid) { itCid = null; ensureIt(); wsBroadcast(itState(), null); } });
   ws.on("error", () => { try { ws.close(); } catch (e) { } });
 });
 
@@ -184,6 +206,19 @@ const wsHeartbeat = setInterval(() => {
     p.alive = false; try { p.ws.ping(); } catch (e) { }
   }
 }, 30000);
-wss.on("close", () => clearInterval(wsHeartbeat));
+// boucle de jeu : la poisse passe AU CONTACT (le serveur arbitre) une fois l'immunité écoulée
+const wsGameTick = setInterval(() => {
+  if (!itCid || !peers.has(itCid)) { if (ensureIt()) wsBroadcast(itState(), null); return; }
+  if (Date.now() < itUntil) return;                       // immunité en cours
+  const holder = peers.get(itCid);
+  let best = null, bestD = TAG_DIST;
+  for (const [cid2, p] of peers) {
+    if (cid2 === itCid) continue;
+    const d = Math.hypot(p.x - holder.x, p.y - holder.y);
+    if (d < bestD) { bestD = d; best = cid2; }
+  }
+  if (best) { itCid = best; itUntil = Date.now() + IMMUNE_MS; wsBroadcast(itState(), null); }
+}, 150);
+wss.on("close", () => { clearInterval(wsHeartbeat); clearInterval(wsGameTick); });
 
 server.listen(PORT, () => console.log("AwemA backend on :" + PORT + " — API classement + WS /ws (persist=" + (DATA_FILE || "memory") + ")"));

@@ -146,7 +146,7 @@ function updateBot(b,dt){
     let dx=tx-b.x,dy=ty-b.y,dd=Math.hypot(dx,dy); if(dd<2){ const a=Math.random()*TAU; dx=Math.cos(a); dy=Math.sin(a); dd=1; }   // jamais figé sur la cible
     const cs=135*(infectT>0?0.7:1); b.x+=dx/dd*cs*dt; b.y+=dy/dd*cs*dt; b.facing=dx<0?-1:1;
     b.x=clamp(b.x,120,WW-120); b.y=clamp(b.y,160,WH-120); if(b.bubble){b.bubble.t+=dt;if(b.bubble.t>b.bubble.max)b.bubble=null;} return; }
-  if(itx!=null){ const fd=Math.hypot(itx-b.x,ity-b.y); if(fd<175){
+  if(!wsReady && itx!=null){ const fd=Math.hypot(itx-b.x,ity-b.y); if(fd<175){
     let dx=b.x-itx, dy=b.y-ity, dd=Math.hypot(dx,dy); if(dd<1){ const a=Math.random()*TAU; dx=Math.cos(a); dy=Math.sin(a); dd=1; }
     let fx=dx/dd, fy=dy/dd, mg=170;                                  // anti-coin : glisser vers l'espace libre près d'un mur
     if(b.x<120+mg) fx+=0.9; else if(b.x>WW-120-mg) fx-=0.9;
@@ -167,7 +167,7 @@ function updateBot(b,dt){
 
 function update(dt){
   dt=Math.min(dt,0.05);
-  const psp=PSPD*((itId==="me"&&infectT>0)?0.7:1);   // infecté : ralenti -30% pendant le délai
+  const psp=PSPD*((amIt()&&immRem()>0)?0.7:1);   // infecté : ralenti -30% pendant le délai (local ou serveur)
   let vx=0,vy=0;
   if(keys.a||keys.q||keys.arrowleft)vx--; if(keys.d||keys.arrowright)vx++;
   if(keys.w||keys.z||keys.arrowup)vy--; if(keys.s||keys.arrowdown)vy++;
@@ -178,9 +178,10 @@ function update(dt){
   player.x=clamp(player.x,24,WW-24); player.y=clamp(player.y,40,WH-24);
   if(player.bubble){ player.bubble.t+=dt; if(player.bubble.t>player.bubble.max) player.bubble=null; }
   // ── temps réel : envoyer ma position (throttle ~10/s, si elle a bougé) + interpoler les pairs ──
-  if(wsReady){ sendT-=dt; if(sendT<=0 && (lastX===null||Math.abs(player.x-lastX)>1||Math.abs(player.y-lastY)>1)){ sendT=0.1; lastX=player.x; lastY=player.y; wsSend({t:"m",x:Math.round(player.x),y:Math.round(player.y),d:player.facing}); } }
-  for(const p of peers.values()){ const k=Math.min(1,dt*12); p.dx+=(p.x-p.dx)*k; p.dy+=(p.y-p.dy)*k; if(p.bubble){ p.bubble.t+=dt; if(p.bubble.t>p.bubble.max) p.bubble=null; } }
-  // ── LE CHAT (la poisse) : position du porteur, transfert au contact, immunité ──
+  if(wsReady){ sendT-=dt; if(sendT<=0 && (lastX===null||Math.abs(player.x-lastX)>1||Math.abs(player.y-lastY)>1)){ sendT=0.066; lastX=player.x; lastY=player.y; wsSend({t:"m",x:Math.round(player.x),y:Math.round(player.y),d:player.facing}); } }
+  for(const p of peers.values()){ const k=Math.min(1,dt*16); p.dx+=(p.x-p.dx)*k; p.dy+=(p.y-p.dy)*k; if(p.bubble){ p.bubble.t+=dt; if(p.bubble.t>p.bubble.max) p.bubble=null; } }
+  // ── LE CHAT (la poisse) — EN LOCAL seulement ; EN LIGNE c'est le serveur qui arbitre ──
+  if(!wsReady){
   infectT=Math.max(0,infectT-dt);
   const ib = itId==="me" ? null : bots.find(b=>b.id===itId);
   itx = itId==="me" ? player.x : (ib?ib.x:player.x); ity = itId==="me" ? player.y : (ib?ib.y:player.y);
@@ -189,9 +190,10 @@ function update(dt){
     else if(ib){ if(Math.hypot(player.x-ib.x,player.y-ib.y)<30){ itId="me"; infectT=10; player.bubble={text:"😱 J'ai la poisse !",t:0,max:2.6}; }
       else { for(const b of bots){ if(b.id===itId) continue; if(Math.hypot(b.x-ib.x,b.y-ib.y)<30){ itId=b.id; infectT=10; emit(b,"😱 La poisse !"); break; } } } }
   }
-  { const pz=document.getElementById("poisse"), hp=document.getElementById("help"), me=itId==="me";
-    if(pz){ pz.style.display=me?"block":"none"; if(me) pz.innerHTML = infectT>0
-      ? ("😱 La poisse te colle ! <b>Refilable dans "+Math.ceil(infectT)+" s</b> · tu es <b>ralenti</b> — les autres filent…")
+  } else { itx=null; }
+  { const pz=document.getElementById("poisse"), hp=document.getElementById("help"), me=amIt();
+    if(pz){ pz.style.display=me?"block":"none"; if(me) pz.innerHTML = immRem()>0
+      ? ("😱 La poisse te colle ! <b>Refilable dans "+Math.ceil(immRem())+" s</b> · tu es <b>ralenti</b> — les autres filent…")
       : "😱 <b>Refile la poisse</b> — touche un villageois ! <span style=\"opacity:.85;font-weight:600\">(bâtiments bloqués)</span>"; }
     if(hp) hp.style.display=me?"none":"block"; }
   for(const b of bots) updateBot(b,dt);
@@ -218,7 +220,7 @@ function draw(){
   // baobab central
   drawTree(CX,CY-10);
   // entités triées par y
-  const ents=[...buildings.map(b=>({y:b.y,d:()=>b.kind==="mirror"?drawMirror(b):drawBuilding(b)})), ...bots.map(b=>({y:b.y,d:()=>drawPerson(b.x,b.y,b.col,b.ic,b.name,b.bubble,false,b.id===itId)})), ...[...peers.values()].map(p=>({y:p.dy,d:()=>{ drawPerson(p.dx,p.dy,p.col,p.ic,p.name,p.bubble,false,false); drawPeerRing(p.dx,p.dy); }})), {y:player.y,d:()=>drawPerson(player.x,player.y,"#ffd24a",myTier()[2],myName()+" (toi)",player.bubble,true,itId==="me")}];
+  const ents=[...buildings.map(b=>({y:b.y,d:()=>b.kind==="mirror"?drawMirror(b):drawBuilding(b)})), ...bots.map(b=>({y:b.y,d:()=>drawPerson(b.x,b.y,b.col,b.ic,b.name,b.bubble,false,!wsReady&&b.id===itId)})), ...[...peers.values()].map(p=>({y:p.dy,d:()=>{ drawPerson(p.dx,p.dy,p.col,p.ic,p.name,p.bubble,false,wsReady&&p.id===netItCid); drawPeerRing(p.dx,p.dy); }})), {y:player.y,d:()=>drawPerson(player.x,player.y,"#ffd24a",myTier()[2],myName()+" (toi)",player.bubble,true,amIt())}];
   ents.sort((a,b)=>a.y-b.y).forEach(e=>e.d());
   ctx.restore();
 }
@@ -267,7 +269,7 @@ function ytId(u){ const m=String(u).match(/(?:youtu\.be\/|[?&]v=|embed\/|shorts\
 let queue=loadCine(), playingVid=null;
 const MIR=()=>buildings.find(b=>b.id==="miroir");
 function drawMirror(b){
-  const gw=b.w-26, gh=b.h-26, gx=b.x-gw/2, gy=b.y-b.h/2+13, cur=queue[0];
+  const gw=b.w-26, gh=b.h-26, gx=b.x-gw/2, gy=b.y-b.h/2+13, cur=curQueue()[0];
   ctx.fillStyle="#00000033"; ctx.beginPath(); ctx.ellipse(b.x,b.y+b.h/2+8,b.w*0.42,14,0,0,TAU); ctx.fill();
   ctx.fillStyle="#caa24a"; roundRect(b.x-b.w/2,b.y-b.h/2,b.w,b.h,14); ctx.fill();
   ctx.fillStyle="#6a4a1c"; roundRect(b.x-b.w/2+5,b.y-b.h/2+5,b.w-10,b.h-10,10); ctx.fill();
@@ -282,15 +284,15 @@ function drawMirror(b){
   if(cur){ ctx.fillStyle="#ffd9a8"; ctx.font="11px system-ui"; ctx.fillText("▶ "+cur.title+" · 🙋 "+cur.by, b.x, b.y+b.h/2+24); }
 }
 function positionMirror(){
-  const m=MIR(), cur=queue[0], div=document.getElementById("mirrorVid");
+  const m=MIR(), cur=curQueue()[0], div=document.getElementById("mirrorVid");
   const gw=m.w-26, gh=m.h-26, sx=(m.x-gw/2)-cam.x, sy=(m.y-m.h/2+13)-cam.y;
   const on = sx<VW && sx+gw>0 && sy<VH && sy+gh>0;
   if(cur && cur.vid && on){
-    if(playingVid!==cur.vid){ playingVid=cur.vid; div.innerHTML='<iframe width="100%" height="100%" style="border:0;display:block" src="https://www.youtube-nocookie.com/embed/'+cur.vid+'?autoplay=1&rel=0&modestbranding=1&playsinline=1" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>'; }
+    if(playingVid!==cur.vid){ playingVid=cur.vid; const st=wsReady?Math.max(0,Math.floor((srvNow()-netCine.startedAt)/1000)):0; div.innerHTML='<iframe width="100%" height="100%" style="border:0;display:block" src="https://www.youtube-nocookie.com/embed/'+cur.vid+'?autoplay=1&rel=0&modestbranding=1&playsinline=1&start='+st+'" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>'; }
     div.style.display="block"; div.style.left=sx+"px"; div.style.top=sy+"px"; div.style.width=gw+"px"; div.style.height=gh+"px";
   } else { if(playingVid!==null){ playingVid=null; div.innerHTML=""; } div.style.display="none"; }
 }
-function openCinema(){ const cur=queue[0], rest=queue.slice(1);
+function openCinema(){ const q=curQueue(), cur=q[0], rest=q.slice(1);
   document.getElementById("ovbox").innerHTML='<h3>🪞 Le Miroir — projection du village</h3>'+
     '<div style="font-size:.88rem;opacity:.85">'+(cur?("À l\'affiche : <b>"+esc(cur.title)+"</b> · 🙋 "+esc(cur.by)):"Rien à l\'affiche — lance la première vidéo !")+'</div>'+
     '<div style="margin:.6rem 0;display:flex;gap:.4rem;flex-wrap:wrap;justify-content:center"><input id="murl" placeholder="lien YouTube…" style="flex:1;min-width:170px;font:inherit;background:#0b0d16;color:#fff;border:1px solid #ffffff2e;border-radius:.5rem;padding:.5rem .6rem"/><button class="big" onclick="proposeVideo()">＋ File</button></div>'+
@@ -301,13 +303,15 @@ function openCinema(){ const cur=queue[0], rest=queue.slice(1);
 }
 function proposeVideo(){ const el=document.getElementById("murl"), id=ytId(el.value.trim());
   if(!id){ el.style.borderColor="#ff6b6b"; return; }
-  queue.push({id:"v"+Date.now(),title:"Vidéo de "+myName(),vid:id,by:myName()}); saveCine(); openCinema(); }
-function nextVideo(){ if(queue.length){ queue.shift(); saveCine(); openCinema(); } }
+  if(wsReady){ wsSend({t:"cine_add",vid:id,title:"Vidéo de "+myName()}); el.value=""; setTimeout(openCinema,160); }   // file PARTAGÉE (serveur)
+  else { queue.push({id:"v"+Date.now(),title:"Vidéo de "+myName(),vid:id,by:myName()}); saveCine(); openCinema(); } }
+function nextVideo(){ if(wsReady){ wsSend({t:"cine_next"}); setTimeout(openCinema,160); }
+  else if(queue.length){ queue.shift(); saveCine(); openCinema(); } }
 
 /* ---- entrer dans une case ---- */
 function tryEnter(){
   if(!near) return;
-  if(itId==="me"){ player.bubble={text:"😱 Refile la poisse d'abord — touche un villageois !",t:0,max:2.8}; return; }   // bloqué tant qu'on a la poisse
+  if(amIt()){ player.bubble={text:"😱 Refile la poisse d'abord — touche un villageois !",t:0,max:2.8}; return; }   // bloqué tant qu'on a la poisse
   if(near.kind==="mirror"){ openCinema(); return; }            // Le Miroir : on interagit SUR PLACE
   if(near.kind!=="game"){ location.href=near.href; return; }   // Conseil / Doléances / Place
   const inside=bots.filter(b=>b.at===near.id);
@@ -348,6 +352,12 @@ cv.addEventListener("pointerdown",e=>{ player.tx=cam.x+e.clientX; player.ty=cam.
 const BACKEND_URL = "https://awema-games-production.up.railway.app";
 const peers = new Map();   // cid -> { id, name, x, y, dx, dy, facing, col, ic, bubble }
 let sock=null, myCid=null, wsReady=false, sendT=0, lastX=null, lastY=null, recoT=0;
+let netItCid=null, netItUntil=0, clockOffset=0;     // poisse arbitrée serveur (until = ms epoch serveur)
+let netCine={queue:[],startedAt:0};                 // file Miroir synchronisée
+const srvNow=()=>Date.now()+clockOffset;
+const amIt=()=> wsReady ? (netItCid===myCid) : (itId==="me");
+const immRem=()=> wsReady ? Math.max(0,(netItUntil-srvNow())/1000) : infectT;
+const curQueue=()=> wsReady ? netCine.queue : queue;
 const PEER_COLS=["#e8702a","#7c5cff","#13875a","#d23b6e","#3aa0d2","#c89a2a","#9a4cd2","#2ab0a0"];
 function peerCol(id){ let h=0; for(const c of id) h=(h*31+c.charCodeAt(0))%PEER_COLS.length; return PEER_COLS[h]; }
 function wsURL(){ return BACKEND_URL.replace("https://","wss://").replace("http://","ws://")+"/ws"; }
@@ -365,11 +375,15 @@ function addPeer(id,n,x,y,d){ if(!id||id===myCid) return; const ex=peers.get(id)
   if(ex){ if(n)ex.name=n; ex.x=x; ex.y=y; ex.facing=d<0?-1:1; }
   else peers.set(id,{ id, name:n||"Villageois", x, y, dx:x, dy:y, facing:d<0?-1:1, col:peerCol(id), ic:"🙂", bubble:null }); }
 function onWS(m){
-  if(m.t==="w"){ myCid=m.you; peers.clear(); (m.peers||[]).forEach(p=>addPeer(p.id,p.n,p.x,p.y,p.d)); netChip(); }
+  if(m.now) clockOffset = m.now - Date.now();                 // aligner l'horloge sur le serveur
+  if(m.t==="w"){ myCid=m.you; peers.clear(); (m.peers||[]).forEach(p=>addPeer(p.id,p.n,p.x,p.y,p.d));
+    netItCid=m.it||null; netItUntil=m.until||0; netCine={queue:m.cine||[],startedAt:m.startedAt||0}; netChip(); }
   else if(m.t==="j"){ addPeer(m.id,m.n,m.x,m.y,m.d); netChip(); }
   else if(m.t==="m"){ const p=peers.get(m.id); if(p){ p.x=m.x; p.y=m.y; p.facing=m.d<0?-1:1; } else addPeer(m.id,null,m.x,m.y,m.d); }
   else if(m.t==="c"){ const p=peers.get(m.id); if(p){ p.bubble={text:m.m,t:0,max:4.2}; } }
   else if(m.t==="l"){ peers.delete(m.id); netChip(); }
+  else if(m.t==="it"){ netItCid=m.id||null; netItUntil=m.until||0; }     // la poisse a changé de porteur
+  else if(m.t==="cine"){ netCine={queue:m.queue||[],startedAt:m.startedAt||0}; }   // file Miroir mise à jour
 }
 function netChip(){ const el=document.getElementById("netChip"); if(!el) return;
   el.style.display="inline-block";

@@ -104,6 +104,7 @@
           </select>
         </div>
         <label class="opt" style="margin-top:.5rem"><input type="checkbox" id="pvp" onchange="togglePvp()"> 2 joueurs (sans IA)</label>
+        <button class="btn" id="onlineBtn" onclick="toggleOnline()" style="margin-top:.55rem;width:100%">🌐 Duel en ligne</button>
       </div>
 
       <div class="card legend">
@@ -315,7 +316,7 @@ function perft(st, d) { if (d === 0) return 1; const ms = legalMoves(st); if (d 
 /* ============================ INTERFACE ==================================== */
 const boardEl = document.getElementById("board");
 let sel = null, targets = new Map(), last = null, over = false, thinking = false;
-let depth = 3, pvp = false;
+let depth = 3, pvp = false, flip = false;
 const HUMAN = "w", AI = "b";
 
 function countMissing() {
@@ -331,7 +332,8 @@ function countMissing() {
 function render() {
   boardEl.innerHTML = "";
   const chkSide = inCheck(S, S.turn) ? S.turn : null;
-  for (let i = 0; i < 64; i++) {
+  for (let d = 0; d < 64; d++) {
+    const i = flip ? 63 - d : d;
     const r = i >> 3, f = i & 7;
     const sq = document.createElement("div");
     sq.className = "sq " + ((r + f) % 2 ? "dark" : "light");
@@ -354,7 +356,9 @@ function render() {
   // bandeaux d'info
   const o = col(S.turn) ;
   document.getElementById("turnPill").className = "pill " + (S.turn === "w" ? "o" : "v");
-  document.getElementById("turnTxt").textContent = S.turn === "w" ? "Aux Orange de jouer" : (pvp ? "Aux Vert de jouer" : "L'IA (Vert) réfléchit…");
+  document.getElementById("turnTxt").textContent = online
+    ? (S.turn === myColor ? "À toi de jouer" : ("Au tour de " + (oppName || "l'adversaire") + "…"))
+    : (S.turn === "w" ? "Aux Orange de jouer" : (pvp ? "Aux Vert de jouer" : "L'IA (Vert) réfléchit…"));
   const caps = countMissing();
   document.getElementById("capO").textContent = caps.capByO.join("");
   document.getElementById("capV").textContent = caps.capByV.join("");
@@ -365,7 +369,7 @@ boardEl.addEventListener("click", e => {
   onSquare(+cell.dataset.i);
 });
 
-function canControl(c) { return !over && !thinking && (pvp || c === HUMAN); }
+function canControl(c) { if (online) return !over && c === myColor && S.turn === myColor; return !over && !thinking && (pvp || c === HUMAN); }
 
 function onSquare(i) {
   if (over || thinking) return;
@@ -385,10 +389,11 @@ function tryMove(from, to) {
   applyMove(ms[0]);
 }
 
-function applyMove(m) {
+function applyMove(m, remote) {
   makeMove(S, m); moveHist.push(m);
   last = { from: m.from, to: m.to }; sel = null; targets = new Map();
   render(); updateStatus();
+  if (online) { if (!remote) wsChessSend({ t: "move", m: { from: m.from, to: m.to, promo: m.promo || null } }); return; }
   if (!over && !pvp && S.turn === AI) { thinking = true; render(); setTimeout(aiPlay, 240); }
 }
 function aiPlay() {
@@ -421,7 +426,7 @@ function updateStatus() {
   if (!ms.length) {
     over = true;
     if (check) { st.className = "win"; const winner = S.turn === "w" ? "Vert" : "Orange"; st.textContent = "♚ Échec et mat — " + winner + " l'emporte !";
-      if (S.turn === "b" && !pvp) { try { localStorage.setItem("echecs_best", (+localStorage.getItem("echecs_best") || 0) + 1); } catch (e) {} } }   // victoire du joueur (Orange) → Indice AwemA
+      const iWon = online ? ((S.turn === "w" ? "b" : "w") === myColor) : (S.turn === "b" && !pvp); if (iWon) { try { localStorage.setItem("echecs_best", (+localStorage.getItem("echecs_best") || 0) + 1); } catch (e) {} } }   // victoire du joueur (Orange) → Indice AwemA
     else st.textContent = "🤝 Pat — partie nulle.";
   } else if (S.half >= 100) { over = true; st.textContent = "🤝 Nulle (règle des 50 coups)."; }
   else if (insufficient()) { over = true; st.textContent = "🤝 Nulle — matériel insuffisant."; }
@@ -429,9 +434,10 @@ function updateStatus() {
   else st.textContent = "À toi de jouer.";
 }
 
-function newGame() { S = freshState(); U = []; moveHist = []; sel = null; targets = new Map(); last = null; over = false; thinking = false; render(); updateStatus(); }
+function resetBoard() { S = freshState(); U = []; moveHist = []; sel = null; targets = new Map(); last = null; over = false; thinking = false; render(); updateStatus(); }
+function newGame() { if (online) { leaveOnline(); return; } resetBoard(); }
 function undo() {
-  if (thinking || !moveHist.length) return;
+  if (online || thinking || !moveHist.length) return;
   unmakeMove(S, moveHist.pop());
   if (!pvp && moveHist.length && S.turn === AI) unmakeMove(S, moveHist.pop());  // annule aussi le coup de l'IA
   over = false; sel = null; targets = new Map();
@@ -440,6 +446,54 @@ function undo() {
 }
 function setDiff() { depth = +document.getElementById("diff").value; }
 function togglePvp() { pvp = document.getElementById("pvp").checked; render(); updateStatus(); if (!pvp && !over && S.turn === AI) { thinking = true; render(); setTimeout(aiPlay, 240); } }
+
+/* ---- DUEL EN LIGNE (échecs multijoueur via le serveur WebSocket /ws/chess) ---- */
+const BACKEND_URL = "https://awema-games-production.up.railway.app";
+let online = false, myColor = "w", oppName = "", csock = null;
+const myName = () => { try { return localStorage.getItem("awema_player") || "Toi"; } catch (e) { return "Toi"; } };
+function wsChessSend(o) { if (csock && csock.readyState === 1) { try { csock.send(JSON.stringify(o)); } catch (e) { } } }
+function setOnlineStatus(t) { const s = document.getElementById("status"); s.className = ""; s.textContent = t; }
+function resetOnlineBtn() { const b = document.getElementById("onlineBtn"); if (b) b.textContent = "🌐 Duel en ligne"; }
+function toggleOnline() {
+  if (online || csock) { leaveOnline(); return; }
+  if (!BACKEND_URL) { setOnlineStatus("Serveur non configuré."); return; }
+  document.getElementById("onlineBtn").textContent = "⛌ Annuler la recherche";
+  setOnlineStatus("🔌 Connexion au serveur…");
+  try { csock = new WebSocket(BACKEND_URL.replace("https://", "wss://").replace("http://", "ws://") + "/ws/chess"); }
+  catch (e) { setOnlineStatus("Connexion impossible."); resetOnlineBtn(); return; }
+  csock.onopen = () => { setOnlineStatus("🔎 Recherche d'un adversaire…"); wsChessSend({ t: "join", n: myName() }); };
+  csock.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } onChess(m); };
+  csock.onclose = () => { if (online) setOnlineStatus("Connexion perdue."); online = false; csock = null; resetOnlineBtn(); };
+  csock.onerror = () => { try { csock.close(); } catch (e) { } };
+}
+function leaveOnline() {
+  wsChessSend({ t: "leave" });
+  online = false; flip = false; try { csock && csock.close(); } catch (e) { } csock = null;
+  resetOnlineBtn(); resetBoard();
+}
+function onChess(m) {
+  if (m.t === "waiting") setOnlineStatus("🔎 En attente d'un adversaire… (garde l'onglet ouvert)");
+  else if (m.t === "start") {
+    online = true; myColor = m.color; oppName = m.opp || "Adversaire"; flip = (myColor === "b");
+    resetBoard();
+    document.getElementById("onlineBtn").textContent = "⛌ Quitter le duel";
+    const mine = myColor === "w" ? "Orange" : "Vert", his = myColor === "w" ? "Vert" : "Orange";
+    setOnlineStatus("⚔️ Duel ! Toi = " + mine + " · " + oppName + " = " + his);
+  }
+  else if (m.t === "move") { if (online && m.m) onRemoteMove(m.m); }
+  else if (m.t === "end") {
+    if (over) return;
+    over = true; render();
+    const s = document.getElementById("status"); s.className = "win";
+    s.textContent = m.reason === "resign" ? ("🏳️ " + oppName + " abandonne — tu gagnes !") : ("🚪 " + oppName + " a quitté — tu gagnes par forfait !");
+    try { localStorage.setItem("echecs_best", (+localStorage.getItem("echecs_best") || 0) + 1); } catch (e) { }
+    online = false; resetOnlineBtn();
+  }
+}
+function onRemoteMove(mm) {
+  const ms = legalMoves(S).filter(x => x.from === mm.from && x.to === mm.to && (mm.promo ? x.promo === mm.promo : !x.promo));
+  if (ms.length) applyMove(ms[0], true);
+}
 
 newGame();
 </script>

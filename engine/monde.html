@@ -35,7 +35,7 @@
 <body>
   <canvas id="cv"></canvas>
   <div class="top">
-    <span class="chip" id="meChip">🥾 Toi</span>
+    <span class="chip" id="meChip" onclick="openName()" title="Changer de pseudo" style="cursor:pointer">🥾 Toi</span>
     <span class="chip" id="netChip" style="display:none"></span>
     <span class="sp"></span>
     <a class="tbtn" href="classements.html">🏆 Conseil</a>
@@ -49,6 +49,13 @@
     <button onclick="sendMsg()">Dire</button>
   </div>
   <div class="ov" id="ov"><div class="ovbox" id="ovbox"></div></div>
+  <div class="ov" id="nameov"><div class="ovbox">
+    <h3>🪪 Ton pseudo au Village</h3>
+    <p style="opacity:.82;font-size:.9rem;margin:.2rem 0 .7rem">Choisis un nom — les autres joueurs te verront avec. Il sera rendu unique.</p>
+    <input id="nameinput" maxlength="16" placeholder="Ex. Kofi, Awa…" autocomplete="off" onkeydown="if(event.key==='Enter')submitName()" style="width:100%;font:inherit;background:#0009;color:#fff;border:1px solid #ffffff2e;border-radius:.6rem;padding:.55rem .7rem;text-align:center" />
+    <div id="nameerr" style="color:#ffb3a7;font-size:.82rem;min-height:1.15rem;margin:.35rem 0 .5rem"></div>
+    <button class="big" onclick="submitName()">Entrer au Village</button>
+  </div></div>
   <div id="mirrorVid" style="position:fixed;z-index:1;display:none;overflow:hidden;border-radius:4px;box-shadow:0 0 22px #000a;background:#000"></div>
 
 <script>
@@ -80,6 +87,7 @@ function indiceOf(s){ let t=0; for(const k in TARGETS) t+=Math.round(Math.min(1,
 const TIERS=[[0,"Voyageur","🥾"],[900,"Marchand","🐪"],[2200,"Notable","🎽"],[4000,"Chef de village","🪘"],[6000,"Roi des routes","👑"],[8000,"Légende des griots","🌟"]];
 const tierOf=i=>{ let t=TIERS[0]; for(const x of TIERS) if(i>=x[0]) t=x; return t; };
 const myName=()=> lsGet("awema_player") || "Toi";
+const myUid=()=>{ let u=lsGet("awema_uid"); if(!u){ u="u"+Math.random().toString(36).slice(2,10)+Date.now().toString(36); try{ localStorage.setItem("awema_uid",u); }catch(e){} } return u; };   // identité stable de l'appareil (anti-doublon à la reconnexion)
 function myScores(){ const o={},map={harmattan:"harmattan_best",tamtam:"tamtam_best",awale:"awale_royal_best",echecs:"echecs_best",voraces:"voraces_best",sables:"sables_best",lignees:"lignees_best"};
   for(const k in map) o[k]=+lsGet(map[k])||0;
   try{ const b=JSON.parse(lsGet("banco_save")); o.banco=(b&&b.stars||[]).reduce((a,x)=>a+(+x||0),0); }catch(e){ o.banco=0; }
@@ -178,7 +186,7 @@ function update(dt){
   player.x=clamp(player.x,24,WW-24); player.y=clamp(player.y,40,WH-24);
   if(player.bubble){ player.bubble.t+=dt; if(player.bubble.t>player.bubble.max) player.bubble=null; }
   // ── temps réel : envoyer ma position (throttle ~10/s, si elle a bougé) + interpoler les pairs ──
-  if(wsReady){ sendT-=dt; if(sendT<=0 && (lastX===null||Math.abs(player.x-lastX)>1||Math.abs(player.y-lastY)>1)){ sendT=0.066; lastX=player.x; lastY=player.y; wsSend({t:"m",x:Math.round(player.x),y:Math.round(player.y),d:player.facing}); } }
+  if(wsReady){ sendT-=dt; kaT-=dt; const moved=(lastX===null||Math.abs(player.x-lastX)>1||Math.abs(player.y-lastY)>1); if((sendT<=0&&moved)||kaT<=0){ sendT=0.066; kaT=4; lastX=player.x; lastY=player.y; wsSend({t:"m",x:Math.round(player.x),y:Math.round(player.y),d:player.facing}); } }   // ~15/s en mouvement + keepalive 4 s à l'arrêt (anti-coupure proxy)
   for(const p of peers.values()){ const k=Math.min(1,dt*16); p.dx+=(p.x-p.dx)*k; p.dy+=(p.y-p.dy)*k; if(p.bubble){ p.bubble.t+=dt; if(p.bubble.t>p.bubble.max) p.bubble=null; } }
   // ── LE CHAT (la poisse) — EN LOCAL seulement ; EN LIGNE c'est le serveur qui arbitre ──
   if(!wsReady){
@@ -351,7 +359,7 @@ cv.addEventListener("pointerdown",e=>{ player.tx=cam.x+e.clientX; player.ty=cam.
    solo (bots). Les vrais joueurs s'affichent en plus, avec un anneau vert. ─── */
 const BACKEND_URL = "https://awema-games-production.up.railway.app";
 const peers = new Map();   // cid -> { id, name, x, y, dx, dy, facing, col, ic, bubble }
-let sock=null, myCid=null, wsReady=false, sendT=0, lastX=null, lastY=null, recoT=0;
+let sock=null, myCid=null, wsReady=false, sendT=0, kaT=0, lastX=null, lastY=null, recoT=0;
 let netItCid=null, netItUntil=0, clockOffset=0;     // poisse arbitrée serveur (until = ms epoch serveur)
 let netCine={queue:[],startedAt:0};                 // file Miroir synchronisée
 const srvNow=()=>Date.now()+clockOffset;
@@ -364,19 +372,21 @@ function wsURL(){ return BACKEND_URL.replace("https://","wss://").replace("http:
 function connectWS(){
   if(!BACKEND_URL) return;
   try{ sock=new WebSocket(wsURL()); }catch(e){ reco(); return; }
-  sock.onopen=()=>{ wsReady=true; recoT=0; wsSend({t:"hi",n:myName(),x:Math.round(player.x),y:Math.round(player.y)}); netChip(); };
+  sock.onopen=()=>{ wsReady=true; recoT=0; kaT=0; wsSend({t:"hi",n:myName(),uid:myUid(),x:Math.round(player.x),y:Math.round(player.y)}); netChip(); };
   sock.onclose=()=>{ wsReady=false; myCid=null; peers.clear(); netChip(); reco(); };
   sock.onerror=()=>{ try{ sock.close(); }catch(e){} };
   sock.onmessage=ev=>{ let m; try{ m=JSON.parse(ev.data); }catch(e){ return; } onWS(m); };
 }
-function reco(){ recoT=Math.min(15,(recoT||0)+3); setTimeout(connectWS, recoT*1000); }
+function reco(){ recoT = recoT ? Math.min(15, recoT*1.8) : 0.6; setTimeout(connectWS, recoT*1000); }   // 1re reconnexion quasi-instantanée puis backoff
 function wsSend(o){ if(sock&&sock.readyState===1){ try{ sock.send(JSON.stringify(o)); }catch(e){} } }
 function addPeer(id,n,x,y,d){ if(!id||id===myCid) return; const ex=peers.get(id);
   if(ex){ if(n)ex.name=n; ex.x=x; ex.y=y; ex.facing=d<0?-1:1; }
   else peers.set(id,{ id, name:n||"Villageois", x, y, dx:x, dy:y, facing:d<0?-1:1, col:peerCol(id), ic:"🙂", bubble:null }); }
 function onWS(m){
   if(m.now) clockOffset = m.now - Date.now();                 // aligner l'horloge sur le serveur
-  if(m.t==="w"){ myCid=m.you; peers.clear(); (m.peers||[]).forEach(p=>addPeer(p.id,p.n,p.x,p.y,p.d));
+  if(m.t==="w"){ myCid=m.you;
+    if(m.name && m.name!==myName()){ try{ localStorage.setItem("awema_player",m.name); }catch(e){} refreshChip(); player.bubble={text:"Pseudo déjà pris → « "+m.name+" »",t:0,max:4}; }   // le serveur a rendu le pseudo unique
+    peers.clear(); (m.peers||[]).forEach(p=>addPeer(p.id,p.n,p.x,p.y,p.d));
     netItCid=m.it||null; netItUntil=m.until||0; netCine={queue:m.cine||[],startedAt:m.startedAt||0}; netChip(); }
   else if(m.t==="j"){ addPeer(m.id,m.n,m.x,m.y,m.d); netChip(); }
   else if(m.t==="m"){ const p=peers.get(m.id); if(p){ p.x=m.x; p.y=m.y; p.facing=m.d<0?-1:1; } else addPeer(m.id,null,m.x,m.y,m.d); }
@@ -397,7 +407,15 @@ let last=performance.now();
 function frame(t){ requestAnimationFrame(frame);
   if(VW!==innerWidth||VH!==innerHeight) resize();
   const dt=(t-last)/1000; last=t; update(dt); draw(); positionMirror(); }
-refreshChip(); connectWS(); requestAnimationFrame(frame);
+function openName(){ const inp=document.getElementById("nameinput"); document.getElementById("nameerr").textContent=""; inp.value=(myName()!=="Toi")?myName():""; document.getElementById("nameov").classList.add("show"); setTimeout(()=>{ try{ inp.focus(); inp.select(); }catch(e){} },60); }
+function submitName(){ const inp=document.getElementById("nameinput"); const v=(inp.value||"").trim().slice(0,16);
+  if(v.length<2){ document.getElementById("nameerr").textContent="Au moins 2 caractères."; return; }
+  try{ localStorage.setItem("awema_player",v); }catch(e){}
+  document.getElementById("nameov").classList.remove("show"); refreshChip();
+  if(wsReady) wsSend({t:"hi",n:myName(),uid:myUid(),x:Math.round(player.x),y:Math.round(player.y)});   // renommage à chaud
+  else connectWS(); }
+function startVillage(){ if(myName()!=="Toi") connectWS(); else openName(); }   // demande le pseudo avant d'entrer
+refreshChip(); startVillage(); requestAnimationFrame(frame);
 player.bubble={ text:"Akwaba ! Tu as la poisse 😱 (refilable dans 10 s, tu es ralenti) — puis touche un villageois et entre où tu veux !", t:0, max:5.5 };
 setTimeout(()=>{ if(bots[0]) emit(bots[0], pick(SAY.hello)); }, 700);
 </script>

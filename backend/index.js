@@ -201,7 +201,7 @@ server.on("upgrade", (req, socket, head) => {
   else socket.destroy();
 });
 let seq = 0;
-const peers = new Map(); // cid -> { ws, name, x, y, d, lastChat, alive }
+const peers = new Map(); // cid -> { ws, name, uid, named, x, y, d, lastChat, missed }
 
 /* ----- état partagé du Village (volatile) : LA POISSE + la file du MIROIR ----- */
 let itCid = null, itUntil = 0;                  // qui porte la poisse + fin d'immunité (ms epoch)
@@ -225,25 +225,40 @@ function wsBroadcast(obj, exceptCid) {
   }
 }
 
+function uniqueName(base, exceptCid) {     // pseudo unique parmi les connectés (suffixe -2, -3… au besoin)
+  base = base || "Villageois";
+  const taken = new Set();
+  for (const [id, p] of peers) if (id !== exceptCid && p.named) taken.add(p.name.toLowerCase());
+  if (!taken.has(base.toLowerCase())) return base;
+  for (let i = 2; i <= 999; i++) { const c = base + "-" + i; if (!taken.has(c.toLowerCase())) return c; }
+  return base + "-" + Math.random().toString(36).slice(2, 5);
+}
+
 wss.on("connection", (ws, req) => {
   const o = req.headers.origin;
   if (o && !originAllowed(o)) { try { ws.close(1008, "origin"); } catch (e) { } return; }  // navigateur d'origine inconnue
   if (peers.size >= 200) { try { ws.close(1013, "full"); } catch (e) { } return; }          // garde-fou ressources
 
   const cid = "p" + (++seq).toString(36) + Math.random().toString(36).slice(2, 5);
-  const peer = { ws, name: "Villageois", x: 750, y: 500, d: 1, lastChat: 0, alive: true };
+  const peer = { ws, name: "Villageois", uid: "", named: false, x: 750, y: 500, d: 1, lastChat: 0, missed: 0 };
   peers.set(cid, peer);
-  ws.on("pong", () => { peer.alive = true; });
+  ws.on("pong", () => { peer.missed = 0; });
 
   ws.on("message", (buf) => {
     let m; try { m = JSON.parse(String(buf)); } catch (e) { return; }
     if (!m || typeof m !== "object") return;
     if (m.t === "hi") {
-      peer.name = maskProfanity(clean(m.n)) || "Villageois";
+      const reqUid = clean(m.uid || "").slice(0, 40);
+      if (reqUid) {     // même appareil déjà présent (reconnexion) → évincer l'ancien pair pour éviter un doublon fantôme
+        for (const [id, p] of peers) if (id !== cid && p.uid === reqUid) { try { p.ws.terminate(); } catch (e) { } peers.delete(id); wsBroadcast({ t: "l", id }, cid); }
+      }
+      peer.uid = reqUid;
+      peer.name = uniqueName(maskProfanity(clean(m.n)) || "Villageois", cid);
+      peer.named = true;
       peer.x = num(m.x, 0, 4000); peer.y = num(m.y, 0, 4000);
       const roster = [];
-      for (const [id, p] of peers) if (id !== cid) roster.push({ id, n: p.name, x: Math.round(p.x), y: Math.round(p.y), d: p.d });
-      try { ws.send(JSON.stringify({ t: "w", you: cid, peers: roster, it: itCid, until: itUntil, cine: cine.queue, startedAt: cine.startedAt, now: Date.now() })); } catch (e) { }
+      for (const [id, p] of peers) if (id !== cid && p.named) roster.push({ id, n: p.name, x: Math.round(p.x), y: Math.round(p.y), d: p.d });
+      try { ws.send(JSON.stringify({ t: "w", you: cid, name: peer.name, peers: roster, it: itCid, until: itUntil, cine: cine.queue, startedAt: cine.startedAt, now: Date.now() })); } catch (e) { }
       wsBroadcast({ t: "j", id: cid, n: peer.name, x: Math.round(peer.x), y: Math.round(peer.y), d: peer.d }, cid);
       if (ensureIt()) wsBroadcast(itState(), null);   // 1er arrivé = porteur de la poisse
     } else if (m.t === "m") {
@@ -284,9 +299,9 @@ wssChess.on("connection", (ws, req) => {
   const o = req.headers.origin;
   if (o && !originAllowed(o)) { try { ws.close(1008, "origin"); } catch (e) { } return; }
   const cid = "c" + (++chessSeq).toString(36) + Math.random().toString(36).slice(2, 5);
-  const peer = { ws, name: "Joueur", alive: true };
+  const peer = { ws, name: "Joueur", missed: 0 };
   chessPeers.set(cid, peer);
-  ws.on("pong", () => { peer.alive = true; });
+  ws.on("pong", () => { peer.missed = 0; });
   ws.on("message", (buf) => {
     let m; try { m = JSON.parse(String(buf)); } catch (e) { return; }
     if (!m || typeof m !== "object") return;
@@ -314,14 +329,14 @@ wssChess.on("connection", (ws, req) => {
 // heartbeat : éliminer les connexions mortes + garder le canal vivant à travers les proxies
 const wsHeartbeat = setInterval(() => {
   for (const [cid, p] of peers) {
-    if (!p.alive) { try { p.ws.terminate(); } catch (e) { } peers.delete(cid); wsBroadcast({ t: "l", id: cid }, cid); continue; }
-    p.alive = false; try { p.ws.ping(); } catch (e) { }
+    if (p.missed >= 2) { try { p.ws.terminate(); } catch (e) { } peers.delete(cid); wsBroadcast({ t: "l", id: cid }, cid); continue; }   // 2 pings ratés (~50 s) avant éviction → tolère les hoquets réseau/mobile
+    p.missed++; try { p.ws.ping(); } catch (e) { }
   }
   for (const [cid, p] of chessPeers) {
-    if (!p.alive) { try { p.ws.terminate(); } catch (e) { } chessPeers.delete(cid); if (chessWaiting === cid) chessWaiting = null; chessEnd(cid, "left"); continue; }
-    p.alive = false; try { p.ws.ping(); } catch (e) { }
+    if (p.missed >= 2) { try { p.ws.terminate(); } catch (e) { } chessPeers.delete(cid); if (chessWaiting === cid) chessWaiting = null; chessEnd(cid, "left"); continue; }
+    p.missed++; try { p.ws.ping(); } catch (e) { }
   }
-}, 30000);
+}, 25000);
 // boucle de jeu : la poisse passe AU CONTACT (le serveur arbitre) une fois l'immunité écoulée
 const wsGameTick = setInterval(() => {
   if (!itCid || !peers.has(itCid)) { if (ensureIt()) wsBroadcast(itState(), null); return; }

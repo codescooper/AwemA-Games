@@ -52,6 +52,9 @@ const clean = s => Array.from(String(s == null ? "" : s))
   .join("").trim().slice(0, 24);
 // chat : on garde les imprimables, on retire les caractères de contrôle, cap 140 (rendu canvas, pas de HTML)
 const cleanChat = s => Array.from(String(s == null ? "" : s)).filter(ch => ch.charCodeAt(0) >= 32).join("").trim().slice(0, 140);
+// modération : masque une liste de base d'insultes (FR/EN), normalisées sans accent ni ponctuation
+const BADWORDS = new Set(["con","cons","conne","connard","connards","connasse","pute","putes","putain","putains","merde","merdes","salope","salopes","salaud","salauds","encule","encules","enculer","enfoire","enfoires","batard","batards","nique","niquer","niquetamere","ntm","fdp","filsdepute","pd","pede","pedes","tafiole","bouffon","negre","bamboula","fuck","fucking","fucker","shit","bitch","bitches","asshole","dick","cunt","nigger","nigga","faggot","retard"]);
+function maskProfanity(s){ return String(s).split(" ").map(tok=>{ let norm=""; for(const ch of tok.toLowerCase().normalize("NFD")){ const c=ch.charCodeAt(0); if(c>=97&&c<=122) norm+=ch; } return (norm.length>=2 && BADWORDS.has(norm)) ? "•".repeat(Math.max(3,tok.length)) : tok; }).join(" "); }
 
 function originAllowed(o) {
   if (!o) return false;
@@ -150,7 +153,7 @@ const server = http.createServer(async (req, res) => {
         const house = LG_HOUSES.includes(d.house) ? d.house : "aissata";
         const state = LE.buildScenario(); for (const h of Object.values(state.houses)) h.isAI = true; state.houses[house].isAI = false;
         const id = lgCode();
-        games[id] = { id, state, seats: { [house]: { uid, name: clean(d.name) || "Joueur" } }, pending: {}, log: [], status: "playing", createdAt: Date.now(), updatedAt: Date.now() };
+        games[id] = { id, state, seats: { [house]: { uid, name: maskProfanity(clean(d.name)) || "Joueur" } }, pending: {}, log: [], status: "playing", createdAt: Date.now(), updatedAt: Date.now() };
         lgSave(); return sendJson(res, 200, { ok: true, ...lgView(games[id], uid) });
       }
       const g = games[gid];
@@ -159,7 +162,7 @@ const server = http.createServer(async (req, res) => {
       if (path === "/api/lignees/join" && req.method === "POST") {
         if (!uid) return sendJson(res, 400, { ok: false, error: "uid requis" });
         let house = lgHouseOfUid(g, uid);
-        if (!house) { house = LG_HOUSES.includes(d.house) ? d.house : null; if (!house || g.seats[house]) return sendJson(res, 400, { ok: false, error: "maison prise ou invalide" }); g.seats[house] = { uid, name: clean(d.name) || "Joueur" }; g.state.houses[house].isAI = false; g.updatedAt = Date.now(); lgSave(); }
+        if (!house) { house = LG_HOUSES.includes(d.house) ? d.house : null; if (!house || g.seats[house]) return sendJson(res, 400, { ok: false, error: "maison prise ou invalide" }); g.seats[house] = { uid, name: maskProfanity(clean(d.name)) || "Joueur" }; g.state.houses[house].isAI = false; g.updatedAt = Date.now(); lgSave(); }
         return sendJson(res, 200, { ok: true, ...lgView(g, uid) });
       }
       const myHouse = lgHouseOfUid(g, uid);
@@ -236,7 +239,7 @@ wss.on("connection", (ws, req) => {
     let m; try { m = JSON.parse(String(buf)); } catch (e) { return; }
     if (!m || typeof m !== "object") return;
     if (m.t === "hi") {
-      peer.name = clean(m.n) || "Villageois";
+      peer.name = maskProfanity(clean(m.n)) || "Villageois";
       peer.x = num(m.x, 0, 4000); peer.y = num(m.y, 0, 4000);
       const roster = [];
       for (const [id, p] of peers) if (id !== cid) roster.push({ id, n: p.name, x: Math.round(p.x), y: Math.round(p.y), d: p.d });
@@ -249,8 +252,10 @@ wss.on("connection", (ws, req) => {
     } else if (m.t === "c") {
       const now = Date.now();
       if (now - peer.lastChat < 600) return;               // anti-spam : 1 message / 600 ms
-      peer.lastChat = now;
-      const text = cleanChat(m.m);
+      peer.chatTimes = (peer.chatTimes || []).filter(t => now - t < 12000);   // fenêtre anti-flood
+      if (peer.chatTimes.length >= 6) { try { ws.send(JSON.stringify({ t: "sys", m: "Tu écris trop vite — patiente un instant." })); } catch (e) { } return; }
+      peer.chatTimes.push(now); peer.lastChat = now;
+      const text = maskProfanity(cleanChat(m.m));            // modération : masque les insultes
       if (text) wsBroadcast({ t: "c", id: cid, n: peer.name, m: text }, cid);  // l'émetteur affiche sa bulle localement
     } else if (m.t === "cine_add") {
       const vid = validVid(m.vid); if (!vid || cine.queue.length >= 50) return;
@@ -286,7 +291,7 @@ wssChess.on("connection", (ws, req) => {
     let m; try { m = JSON.parse(String(buf)); } catch (e) { return; }
     if (!m || typeof m !== "object") return;
     if (m.t === "join") {
-      peer.name = clean(m.n) || "Joueur";
+      peer.name = maskProfanity(clean(m.n)) || "Joueur";
       if (chessWaiting && chessWaiting !== cid && chessPeers.has(chessWaiting)) {
         const wcid = chessWaiting; chessWaiting = null;
         const gid = "g" + (++chessSeq).toString(36);

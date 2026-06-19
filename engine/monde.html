@@ -384,6 +384,7 @@ function onWS(m){
   else if(m.t==="l"){ peers.delete(m.id); netChip(); }
   else if(m.t==="it"){ netItCid=m.id||null; netItUntil=m.until||0; }     // la poisse a changé de porteur
   else if(m.t==="cine"){ netCine={queue:m.queue||[],startedAt:m.startedAt||0}; }   // file Miroir mise à jour
+  else if(m.t==="sys"){ player.bubble={text:"⚠️ "+m.m,t:0,max:3.6}; }   // avertissement de modération du serveur
 }
 function netChip(){ const el=document.getElementById("netChip"); if(!el) return;
   el.style.display="inline-block";

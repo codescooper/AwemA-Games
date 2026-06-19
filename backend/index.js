@@ -6,9 +6,10 @@
      Cloud.game(key)       -> GET  /api/leaderboard?game=KEY
    Persistance : optionnelle. Regler DATA_FILE sur un chemin de volume Railway
    pour la durabilite ; sinon le classement vit en memoire (remis a zero au redeploiement).
-   NOTE : v1 fait confiance aux scores envoyes par le client (prototype). La
-   validation cote serveur / anti-triche viendra ensuite (recalcul de l'Indice,
-   limitation par uid, sessions signees). */
+   ANTI-TRICHE (v2) : le serveur RECALCULE l'Indice a partir des scores par jeu
+   (l'indice envoye par le client est ignore) et plafonne chaque score a une
+   valeur plausible. Limite connue : les scores solo restent declares par le
+   client (pas de gameplay serveur-autoritaire hors duels/Lignees). */
 import http from "node:http";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
@@ -20,6 +21,15 @@ const DATA_FILE = process.env.DATA_FILE || "";
 const ORIGINS = (process.env.CORS_ORIGINS ||
   "https://codescooper.github.io,http://localhost:8780,http://127.0.0.1:8780")
   .split(",").map(s => s.trim()).filter(Boolean);
+
+// Anti-triche du classement : barèmes identiques au front (engine/classements.html → GAMES.target,
+// maitrise = clamp(score/target,0,1)) + plafonds de score plausibles par jeu. Le serveur RECALCULE
+// l'Indice à partir des scores (jamais l'indice client) → score absurde ou indice gonflé sans effet.
+const GAME_TARGETS = { harmattan: 180, tamtam: 30000, awale: 12, banco: 21, echecs: 8, voraces: 400, sables: 2500, lignees: 200, atelier: 310 };
+const GAME_MAX = {};
+for (const k in GAME_TARGETS) GAME_MAX[k] = Math.max(GAME_TARGETS[k] * 20, 1000);
+GAME_MAX.banco = 21;   // borné par construction (7 chantiers × 3 étoiles)
+const computeIndice = games => { let t = 0; for (const k in GAME_TARGETS) { const s = (games && games[k]) || 0; t += Math.round(Math.min(1, s / GAME_TARGETS[k]) * 1000); } return t; };
 
 /** players[uid] = { uid, name, indice, games: {key:score}, t } */
 let players = Object.create(null);
@@ -87,12 +97,16 @@ function submit(p) {
   if (!uid) uid = "anon-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const cur = players[uid] || { uid, name: "Anonyme", indice: 0, games: Object.create(null), t: 0 };
   cur.name = clean(p && p.name) || cur.name || "Anonyme";
-  cur.indice = Math.max(cur.indice || 0, num(p && p.indice, 0, 1e7));
   const g = (p && p.games) || {};
-  for (const k of Object.keys(g)) { const key = clean(k); if (key) cur.games[key] = Math.max(cur.games[key] || 0, num(g[k], 0, 1e12)); }
+  for (const k of Object.keys(g)) {
+    if (!(k in GAME_TARGETS)) continue;                          // clé de jeu inconnue → ignorée
+    const v = num(g[k], 0, GAME_MAX[k]);                          // plafond plausible par jeu
+    if (v > (cur.games[k] || 0)) cur.games[k] = v;               // on ne conserve que le meilleur
+  }
+  cur.indice = computeIndice(cur.games);                          // Indice RECALCULÉ serveur (p.indice ignoré)
   cur.t = Date.now();
   players[uid] = cur; saveSoon();
-  return { ok: true, uid };
+  return { ok: true, uid, indice: cur.indice };
 }
 function board(game, limit) {
   limit = num(limit, 1, 200);
@@ -102,6 +116,19 @@ function board(game, limit) {
   else ranked = arr.filter(p => (p.indice || 0) > 0).map(p => ({ uid: p.uid, name: p.name, indice: p.indice })).sort((a, b) => b.indice - a.indice);
   return { ok: true, game: game || null, count: arr.length, board: ranked.slice(0, limit).map((r, i) => ({ rank: i + 1, uid: r.uid, name: r.name, indice: r.indice, score: r.score })) };
 }
+
+// Assainit les données déjà stockées (héritage v1 sans validation) : clamp des scores + recalcul de l'Indice.
+function sanitizeAll() {
+  for (const uid in players) {
+    const pl = players[uid];
+    if (!pl || typeof pl !== "object") { delete players[uid]; continue; }
+    const games = Object.create(null);
+    for (const k in GAME_TARGETS) { const v = num((pl.games || {})[k], 0, GAME_MAX[k]); if (v > 0) games[k] = v; }
+    pl.games = games; pl.indice = computeIndice(games);
+  }
+  saveSoon();
+}
+sanitizeAll();
 
 /* ---------- LIGNÉES — multijoueur asynchrone (parties privées par code) ----------
    Serveur autoritaire : chaque humain soumet ses ordres ; le tour se résout via le

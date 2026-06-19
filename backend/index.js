@@ -25,7 +25,7 @@ const ORIGINS = (process.env.CORS_ORIGINS ||
 // Anti-triche du classement : barèmes identiques au front (engine/classements.html → GAMES.target,
 // maitrise = clamp(score/target,0,1)) + plafonds de score plausibles par jeu. Le serveur RECALCULE
 // l'Indice à partir des scores (jamais l'indice client) → score absurde ou indice gonflé sans effet.
-const GAME_TARGETS = { harmattan: 180, tamtam: 30000, awale: 12, banco: 21, echecs: 8, voraces: 400, sables: 2500, lignees: 200, atelier: 310 };
+const GAME_TARGETS = { harmattan: 180, tamtam: 30000, awale: 12, banco: 21, echecs: 8, voraces: 400, sables: 2500, lignees: 200, atelier: 310, oware: 8 };
 const GAME_MAX = {};
 for (const k in GAME_TARGETS) GAME_MAX[k] = Math.max(GAME_TARGETS[k] * 20, 1000);
 GAME_MAX.banco = 21;   // borné par construction (7 chantiers × 3 étoiles)

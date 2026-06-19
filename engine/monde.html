@@ -83,13 +83,13 @@ const TAU=Math.PI*2, clamp=(v,a,b)=>v<a?a:v>b?b:v, pick=a=>a[Math.floor(Math.ran
 const lsGet=k=>{ try{ return localStorage.getItem(k); }catch(e){ return null; } };
 
 /* identité + Indice (mêmes clés que la plateforme) */
-const TARGETS={harmattan:180,tamtam:30000,awale:12,banco:21,echecs:8,voraces:400,sables:2500,lignees:200,atelier:310};
+const TARGETS={harmattan:180,tamtam:30000,awale:12,banco:21,echecs:8,voraces:400,sables:2500,lignees:200,atelier:310,oware:8};
 function indiceOf(s){ let t=0; for(const k in TARGETS) t+=Math.round(Math.min(1,(s&&s[k]||0)/TARGETS[k])*1000); return t; }
 const TIERS=[[0,"Voyageur","🥾"],[900,"Marchand","🐪"],[2200,"Notable","🎽"],[4000,"Chef de village","🪘"],[6000,"Roi des routes","👑"],[8000,"Légende des griots","🌟"]];
 const tierOf=i=>{ let t=TIERS[0]; for(const x of TIERS) if(i>=x[0]) t=x; return t; };
 const myName=()=> lsGet("awema_player") || "Toi";
 const myUid=()=>{ let u=lsGet("awema_uid"); if(!u){ u="u"+Math.random().toString(36).slice(2,10)+Date.now().toString(36); try{ localStorage.setItem("awema_uid",u); }catch(e){} } return u; };   // identité stable de l'appareil (anti-doublon à la reconnexion)
-function myScores(){ const o={},map={harmattan:"harmattan_best",tamtam:"tamtam_best",awale:"awale_royal_best",echecs:"echecs_best",voraces:"voraces_best",sables:"sables_best",lignees:"lignees_best"};
+function myScores(){ const o={},map={harmattan:"harmattan_best",tamtam:"tamtam_best",awale:"awale_royal_best",echecs:"echecs_best",voraces:"voraces_best",sables:"sables_best",lignees:"lignees_best",oware:"awale_wins"};
   for(const k in map) o[k]=+lsGet(map[k])||0;
   try{ const b=JSON.parse(lsGet("banco_save")); o.banco=(b&&b.stars||[]).reduce((a,x)=>a+(+x||0),0); }catch(e){ o.banco=0; }
   try{ o.atelier=(JSON.parse(lsGet("awema_atelier_v1"))||{}).xp||0; }catch(e){ o.atelier=0; }

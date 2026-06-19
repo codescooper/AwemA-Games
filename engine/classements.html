@@ -103,6 +103,7 @@ const GAMES = [
   { id:"awale",     name:"Awalé Royal", ic:"🐚", key:"awale_royal_best", unit:"enchère", fmt:v=>v+"/12",           read:()=>+lsGet("awale_royal_best")||0,      target:12 },
   { id:"banco",     name:"Banco",       ic:"🧱", key:"banco_save",       unit:"★",       fmt:v=>v+" ★",            read:()=>bancoStars(lsGet("banco_save")),    target:21 },
   { id:"echecs",    name:"Échecs",      ic:"♟️", key:"echecs_best",      unit:"victoires",fmt:v=>v+" 🏆",          read:()=>+lsGet("echecs_best")||0,           target:8 },
+  { id:"oware",     name:"Awalé (Oware)", ic:"🫘", key:"awale_wins",     unit:"victoires",fmt:v=>v+" 🏆",          read:()=>+lsGet("awale_wins")||0,            target:8 },
   { id:"voraces",   name:"Voraces",     ic:"🦠", key:"voraces_best",     unit:"masse",   fmt:v=>(+v).toLocaleString("fr"), read:()=>+lsGet("voraces_best")||0,  target:400 },
   { id:"sables",    name:"L'Âge des Sables", ic:"🏜️", key:"sables_best", unit:"score",   fmt:v=>(+v).toLocaleString("fr"), read:()=>+lsGet("sables_best")||0,   target:2500 },
   { id:"lignees",   name:"Lignées",     ic:"👑", key:"lignees_best",     unit:"prestige",fmt:v=>v+" 👑",          read:()=>+lsGet("lignees_best")||0,          target:200 },

@@ -68,9 +68,6 @@
 
     <div id="list"></div>
 
-    <div class="card" style="text-align:center">
-      <button class="tbtn" onclick="closeWeek()">🗓️ Clôturer la semaine (démo) — envoyer la n°1 en dev</button>
-    </div>
     <div class="note" id="note"></div>
   </div>
 
@@ -92,55 +89,62 @@ const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"
 function uid(){ let u=lsGet("awema_uid"); if(!u){ u="u"+Math.random().toString(36).slice(2,9); lsSet("awema_uid",u);} return u; }
 const myName=()=> lsGet("awema_player") || "Toi";
 
-const KEY="awema_requests_v1";
-const SEED=[
-  { title:"Gestion de plantation de cacao", by:"Aïssata", dev:"", votes:23, voters:["s1","s2"] },
-  { title:"Awalé en ligne, 2 joueurs", by:"Awa la griotte", dev:"AwemA Studio", votes:18, voters:["s3"], status:"dev" },
-  { title:"Course de pirogues sur la lagune", by:"Kouamé", dev:"", votes:14, voters:[] },
-  { title:"Combat de masques (baston)", by:"N'Dri", dev:"", votes:9, voters:[] },
-  { title:"Élevage de pintades (idle)", by:"Fatou", dev:"", votes:6, voters:[] },
-];
-let reqs=load();
-function load(){ try{ const r=JSON.parse(lsGet(KEY)); if(Array.isArray(r)&&r.length) return r; }catch(e){}
-  const seeded=SEED.map((s,i)=>({ id:"seed"+i, ...s, voters:s.voters||[], dev:s.dev||"", status:s.status||"open" })); lsSet(KEY,JSON.stringify(seeded)); return seeded; }
-function save(){ lsSet(KEY, JSON.stringify(reqs)); }
+/* ---- serveur partagé (avec repli hors-ligne local) ---- */
+const BACKEND_URL="https://awema-games-production.up.railway.app";
+let reqs=[], online=false, pollT=null;
 
-function addReq(){
-  const t=document.getElementById("title").value.trim(); if(!t) return;
+const KEY="awema_requests_v1";                              // repli local : graine + localStorage
+const SEED=[
+  { id:"seed0", title:"Course de pirogues sur la lagune", by:"Kouamé", dev:"", voters:Array.from({length:14},(_,i)=>"s0"+i), status:"open" },
+  { id:"seed1", title:"Gestion de plantation de cacao", by:"Aïssata", dev:"", voters:Array.from({length:23},(_,i)=>"s1"+i), status:"open" },
+  { id:"seed2", title:"Awalé traditionnel en duel", by:"Awa la griotte", dev:"AwemA Studio", voters:Array.from({length:18},(_,i)=>"s2"+i), status:"dev" },
+  { id:"seed3", title:"Combat de masques (baston en ligne)", by:"N'Dri", dev:"", voters:[], status:"open" },
+];
+function localLoad(){ try{ const r=JSON.parse(lsGet(KEY)); if(Array.isArray(r)&&r.length) return r.map(x=>({ ...x, voters:x.voters||[] })); }catch(e){}
+  const s=SEED.map(x=>({ ...x })); lsSet(KEY,JSON.stringify(s)); return s; }
+function localSave(){ lsSet(KEY, JSON.stringify(reqs)); }
+
+async function api(path, opts){ const r=await fetch(BACKEND_URL+path, opts); if(!r.ok) throw new Error("http "+r.status); const j=await r.json(); if(!j.ok) throw new Error(j.error||"refusé"); return j; }
+const postBody=o=>({ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(o) });
+const votesOf=r=> online ? r.votes : (r.voters||[]).length;
+const votedBy=r=> online ? !!r.voted : (r.voters||[]).includes(uid());
+const setNote=html=>{ document.getElementById("note").innerHTML=html; };
+
+async function refresh(){
+  try{ const j=await api("/api/doleances?uid="+encodeURIComponent(uid())); online=true; reqs=j.list; render(); }
+  catch(e){ if(!reqs.length) reqs=localLoad(); online=false; render(); }
+}
+async function addReq(){
+  const t=document.getElementById("title").value.trim(); if(t.length<3) return;
   const dev=document.getElementById("dev").value.trim();
-  reqs.push({ id:"r"+Date.now(), title:t.slice(0,60), by:myName(), dev:dev.slice(0,24), votes:1, voters:[uid()], status:"open" });
   document.getElementById("title").value=""; document.getElementById("dev").value="";
-  save(); render();
+  if(online){ try{ reqs=(await api("/api/doleances/add", postBody({ uid:uid(), title:t, by:myName(), dev }))).list; render(); }catch(e){ setNote("⚠️ "+e.message); } return; }
+  reqs.push({ id:"r"+Date.now(), title:t.slice(0,60), by:myName(), dev:dev.slice(0,24), voters:[uid()], status:"open" }); localSave(); render();
 }
-function toggleVote(id){
-  const r=reqs.find(x=>x.id===id); if(!r) return; const u=uid(); const i=r.voters.indexOf(u);
-  if(i>=0){ r.voters.splice(i,1); r.votes=Math.max(0,r.votes-1); } else { r.voters.push(u); r.votes++; }
-  save(); render();
-}
-function closeWeek(){
-  const open=reqs.filter(r=>r.status!=="dev").sort((a,b)=>b.votes-a.votes);
-  if(!open.length) return;
-  const win=open[0]; win.status="dev"; if(!win.dev) win.dev="AwemA Studio";
-  save(); render();
-  document.getElementById("note").innerHTML="🏗️ <b>"+esc(win.title)+"</b> passe en développement ! (proposé par "+esc(win.by)+" · dev : "+esc(win.dev)+")";
+async function toggleVote(id){
+  if(online){ try{ reqs=(await api("/api/doleances/vote", postBody({ uid:uid(), id }))).list; render(); }catch(e){ setNote("⚠️ vote impossible"); } return; }
+  const r=reqs.find(x=>x.id===id); if(!r) return; const u=uid(); r.voters=r.voters||[]; const i=r.voters.indexOf(u);
+  if(i>=0) r.voters.splice(i,1); else r.voters.push(u); localSave(); render();
 }
 
 function render(){
-  const sorted=reqs.slice().sort((a,b)=>(b.status==="dev")-(a.status==="dev")||b.votes-a.votes);
-  const topOpen=reqs.filter(r=>r.status!=="dev").sort((a,b)=>b.votes-a.votes)[0];
-  const u=uid();
+  const sorted=reqs.slice().sort((a,b)=>(b.status==="dev")-(a.status==="dev")||votesOf(b)-votesOf(a));
+  const topOpen=reqs.filter(r=>r.status!=="dev").sort((a,b)=>votesOf(b)-votesOf(a))[0];
   document.getElementById("list").innerHTML=sorted.map(r=>{
-    const voted=r.voters.includes(u), isWin=topOpen&&r.id===topOpen.id&&r.status!=="dev";
+    const voted=votedBy(r), isWin=topOpen&&r.id===topOpen.id&&r.status!=="dev";
     return `<div class="req ${isWin?'win':''}">
-      <div class="vote"><button class="vbtn ${voted?'on':''}" onclick="toggleVote('${r.id}')" ${r.status==="dev"?'disabled':''}>👍</button><span class="vn">${r.votes}</span></div>
+      <div class="vote"><button class="vbtn ${voted?'on':''}" onclick="toggleVote('${r.id}')" ${r.status==="dev"?'disabled':''}>👍</button><span class="vn">${votesOf(r)}</span></div>
       <div class="body">
         <div class="t">${esc(r.title)} ${isWin?'<span class="badge">💡 demande de la semaine</span>':''} ${r.status==="dev"?'<span class="badge dev">🏗️ en dev</span>':''}</div>
         <div class="meta"><span class="tag by">🙋 ${esc(r.by)}</span>${r.dev?`<span class="tag dev">🛠️ ${esc(r.dev)}</span>`:'<span class="tag">🛠️ dev à assigner</span>'}</div>
       </div></div>`; }).join("");
-  if(!document.getElementById("note").innerHTML)
-    document.getElementById("note").innerHTML="Vote (1 par idée) · la n°1 part en dev chaque semaine. <span class='tag'>prototype local</span> Les votes deviendront mondiaux avec le serveur.";
+  setNote(online
+    ? "🌍 <b>Votes partagés en direct</b> · 1 voix par idée · la n°1 part en dev chaque semaine."
+    : "🔌 Hors-ligne — votes enregistrés en local <span class='tag'>se synchronisera en ligne</span>");
 }
-render();
+
+refresh();
+pollT=setInterval(()=>{ if(!document.hidden) refresh(); }, 8000);   // votes partagés quasi temps réel
 </script>
 </body>
 </html>

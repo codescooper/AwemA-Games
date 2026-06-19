@@ -124,6 +124,35 @@ function lgResolve(g){ const orders=[], eventChoices={};
   g.state=r.state; g.log=(g.log||[]).concat(r.log.filter(e=>e.public)).slice(-200); g.pending={};
   if(g.state.tick>=LE.CONFIG.SEASON_LENGTH) g.status="ended"; g.updatedAt=Date.now(); }
 
+/* ---------- DOLÉANCES — file de demandes de jeu votables, PARTAGÉE (volume /data) ----------
+   Liste commune à tous : chaque demande a un proposeur + des votants (1 voix/uid, basculable).
+   Modération (masque insultes), persistance debouncée, seed au 1er boot. Pas de "clôture"
+   publique (action admin) pour éviter l'abus ; la n°1 est mise en avant côté client. */
+const DO_FILE = DATA_FILE ? (dirname(DATA_FILE) + "/doleances.json") : "";
+let doleances = Object.create(null), doSeq = 0;
+function doLoad(){ if(!DO_FILE) return; try{ const o=JSON.parse(readFileSync(DO_FILE,"utf8")); if(o&&o.doleances){ doleances=o.doleances; doSeq=o.seq||0; } console.log("loaded "+Object.keys(doleances).length+" doleances"); }catch(e){} }
+let doTimer=null;
+function doSave(){ if(!DO_FILE) return; clearTimeout(doTimer); doTimer=setTimeout(()=>{ try{ mkdirSync(dirname(DO_FILE),{recursive:true}); writeFileSync(DO_FILE, JSON.stringify({doleances,seq:doSeq}), "utf8"); }catch(e){ console.error("doleances save:", e.message); } }, 800); }
+const cleanTitle = s => maskProfanity(cleanChat(s)).slice(0, 60);
+function doSeedIfEmpty(){
+  if(Object.keys(doleances).length) return;
+  const seed=[
+    { title:"Course de pirogues sur la lagune", by:"Kouamé", dev:"", n:14 },
+    { title:"Gestion de plantation de cacao", by:"Aïssata", dev:"", n:23 },
+    { title:"Combat de masques (baston en ligne)", by:"N'Dri", dev:"", n:9 },
+    { title:"Élevage de pintades (idle)", by:"Fatou", dev:"", n:6 },
+    { title:"Awalé traditionnel en duel", by:"Awa la griotte", dev:"AwemA Studio", n:18, status:"dev" },
+  ];
+  for(const s of seed){ const id="d"+(++doSeq).toString(36); const voters=[]; for(let i=0;i<s.n;i++) voters.push("seed-"+id+"-"+i); doleances[id]={ id, title:s.title, by:s.by, byUid:"seed", dev:s.dev||"", voters, status:s.status||"open", createdAt:Date.now() }; }
+  doSave();
+}
+doLoad(); doSeedIfEmpty();
+function doView(uid){
+  return { ok:true, list: Object.values(doleances)
+    .map(d=>({ id:d.id, title:d.title, by:d.by, dev:d.dev, votes:d.voters.length, voted: uid ? d.voters.indexOf(uid)>=0 : false, status:d.status }))
+    .sort((a,b)=> (b.status==="dev")-(a.status==="dev") || b.votes-a.votes) };
+}
+
 /* ---------- http ---------- */
 const server = http.createServer(async (req, res) => {
   try {
@@ -179,6 +208,29 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 200, { ok: true, resolved: true, ...lgView(g, uid) });
       }
       return sendJson(res, 404, { ok: false, error: "route lignees inconnue" });
+    }
+    if (path.startsWith("/api/doleances")) {
+      const body = (req.method === "POST") ? await readBody(req) : "";
+      let d = {}; if (body) { try { d = JSON.parse(body); } catch (e) { return sendJson(res, 400, { ok: false, error: "bad json" }); } }
+      const uid = clean(d.uid || url.searchParams.get("uid"));
+      if (path === "/api/doleances" && req.method === "GET") return sendJson(res, 200, doView(uid));
+      if (path === "/api/doleances/add" && req.method === "POST") {
+        if (!uid) return sendJson(res, 400, { ok: false, error: "uid requis" });
+        const title = cleanTitle(d.title); if (title.length < 3) return sendJson(res, 400, { ok: false, error: "titre trop court" });
+        if (Object.keys(doleances).length >= 150) return sendJson(res, 400, { ok: false, error: "trop de demandes — vote plutôt pour une idée existante" });
+        if (Object.values(doleances).filter(x => x.byUid === uid).length >= 6) return sendJson(res, 400, { ok: false, error: "tu as déjà proposé beaucoup d'idées" });
+        if (Object.values(doleances).some(x => x.title.toLowerCase() === title.toLowerCase())) return sendJson(res, 400, { ok: false, error: "cette idée existe déjà — vote pour elle !" });
+        const id = "d" + (++doSeq).toString(36) + Math.random().toString(36).slice(2, 4);
+        doleances[id] = { id, title, by: maskProfanity(clean(d.by)) || "Villageois", byUid: uid, dev: clean(d.dev), voters: [uid], status: "open", createdAt: Date.now() };
+        doSave(); return sendJson(res, 200, doView(uid));
+      }
+      if (path === "/api/doleances/vote" && req.method === "POST") {
+        if (!uid) return sendJson(res, 400, { ok: false, error: "uid requis" });
+        const it = doleances[clean(d.id)]; if (!it) return sendJson(res, 404, { ok: false, error: "demande introuvable" });
+        const i = it.voters.indexOf(uid); if (i >= 0) it.voters.splice(i, 1); else it.voters.push(uid);
+        doSave(); return sendJson(res, 200, doView(uid));
+      }
+      return sendJson(res, 404, { ok: false, error: "route doleances inconnue" });
     }
     return sendJson(res, 404, { ok: false, error: "not found" });
   } catch (e) {

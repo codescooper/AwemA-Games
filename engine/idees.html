@@ -40,6 +40,7 @@
   .badge.dev { background:var(--grn); color:#eafff4; }
   .note { font-size:.8rem; opacity:.62; text-align:center; line-height:1.5; }
 </style>
+  <script src="analytics.js"></script>
 </head>
 <body>
   <div class="top">
@@ -118,11 +119,11 @@ async function addReq(){
   const t=document.getElementById("title").value.trim(); if(t.length<3) return;
   const dev=document.getElementById("dev").value.trim();
   document.getElementById("title").value=""; document.getElementById("dev").value="";
-  if(online){ try{ reqs=(await api("/api/doleances/add", postBody({ uid:uid(), title:t, by:myName(), dev }))).list; render(); }catch(e){ setNote("⚠️ "+e.message); } return; }
+  if(online){ try{ reqs=(await api("/api/doleances/add", postBody({ uid:uid(), title:t, by:myName(), dev }))).list; render(); track("doleance_add"); }catch(e){ setNote("⚠️ "+e.message); } return; }
   reqs.push({ id:"r"+Date.now(), title:t.slice(0,60), by:myName(), dev:dev.slice(0,24), voters:[uid()], status:"open" }); localSave(); render();
 }
 async function toggleVote(id){
-  if(online){ try{ reqs=(await api("/api/doleances/vote", postBody({ uid:uid(), id }))).list; render(); }catch(e){ setNote("⚠️ vote impossible"); } return; }
+  if(online){ try{ reqs=(await api("/api/doleances/vote", postBody({ uid:uid(), id }))).list; render(); track("doleance_vote"); }catch(e){ setNote("⚠️ vote impossible"); } return; }
   const r=reqs.find(x=>x.id===id); if(!r) return; const u=uid(); r.voters=r.voters||[]; const i=r.voters.indexOf(u);
   if(i>=0) r.voters.splice(i,1); else r.voters.push(u); localSave(); render();
 }

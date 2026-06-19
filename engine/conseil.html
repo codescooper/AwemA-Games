@@ -43,6 +43,7 @@
   @keyframes pop { from { opacity: 0; transform: scale(.2); } to { opacity: 1; transform: scale(1); } }
   #soundBtn { float: right; }
 </style>
+  <script src="analytics.js"></script>
 </head>
 <body>
 <h1><a href="index.html" style="text-decoration:none;color:var(--accent);font-size:.8rem;border:1px solid var(--line);padding:.15rem .45rem;border-radius:.4rem;vertical-align:middle">← Menu</a> 👑 Lignées — Le Conseil <small>(local · hors-ligne)</small> <button id="soundBtn" class="mini" onclick="toggleSound()">🔊</button></h1>
@@ -233,8 +234,8 @@ function mpStop(){ if(mpTimer){clearInterval(mpTimer);mpTimer=null;} }
 function mpPoll(){ mpStop(); mpTimer=setInterval(async()=>{ if(!mpOnline||!mpGid)return; const prev=state?state.tick:-1; const v=await mpApi("/api/lignees/state?gid="+encodeURIComponent(mpGid)+"&uid="+encodeURIComponent(uid())); if(!v||!v.ok)return; mpApply(v);
   if(state.tick!==prev){ mpWaiting=false; clearTurn(); recap=null; if(tab==="conseil")render(); }
   else if(mpWaiting&&tab==="conseil"){ render(); } }, 4000); }
-async function mpCreate(){ const house=(prompt("Quelle Maison veux-tu incarner ?\n(aissata, tinduk, zalimba, djenne, tombouctou, gao)","aissata")||"").trim(); if(!house)return; const v=await mpApi("/api/lignees/create",{uid:uid(),name:lgName(),house}); if(v.ok){ mpApply(v); recap=null; clearTurn(); mpPoll(); setTab("conseil"); alert("Partie créée ! 🔑 Code à partager : "+v.id); } else alert("Erreur : "+(v.error||"?")); }
-async function mpJoin(){ const code=(prompt("Code de la partie :")||"").trim().toUpperCase(); if(!code)return; const house=(prompt("Quelle Maison ? (aissata, tinduk, zalimba, djenne, tombouctou, gao)\nLaisse vide si tu reviens dans ta partie.","")||"").trim(); const v=await mpApi("/api/lignees/join",{uid:uid(),name:lgName(),gid:code,house}); if(v.ok){ mpApply(v); recap=null; clearTurn(); mpPoll(); setTab("conseil"); } else alert("Erreur : "+(v.error||"?")); }
+async function mpCreate(){ const house=(prompt("Quelle Maison veux-tu incarner ?\n(aissata, tinduk, zalimba, djenne, tombouctou, gao)","aissata")||"").trim(); if(!house)return; const v=await mpApi("/api/lignees/create",{uid:uid(),name:lgName(),house}); if(v.ok){ mpApply(v); recap=null; clearTurn(); mpPoll(); setTab("conseil"); track("lignees_create", { house }); alert("Partie créée ! 🔑 Code à partager : "+v.id); } else alert("Erreur : "+(v.error||"?")); }
+async function mpJoin(){ const code=(prompt("Code de la partie :")||"").trim().toUpperCase(); if(!code)return; const house=(prompt("Quelle Maison ? (aissata, tinduk, zalimba, djenne, tombouctou, gao)\nLaisse vide si tu reviens dans ta partie.","")||"").trim(); const v=await mpApi("/api/lignees/join",{uid:uid(),name:lgName(),gid:code,house}); if(v.ok){ mpApply(v); recap=null; clearTurn(); mpPoll(); setTab("conseil"); track("lignees_join"); } else alert("Erreur : "+(v.error||"?")); }
 async function mpSubmit(){ const orders=selectedOrders.map(o=>({type:o.type,params:o.params})); const choice=eventChoice||EVENT_CHOICES[eventId()][0][0];
   const before=state.houses[PLAYER]; const bb=before?{gold:before.gold,grain:before.grain,prestige:before.prestige,reputation:before.reputation,soldiers:totalSoldiers(state,PLAYER)}:null;
   const v=await mpApi("/api/lignees/orders",{uid:uid(),gid:mpGid,orders,eventChoice:choice}); if(!v.ok){ alert("Erreur : "+(v.error||"?")); return; }

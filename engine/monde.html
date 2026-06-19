@@ -31,6 +31,7 @@
   .ovbox .mem { display:flex; flex-wrap:wrap; gap:.3rem; justify-content:center; margin:.5rem 0 .9rem; font-size:.85rem; }
   .big { font:inherit; font-weight:800; font-size:1rem; padding:.6rem 1.2rem; border-radius:.6rem; border:0; cursor:pointer; background:#f0c64a; color:#2a1c04; text-decoration:none; display:inline-block; }
 </style>
+  <script src="analytics.js"></script>
 </head>
 <body>
   <canvas id="cv"></canvas>
@@ -372,7 +373,7 @@ function wsURL(){ return BACKEND_URL.replace("https://","wss://").replace("http:
 function connectWS(){
   if(!BACKEND_URL) return;
   try{ sock=new WebSocket(wsURL()); }catch(e){ reco(); return; }
-  sock.onopen=()=>{ wsReady=true; recoT=0; kaT=0; wsSend({t:"hi",n:myName(),uid:myUid(),x:Math.round(player.x),y:Math.round(player.y)}); netChip(); };
+  sock.onopen=()=>{ wsReady=true; recoT=0; kaT=0; wsSend({t:"hi",n:myName(),uid:myUid(),x:Math.round(player.x),y:Math.round(player.y)}); netChip(); track("village_joined"); };
   sock.onclose=()=>{ wsReady=false; myCid=null; peers.clear(); netChip(); reco(); };
   sock.onerror=()=>{ try{ sock.close(); }catch(e){} };
   sock.onmessage=ev=>{ let m; try{ m=JSON.parse(ev.data); }catch(e){ return; } onWS(m); };

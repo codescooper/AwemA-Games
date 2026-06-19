@@ -68,6 +68,7 @@
   .promo .po:hover { background: #ffffff22; }
   footer { margin-top: 1rem; font-size: .8rem; opacity: .6; }
 </style>
+  <script src="analytics.js"></script>
 </head>
 <body>
   <header>
@@ -461,7 +462,7 @@ function toggleOnline() {
   setOnlineStatus("🔌 Connexion au serveur…");
   try { csock = new WebSocket(BACKEND_URL.replace("https://", "wss://").replace("http://", "ws://") + "/ws/chess"); }
   catch (e) { setOnlineStatus("Connexion impossible."); resetOnlineBtn(); return; }
-  csock.onopen = () => { setOnlineStatus("🔎 Recherche d'un adversaire…"); wsChessSend({ t: "join", n: myName() }); };
+  csock.onopen = () => { setOnlineStatus("🔎 Recherche d'un adversaire…"); wsChessSend({ t: "join", n: myName() }); track("duel_start", { game: "echecs" }); };
   csock.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } onChess(m); };
   csock.onclose = () => { if (online) setOnlineStatus("Connexion perdue."); online = false; csock = null; resetOnlineBtn(); };
   csock.onerror = () => { try { csock.close(); } catch (e) { } };
@@ -479,6 +480,7 @@ function onChess(m) {
     document.getElementById("onlineBtn").textContent = "⛌ Quitter le duel";
     const mine = myColor === "w" ? "Orange" : "Vert", his = myColor === "w" ? "Vert" : "Orange";
     setOnlineStatus("⚔️ Duel ! Toi = " + mine + " · " + oppName + " = " + his);
+    track("duel_matched", { game: "echecs", color: myColor });
   }
   else if (m.t === "move") { if (online && m.m) onRemoteMove(m.m); }
   else if (m.t === "end") {
@@ -487,6 +489,7 @@ function onChess(m) {
     const s = document.getElementById("status"); s.className = "win";
     s.textContent = m.reason === "resign" ? ("🏳️ " + oppName + " abandonne — tu gagnes !") : ("🚪 " + oppName + " a quitté — tu gagnes par forfait !");
     try { localStorage.setItem("echecs_best", (+localStorage.getItem("echecs_best") || 0) + 1); } catch (e) { }
+    track("game_finished", { game: "echecs", mode: "duel", result: "win_forfeit" });
     online = false; resetOnlineBtn();
   }
 }

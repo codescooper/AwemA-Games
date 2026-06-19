@@ -64,6 +64,7 @@
   .top .sp { flex: 1; }
   .tbtn { font: inherit; color: #fff; background: #0006; border: 1px solid #ffffff2e; border-radius: .5rem; padding: .35rem .6rem; text-decoration: none; font-size: .85rem; }
 </style>
+  <script src="analytics.js"></script>
 </head>
 <body>
   <div class="top">
@@ -331,6 +332,7 @@ function aiTurn() {
 function finishGame() {
   if (S.scoreW < 25 && S.scoreB < 25) { const e = endGame(S); S = Object.assign({}, S, { scoreW: e.scoreW, scoreB: e.scoreB, board: [0,0,0,0,0,0,0,0,0,0,0,0] }); disp = S.board.slice(); dispW = S.scoreW; dispB = S.scoreB; }
   over = true; busy = false; lastMove = -1; renderBoard();
+  track("game_finished", { game: "awale", mode: online ? "duel" : mode, w: S.scoreW, b: S.scoreB });
   const meSide = online ? myColor : (mode === "ai" ? humanSide : null);
   let msg;
   if (S.scoreW === S.scoreB) msg = "🤝 Égalité 24–24 !";
@@ -359,7 +361,7 @@ function toggleOnline() {
   setStatus("🔌 Connexion au serveur…");
   try { asock = new WebSocket(BACKEND_URL.replace("https://", "wss://").replace("http://", "ws://") + "/ws/chess"); }
   catch (e) { setStatus("Connexion impossible."); resetOnlineBtn(); return; }
-  asock.onopen = () => { setStatus("🔎 Recherche d'un adversaire…"); wsSend({ t: "join", n: myName(), game: "awale" }); };
+  asock.onopen = () => { setStatus("🔎 Recherche d'un adversaire…"); wsSend({ t: "join", n: myName(), game: "awale" }); track("duel_start", { game: "awale" }); };
   asock.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } onNet(m); };
   asock.onclose = () => { if (online) setStatus("Connexion perdue."); online = false; asock = null; resetOnlineBtn(); };
   asock.onerror = () => { try { asock.close(); } catch (e) { } };
@@ -374,6 +376,7 @@ function onNet(m) {
     document.getElementById("onlineBtn").textContent = "⛌ Quitter le duel";
     const mine = myColor === "w" ? "Orange" : "Vert";
     setStatus("⚔️ Duel ! Toi = " + mine + " · " + oppName + ". " + turnLabel());
+    track("duel_matched", { game: "awale", color: myColor });
   }
   else if (m.t === "move") { if (online && m.m && typeof m.m.h === "number") playMove(m.m.h, true); }
   else if (m.t === "end") {

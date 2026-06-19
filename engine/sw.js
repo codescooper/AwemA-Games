@@ -1,12 +1,12 @@
 /* AwemA — service worker : cache hors-ligne de toute la plateforme.
    Stratégie cache-first (tout est statique et autonome) avec mise à jour réseau
    en arrière-plan. Bump CACHE pour invalider lors d'une nouvelle version. */
-const CACHE = "awema-v12";
+const CACHE = "awema-v13";
 const SHELL = [
   ".", "index.html", "manifest.webmanifest", "icon.svg",
   "monde.html", "classements.html", "salon.html", "cinema.html", "idees.html",
   "atelier.html", "harmattan.html", "banco.html", "awale-royal.html", "tamtam.html",
-  "conseil.html", "sables.html", "echecs.html", "voraces.html", "prototype.html",
+  "conseil.html", "sables.html", "echecs.html", "awale.html", "voraces.html", "prototype.html",
 ];
 
 self.addEventListener("install", e => {

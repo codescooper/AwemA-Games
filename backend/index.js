@@ -288,12 +288,14 @@ wss.on("connection", (ws, req) => {
 /* ---------- ÉCHECS EN DUEL (matchmaking + relais des coups, /ws/chess) ----------
    Le serveur apparie 2 joueurs et relaie leurs coups ; chaque client valide
    localement (les échecs sont déterministes). État volatile. */
-let chessWaiting = null, chessSeq = 0;
+let chessSeq = 0;
+const duelWaiting = Object.create(null);   // file d'attente par jeu : duelWaiting["chess"|"awale"] = cid en attente
 const chessPeers = new Map();   // cid -> { ws, name, alive }
 const chessGames = new Map();   // gid -> { w, b }  (cid blanc/Orange, cid noir/Vert)
 function chessSend(cid, obj) { const p = chessPeers.get(cid); if (p && p.ws.readyState === 1) { try { p.ws.send(JSON.stringify(obj)); } catch (e) { } } }
 function chessGameOf(cid) { for (const [gid, g] of chessGames) if (g.w === cid || g.b === cid) return [gid, g]; return null; }
 function chessEnd(cid, reason) { const gx = chessGameOf(cid); if (!gx) return; chessSend(gx[1].w === cid ? gx[1].b : gx[1].w, { t: "end", reason }); chessGames.delete(gx[0]); }
+function clearWaiting(cid) { for (const g in duelWaiting) if (duelWaiting[g] === cid) duelWaiting[g] = null; }
 
 wssChess.on("connection", (ws, req) => {
   const o = req.headers.origin;
@@ -307,22 +309,24 @@ wssChess.on("connection", (ws, req) => {
     if (!m || typeof m !== "object") return;
     if (m.t === "join") {
       peer.name = maskProfanity(clean(m.n)) || "Joueur";
-      if (chessWaiting && chessWaiting !== cid && chessPeers.has(chessWaiting)) {
-        const wcid = chessWaiting; chessWaiting = null;
+      peer.game = (m.game === "awale") ? "awale" : "chess";          // file séparée par jeu : pas de mélange échecs/awalé
+      const wcid = duelWaiting[peer.game];
+      if (wcid && wcid !== cid && chessPeers.has(wcid)) {
+        duelWaiting[peer.game] = null;
         const gid = "g" + (++chessSeq).toString(36);
-        const waitWhite = Math.random() < 0.5;                       // couleur tirée au sort
+        const waitWhite = Math.random() < 0.5;                       // côté/couleur tiré au sort
         const white = waitWhite ? wcid : cid, black = waitWhite ? cid : wcid;
         chessGames.set(gid, { w: white, b: black });
         chessSend(white, { t: "start", color: "w", opp: chessPeers.get(black).name });
         chessSend(black, { t: "start", color: "b", opp: chessPeers.get(white).name });
-      } else { chessWaiting = cid; chessSend(cid, { t: "waiting" }); }
+      } else { duelWaiting[peer.game] = cid; chessSend(cid, { t: "waiting" }); }
     } else if (m.t === "move") {
       const gx = chessGameOf(cid); if (!gx) return;
       chessSend(gx[1].w === cid ? gx[1].b : gx[1].w, { t: "move", m: m.m });   // relais brut (client valide)
     } else if (m.t === "resign") { chessEnd(cid, "resign"); }
-    else if (m.t === "leave") { if (chessWaiting === cid) chessWaiting = null; chessEnd(cid, "left"); }
+    else if (m.t === "leave") { clearWaiting(cid); chessEnd(cid, "left"); }
   });
-  ws.on("close", () => { chessPeers.delete(cid); if (chessWaiting === cid) chessWaiting = null; chessEnd(cid, "left"); });
+  ws.on("close", () => { chessPeers.delete(cid); clearWaiting(cid); chessEnd(cid, "left"); });
   ws.on("error", () => { try { ws.close(); } catch (e) { } });
 });
 
@@ -333,7 +337,7 @@ const wsHeartbeat = setInterval(() => {
     p.missed++; try { p.ws.ping(); } catch (e) { }
   }
   for (const [cid, p] of chessPeers) {
-    if (p.missed >= 2) { try { p.ws.terminate(); } catch (e) { } chessPeers.delete(cid); if (chessWaiting === cid) chessWaiting = null; chessEnd(cid, "left"); continue; }
+    if (p.missed >= 2) { try { p.ws.terminate(); } catch (e) { } chessPeers.delete(cid); clearWaiting(cid); chessEnd(cid, "left"); continue; }
     p.missed++; try { p.ws.ping(); } catch (e) { }
   }
 }, 25000);

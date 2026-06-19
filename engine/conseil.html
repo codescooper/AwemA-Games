@@ -56,7 +56,7 @@
 
 <script>
 /* ===== MOTEUR (logique identique ; ajout ADDITIF d'un tableau `events`) ===== */
-const CONFIG = { START:{gold:100,grain:100,soldiers:50}, INCOME:{city:{gold:20,grain:0},oasis:{gold:0,grain:20},port:{gold:15,grain:10}}, DEV_COST:40, DEV_INCOME_BONUS:5, CARAVANE_PROFIT_RATE:0.5, FORTIFIE_COST:40, FORTIFY_DEF_MULT:0.25, COMBAT:{winnerLossRate:0.3,loserLossRate:0.8}, MUTUAL_DEFENSE_REINFORCE_RATE:0.25, TREATY_BREAK_REP_PENALTY:10, PRESTIGE:{perHoldingPerTick:2,tradeProfitDivisor:20,defenseWon:8,capture:12,repHigh:2,repLow:2}, REP:{start:50,min:0,max:100} };
+const CONFIG = { START:{gold:100,grain:100,soldiers:50}, INCOME:{city:{gold:20,grain:0},oasis:{gold:0,grain:20},port:{gold:15,grain:10}}, DEV_COST:40, DEV_INCOME_BONUS:5, CARAVANE_PROFIT_RATE:0.5, FORTIFIE_COST:40, FORTIFY_DEF_MULT:0.4, COMBAT:{winnerLossRate:0.6,loserLossRate:0.85}, MUTUAL_DEFENSE_REINFORCE_RATE:0.3, UPKEEP_RATE:0.34, TERRAIN_DEF:{city:1.6,port:1.2,oasis:0.95}, TREATY_BREAK_REP_PENALTY:10, PRESTIGE:{perHoldingPerTick:2,tradeProfitDivisor:12,defenseWon:10,capture:8,repHigh:4,repLow:2,treatyPerTick:1}, REP:{start:50,min:0,max:100}, SEASON_LENGTH:24 };
 const clampRep = h => { h.reputation = Math.max(CONFIG.REP.min, Math.min(CONFIG.REP.max, h.reputation)); };
 function neighbors(s, id){ const o=[]; for(const [a,b] of s.edges){ if(a===id)o.push(b); else if(b===id)o.push(a);} return o.sort(); }
 function shortestPath(s, from, to){ if(from===to)return[from]; const q=[from],prev={[from]:null}; while(q.length){const c=q.shift(); for(const n of neighbors(s,c)){ if(!(n in prev)){prev[n]=c; if(n===to){const p=[n];let x=c;while(x!=null){p.unshift(x);x=prev[x];}return p;} q.push(n);}}} return null; }
@@ -64,6 +64,7 @@ const hasActiveTreaty=(s,a,b)=>s.treaties.some(t=>t.status==="active"&&((t.a===a
 const isMutualDefense=(s,a,b)=>s.treaties.some(t=>t.status==="active"&&t.type==="mutual_defense"&&((t.a===a&&t.b===b)||(t.a===b&&t.b===a)));
 const holdingsOf=(s,id)=>Object.values(s.holdings).filter(h=>h.ownerHouseId===id).sort((x,y)=>x.id<y.id?-1:1);
 const totalSoldiers=(s,id)=>holdingsOf(s,id).reduce((n,h)=>n+h.soldiers,0);
+function removeSoldiers(s,id,n){ const hs=holdingsOf(s,id).sort((a,b)=>b.soldiers-a.soldiers); let left=n; for(const h of hs){ const t=Math.min(h.soldiers,left); h.soldiers-=t; left-=t; if(left<=0)break; } }
 const EVENTS={
   harmattan:{name:"L'Harmattan (sécheresse)",apply:(h,c,s)=>{if(c==="partager"){h.reputation+=10;h.grain-=30;}else if(c==="speculer"){h.gold+=40;h.reputation-=15;}clampRep(h);},aggregate:(s,ch,log)=>{const v=Object.values(ch),hoard=v.filter(c=>c==="thesauriser").length;if(hoard*2>v.length){for(const h of Object.values(s.houses))h.grain-=10;log.push({tick:s.tick,text:"La majorité a thésaurisé : la famine s'aggrave (−10 grain pour tous).",public:true});}}},
   foire:{name:"Grande Foire de Tombouctou",apply:(h,c,s)=>{if(c==="investir")h.gold+=50;else if(c==="parader"){h.gold-=40;h.prestige+=15;}else if(c==="mercenaires"){h.gold-=60;s.holdings[h.capitalHoldingId].soldiers+=20;}}},
@@ -72,6 +73,16 @@ const EVENTS={
   griot:{name:"Le griot chante ta lignée",apply:(h,c,s)=>{if(c==="honorer"){h.gold-=15;h.prestige+=12;}else if(c==="modeste")h.reputation+=3;clampRep(h);}},
   pillards:{name:"Des pillards rôdent",apply:(h,c,s)=>{if(c==="tribut")h.gold-=30;else if(c==="garde"){h.gold-=10;s.holdings[h.capitalHoldingId].soldiers+=10;}clampRep(h);}}
 };
+/* ===== ARC DE SAISON (3 actes) + AMBITIONS (voies de victoire) ===== */
+const ACTS=[{from:16,name:"Le Sacre",mult:1.5,ic:"👑"},{from:8,name:"Les Tensions",mult:1,ic:"⚔️"},{from:0,name:"L'Essor",mult:1,ic:"🌱"}];
+function actOf(tick){ for(const a of ACTS)if(tick>=a.from)return a; return ACTS[ACTS.length-1]; }
+const AMBITIONS={
+  commerce:{name:"Empire marchand",desc:"finir avec ≥ 350 or",check:(s,h)=>h.gold>=350,bonus:50},
+  conquete:{name:"Soif de conquête",desc:"tenir ≥ 5 lieux",check:(s,h)=>holdingsOf(s,h.id).length>=5,bonus:50},
+  diplomatie:{name:"Tisseur d'alliances",desc:"≥ 3 traités actifs",check:(s,h)=>s.treaties.filter(t=>t.status==="active"&&(t.a===h.id||t.b===h.id)).length>=3,bonus:50},
+  bastion:{name:"Cœur imprenable",desc:"≥ 4 fortifications cumulées",check:(s,h)=>holdingsOf(s,h.id).reduce((n,x)=>n+x.fortification,0)>=4,bonus:50},
+  renommee:{name:"Gloire éternelle",desc:"réputation ≥ 75",check:(s,h)=>h.reputation>=75,bonus:50}
+};
 function isOrderValid(s,o){ const h=s.houses[o.houseId]; if(!h||!h.alive)return false; const p=o.params||{}; switch(o.type){
   case"DEV":return !!s.holdings[p.holding]&&s.holdings[p.holding].ownerHouseId===h.id&&h.gold>=CONFIG.DEV_COST;
   case"FORTIFIE":return !!s.holdings[p.holding]&&s.holdings[p.holding].ownerHouseId===h.id&&h.gold>=CONFIG.FORTIFIE_COST;
@@ -79,10 +90,10 @@ function isOrderValid(s,o){ const h=s.houses[o.houseId]; if(!h||!h.alive)return 
   case"CARAVANE":return p.gold>0&&h.gold>=p.gold&&!!s.holdings[p.from]&&s.holdings[p.from].ownerHouseId===h.id&&!!s.holdings[p.to];
   case"MARCHE":{const f=s.holdings[p.from];return !!f&&f.ownerHouseId===h.id&&p.soldiers>0&&f.soldiers>=p.soldiers&&neighbors(s,p.from).includes(p.to);}
   case"EMISSAIRE":return !!s.houses[p.target]&&p.target!==h.id; default:return false; } }
-function resolveTick(input0, tickInput){ const state=structuredClone(input0); const log=[]; const events=[]; const acc={tradeProfit:{},defensesWon:{},captures:{}};
-  const orders=[...tickInput.orders]; const choices={...tickInput.eventChoices}; generateAIOrders(state,orders,choices);
+function resolveTick(input0, tickInput){ const state=structuredClone(input0); const log=[]; const events=[]; const econ={}; const ec=id=>econ[id]||(econ[id]={incomeGold:0,incomeGrain:0,upkeep:0,desertions:0}); const acc={tradeProfit:{},defensesWon:{},captures:{}};
+  const orders=[...tickInput.orders]; const choices={...tickInput.eventChoices}; generateAIOrders(state,orders,choices,tickInput.eventId);
   const valid=orders.filter(o=>{const ok=isOrderValid(state,o);o.status=ok?"pending":"invalid";return ok;});
-  for(const hd of Object.values(state.holdings)){ if(!hd.ownerHouseId)continue; const o=state.houses[hd.ownerHouseId]; if(!o)continue; const inc=CONFIG.INCOME[hd.type]; o.gold+=inc.gold+(hd.type!=="oasis"?hd.incomeBonus:0); o.grain+=inc.grain+(hd.type==="oasis"?hd.incomeBonus:0); }
+  for(const hd of Object.values(state.holdings)){ if(!hd.ownerHouseId)continue; const o=state.houses[hd.ownerHouseId]; if(!o)continue; const inc=CONFIG.INCOME[hd.type]; const ig=inc.gold+(hd.type!=="oasis"?hd.incomeBonus:0), igr=inc.grain+(hd.type==="oasis"?hd.incomeBonus:0); o.gold+=ig; o.grain+=igr; const e=ec(o.id); e.incomeGold+=ig; e.incomeGrain+=igr; }
   const ev=EVENTS[tickInput.eventId];
   if(ev){ for(const h of Object.values(state.houses)){const c=choices[h.id];if(c)ev.apply(h,c,state);} if(ev.aggregate)ev.aggregate(state,choices,log); }
   for(const o of valid.filter(o=>o.type==="CARAVANE")){ const h=state.houses[o.houseId]; const path=shortestPath(state,o.params.from,o.params.to); if(h.gold<o.params.gold){o.status="invalid";continue;} h.gold-=o.params.gold; let interceptor=null;
@@ -95,11 +106,11 @@ function resolveTick(input0, tickInput){ const state=structuredClone(input0); co
   const byTarget={}; for(const o of marches)(byTarget[o.params.to]||(byTarget[o.params.to]=[])).push(o);
   for(const target of Object.keys(byTarget).sort()){ const hd=state.holdings[target]; const attackers=byTarget[target]; const attackTotal=attackers.reduce((n,o)=>n+o.params.soldiers,0); const defenderId=hd.ownerHouseId; let captured=false, capturedBy=null;
     const reinforcements=[]; if(defenderId)for(const ah of Object.values(state.holdings)){if(ah.ownerHouseId&&ah.ownerHouseId!==defenderId&&isMutualDefense(state,defenderId,ah.ownerHouseId)&&neighbors(state,target).includes(ah.id)){const amt=Math.floor(ah.soldiers*CONFIG.MUTUAL_DEFENSE_REINFORCE_RATE);if(amt>0)reinforcements.push({hid:ah.id,amount:amt});}}
-    const reinforceTotal=reinforcements.reduce((n,r)=>n+r.amount,0); const defensePower=Math.floor(hd.soldiers*(1+CONFIG.FORTIFY_DEF_MULT*hd.fortification))+reinforceTotal;
-    if(attackTotal>defensePower){ const defLoss=Math.floor(hd.soldiers*CONFIG.COMBAT.loserLossRate); hd.soldiers-=defLoss; for(const r of reinforcements)state.holdings[r.hid].soldiers-=Math.floor(r.amount*CONFIG.COMBAT.loserLossRate);
+    const reinforceTotal=reinforcements.reduce((n,r)=>n+r.amount,0); const terr=CONFIG.TERRAIN_DEF[hd.type]||1; const defensePower=Math.floor(hd.soldiers*terr*(1+CONFIG.FORTIFY_DEF_MULT*hd.fortification))+reinforceTotal;
+    if(attackTotal>defensePower){ hd.soldiers=0; for(const r of reinforcements)state.holdings[r.hid].soldiers-=Math.floor(r.amount*CONFIG.COMBAT.loserLossRate);
       const biggest=[...attackers].sort((a,b)=>b.params.soldiers-a.params.soldiers||(a.houseId<b.houseId?-1:1))[0];
-      for(const o of attackers){const surv=o.params.soldiers-Math.floor(o.params.soldiers*CONFIG.COMBAT.winnerLossRate); if(hd.soldiers===0&&o===biggest){hd.ownerHouseId=o.houseId;hd.fortification=0;hd.soldiers=surv;acc.captures[o.houseId]=(acc.captures[o.houseId]||0)+1;captured=true;capturedBy=o.houseId;log.push({tick:state.tick,text:`${state.houses[o.houseId].name} a capturé ${hd.name} !`,public:true});}else state.holdings[o.params.from].soldiers+=surv;}
-      if(defenderId)log.push({tick:state.tick,text:`${hd.name} (${state.houses[defenderId].name}) razzié : −${defLoss} guerriers.`,houseId:defenderId,public:false});
+      for(const o of attackers){const surv=o.params.soldiers-Math.floor(o.params.soldiers*CONFIG.COMBAT.winnerLossRate); if(o===biggest){hd.ownerHouseId=o.houseId;hd.fortification=0;hd.soldiers=surv;acc.captures[o.houseId]=(acc.captures[o.houseId]||0)+1;captured=true;capturedBy=o.houseId;log.push({tick:state.tick,text:`${state.houses[o.houseId].name} a capturé ${hd.name} !`,public:true});}else state.holdings[o.params.from].soldiers+=surv;}
+      if(defenderId)log.push({tick:state.tick,text:`${hd.name} (${state.houses[defenderId].name}) est TOMBÉ — garnison dispersée.`,houseId:defenderId,public:false});
     } else { for(const o of attackers){const surv=o.params.soldiers-Math.floor(o.params.soldiers*CONFIG.COMBAT.loserLossRate);state.holdings[o.params.from].soldiers+=surv;} const defLoss=Math.floor(hd.soldiers*CONFIG.COMBAT.winnerLossRate); hd.soldiers-=defLoss; for(const r of reinforcements)state.holdings[r.hid].soldiers-=Math.floor(r.amount*CONFIG.COMBAT.winnerLossRate); if(defenderId){acc.defensesWon[defenderId]=(acc.defensesWon[defenderId]||0)+1;log.push({tick:state.tick,text:`${hd.name} (${state.houses[defenderId].name}) a repoussé l'assaut.`,houseId:defenderId,public:true});} }
     events.push({type:"attack",to:target,sources:attackers.map(o=>o.params.from),win:attackTotal>defensePower,captured,by:capturedBy}); }
   for(const o of valid.filter(o=>["DEV","LEVEE","FORTIFIE"].includes(o.type))){ const h=state.houses[o.houseId]; const p=o.params;
@@ -110,24 +121,79 @@ function resolveTick(input0, tickInput){ const state=structuredClone(input0); co
     if(p.action==="propose"){if(!state.treaties.some(t=>t.status!=="broken"&&t.type===p.treaty&&((t.a===h.id&&t.b===p.target)||(t.a===p.target&&t.b===h.id))))state.treaties.push({a:h.id,b:p.target,type:p.treaty,status:"proposed",proposedBy:h.id});}
     else if(p.action==="accept"){const t=state.treaties.find(t=>t.status==="proposed"&&((t.a===p.target&&t.b===h.id)||(t.a===h.id&&t.b===p.target)));if(t){t.status="active";log.push({tick:state.tick,text:`Traité ${t.type} actif entre ${state.houses[t.a].name} et ${state.houses[t.b].name}.`,public:true});}}
     else if(p.action==="break"){const t=state.treaties.find(t=>t.status==="active"&&((t.a===h.id&&t.b===p.target)||(t.a===p.target&&t.b===h.id)));if(t){t.status="broken";h.reputation-=CONFIG.TREATY_BREAK_REP_PENALTY;clampRep(h);log.push({tick:state.tick,text:`${h.name} a ROMPU son traité avec ${state.houses[p.target].name} !`,public:true});}} }
-  for(const h of Object.values(state.houses)){ const nb=holdingsOf(state,h.id).length; h.alive=nb>0; let d=nb*CONFIG.PRESTIGE.perHoldingPerTick+Math.floor((acc.tradeProfit[h.id]||0)/CONFIG.PRESTIGE.tradeProfitDivisor)+(acc.defensesWon[h.id]||0)*CONFIG.PRESTIGE.defenseWon+(acc.captures[h.id]||0)*CONFIG.PRESTIGE.capture; if(h.reputation>=70)d+=CONFIG.PRESTIGE.repHigh;else if(h.reputation<=30)d-=CONFIG.PRESTIGE.repLow; h.prestige+=d; }
-  state.tick+=1; return {state,log,events}; }
-function generateAIOrders(state,orders,choices){ const hasOrders=id=>orders.some(o=>o.houseId===id);
-  for(const h of Object.values(state.houses).sort((a,b)=>a.id<b.id?-1:1)){ if(!h.isAI||!h.alive)continue; if(choices[h.id]===undefined)choices[h.id]=h.reputation<50?"partager":"thesauriser"; if(hasOrders(h.id))continue; const mine=holdingsOf(state,h.id); if(mine.length===0)continue; const slots=[];
-    if(h.gold>80)slots.push({type:"DEV",params:{holding:mine[0].id}}); else slots.push({type:"LEVEE",params:{count:Math.min(20,h.grain)}});
-    const nh=new Set(); for(const hd of mine)for(const n of neighbors(state,hd.id)){const o=state.holdings[n].ownerHouseId;if(o&&o!==h.id)nh.add(o);} const target=[...nh].sort().find(o=>!hasActiveTreaty(state,h.id,o)); if(target)slots.push({type:"EMISSAIRE",params:{action:"propose",target,treaty:"non_aggression"}});
-    if(totalSoldiers(state,h.id)>70){let best=null;for(const hd of mine)for(const n of neighbors(state,hd.id)){const t=state.holdings[n];if(t.ownerHouseId&&t.ownerHouseId!==h.id&&!hasActiveTreaty(state,h.id,t.ownerHouseId)){if(!best||t.soldiers<best.def)best={from:hd.id,to:n,def:t.soldiers};}}if(best)slots.push({type:"MARCHE",params:{from:best.from,to:best.to,soldiers:Math.floor(state.holdings[best.from].soldiers*0.8)}});}
-    slots.slice(0,3).forEach((s,i)=>orders.push({houseId:h.id,slot:i,type:s.type,params:s.params})); } }
+  /* intendance : les guerriers consomment du grain ; famine -> désertion */
+  for(const h of Object.values(state.houses)){ const sol=totalSoldiers(state,h.id); if(sol<=0)continue; const need=Math.ceil(sol*CONFIG.UPKEEP_RATE); const e=ec(h.id);
+    if(h.grain>=need){ h.grain-=need; e.upkeep=need; }
+    else { e.upkeep=h.grain; const unfed=need-h.grain; h.grain=0; const desert=Math.min(sol,Math.ceil(unfed/CONFIG.UPKEEP_RATE)); removeSoldiers(state,h.id,desert); e.desertions=desert; log.push({tick:state.tick,text:`Famine chez ${h.name} : ${desert} guerriers désertent (grain épuisé).`,houseId:h.id,public:false}); } }
+  for(const h of Object.values(state.houses)){ const nb=holdingsOf(state,h.id).length; h.alive=nb>0; let d=nb*CONFIG.PRESTIGE.perHoldingPerTick+Math.floor((acc.tradeProfit[h.id]||0)/CONFIG.PRESTIGE.tradeProfitDivisor)+(acc.defensesWon[h.id]||0)*CONFIG.PRESTIGE.defenseWon+(acc.captures[h.id]||0)*CONFIG.PRESTIGE.capture+state.treaties.filter(t=>t.status==="active"&&(t.a===h.id||t.b===h.id)).length*(CONFIG.PRESTIGE.treatyPerTick||0); if(h.reputation>=70)d+=CONFIG.PRESTIGE.repHigh;else if(h.reputation<=30)d-=CONFIG.PRESTIGE.repLow; h.prestige+=Math.round(d*actOf(state.tick).mult); }
+  state.tick+=1;
+  if(state.tick>=CONFIG.SEASON_LENGTH){ for(const h of Object.values(state.houses)){ const amb=AMBITIONS[h.ambition]; if(amb&&!h.ambitionDone&&amb.check(state,h)){ h.prestige+=amb.bonus; h.ambitionDone=true; log.push({tick:state.tick,text:`${h.name} accomplit son ambition — « ${amb.name} » (+${amb.bonus} 👑) !`,public:true}); } } }
+  return {state,log,events,econ}; }
+/* ===== IA VIVANTE : chaque Maison a une DOCTRINE et réagit au monde ===== */
+const DOCTRINE={ tinduk:"conquerant", zalimba:"marchand", djenne:"diplomate", tombouctou:"batisseur", gao:"opportuniste" };
+const DOCTRINE_NAME={ conquerant:"⚔️ Conquérant", marchand:"🐫 Marchand", diplomate:"🕊️ Diplomate", batisseur:"🏗️ Bâtisseur", opportuniste:"🎭 Opportuniste" };
+const aiDoctrine=id=>DOCTRINE[id]||"batisseur";
+const AI_EVENT_CHOICE={ harmattan:{conquerant:"speculer",marchand:"speculer",diplomate:"partager",batisseur:"thesauriser",opportuniste:"speculer"}, foire:{conquerant:"mercenaires",marchand:"investir",diplomate:"parader",batisseur:"investir",opportuniste:"investir"}, pelerins:{conquerant:"taxer",marchand:"taxer",diplomate:"escorter",batisseur:"escorter",opportuniste:"taxer"}, crue:{conquerant:"rien",marchand:"semer",diplomate:"prier",batisseur:"semer",opportuniste:"semer"}, griot:{conquerant:"honorer",marchand:"modeste",diplomate:"modeste",batisseur:"honorer",opportuniste:"honorer"}, pillards:{conquerant:"garde",marchand:"tribut",diplomate:"tribut",batisseur:"garde",opportuniste:"garde"} };
+const defEst=(s,id)=>{ const hd=s.holdings[id]; return Math.floor(hd.soldiers*(CONFIG.TERRAIN_DEF[hd.type]||1)*(1+CONFIG.FORTIFY_DEF_MULT*hd.fortification)); };
+function neighborHouses(s,id){ const set=new Set(); for(const hd of holdingsOf(s,id))for(const n of neighbors(s,hd.id)){ const o=s.holdings[n].ownerHouseId; if(o&&o!==id)set.add(o); } return [...set].sort(); }
+function leaderId(s){ const arr=Object.values(s.houses).filter(h=>h.alive).sort((a,b)=>b.prestige-a.prestige||(a.id<b.id?-1:1)); return arr.length?arr[0].id:null; }
+function enemyBorders(s,id){ const out=[]; for(const hd of holdingsOf(s,id))for(const n of neighbors(s,hd.id)){ const t=s.holdings[n]; if(t.ownerHouseId&&t.ownerHouseId!==id&&!hasActiveTreaty(s,id,t.ownerHouseId)) out.push({from:hd.id,to:n,owner:t.ownerHouseId,def:defEst(s,n)}); } return out; }
+function generateAIOrders(state,orders,choices,eventId){
+  const hasOrders=id=>orders.some(o=>o.houseId===id); const leader=leaderId(state);
+  for(const h of Object.values(state.houses).sort((a,b)=>a.id<b.id?-1:1)){
+    if(!h.isAI||!h.alive)continue; const doc=aiDoctrine(h.id);
+    if(choices[h.id]===undefined){ const m=AI_EVENT_CHOICE[eventId]; if(m&&m[doc])choices[h.id]=m[doc]; }
+    if(hasOrders(h.id))continue;
+    const mine=holdingsOf(state,h.id); if(!mine.length)continue;
+    const strong=[...mine].sort((a,b)=>b.soldiers-a.soldiers); const richHold=strong[0];
+    const borders=enemyBorders(state,h.id);
+    const winnable=borders.filter(b=>state.holdings[b.from].soldiers>b.def).sort((a,b)=>a.def-b.def);
+    const threatened=mine.filter(hd=>neighbors(state,hd.id).some(n=>{const t=state.holdings[n];return t.ownerHouseId&&t.ownerHouseId!==h.id&&!hasActiveTreaty(state,h.id,t.ownerHouseId)&&t.soldiers>defEst(state,hd.id)*1.05;}));
+    const lowGrain=h.grain<25; const canLevee=()=>h.grain>=15&&h.gold>=15&&!lowGrain; const slots=[];
+    const propose=tr=>{ const t=neighborHouses(state,h.id).find(o=>!hasActiveTreaty(state,h.id,o)&&!state.treaties.some(x=>x.status==="proposed"&&((x.a===h.id&&x.b===o)||(x.a===o&&x.b===h.id)))); if(t)slots.push({type:"EMISSAIRE",params:{action:"propose",target:t,treaty:tr}}); };
+    const accept=()=>{ const t=state.treaties.find(x=>x.status==="proposed"&&(x.b===h.id||x.a===h.id)&&x.proposedBy!==h.id); if(t)slots.push({type:"EMISSAIRE",params:{action:"accept",target:t.proposedBy}}); };
+    if(doc!=="conquerant")accept();                                  // une Maison non belliciste honore les mains tendues
+    if(doc==="conquerant"){
+      const tgt=winnable.find(b=>state.holdings[b.from].soldiers>b.def*1.25);   // n'attaque qu'avec une marge nette (pas de surextension)
+      if(tgt)slots.push({type:"MARCHE",params:{from:tgt.from,to:tgt.to,soldiers:Math.floor(state.holdings[tgt.from].soldiers*0.9)}});
+      if(canLevee())slots.push({type:"LEVEE",params:{count:Math.min(25,h.grain,h.gold)}});
+      if(!tgt&&h.gold>=CONFIG.FORTIFIE_COST)slots.push({type:"FORTIFIE",params:{holding:(threatened[0]||strong[0]).id}});
+    } else if(doc==="marchand"){
+      const dest=mine.find(x=>x.id!==richHold.id)||richHold; if(h.gold>40)slots.push({type:"CARAVANE",params:{from:richHold.id,to:dest.id,gold:Math.min(60,Math.floor(h.gold*0.6))}});
+      if(h.gold>CONFIG.DEV_COST)slots.push({type:"DEV",params:{holding:mine[0].id}}); propose("trade_pact");
+    } else if(doc==="diplomate"){
+      propose(leader&&leader!==h.id?"mutual_defense":"non_aggression"); if(h.gold>CONFIG.DEV_COST)slots.push({type:"DEV",params:{holding:mine[0].id}});
+      if(threatened.length&&h.gold>=CONFIG.FORTIFIE_COST)slots.push({type:"FORTIFIE",params:{holding:threatened[0].id}});
+    } else if(doc==="batisseur"){
+      if(h.gold>CONFIG.DEV_COST)slots.push({type:"DEV",params:{holding:mine[0].id}});
+      if(h.gold>=CONFIG.FORTIFIE_COST)slots.push({type:"FORTIFIE",params:{holding:(threatened[0]||richHold).id}});
+      if(canLevee())slots.push({type:"LEVEE",params:{count:Math.min(15,h.grain,h.gold)}});
+    } else {                                                          // opportuniste : frappe le leader / les faibles, trahit
+      const juicy=winnable.filter(b=>b.owner===leader);
+      if(juicy.length)slots.push({type:"MARCHE",params:{from:juicy[0].from,to:juicy[0].to,soldiers:Math.floor(state.holdings[juicy[0].from].soldiers*0.85)}});
+      else if(winnable.length&&state.holdings[winnable[0].from].soldiers>winnable[0].def*1.4)slots.push({type:"MARCHE",params:{from:winnable[0].from,to:winnable[0].to,soldiers:Math.floor(state.holdings[winnable[0].from].soldiers*0.85)}});
+      else propose("non_aggression");
+      if(leader&&leader!==h.id&&hasActiveTreaty(state,h.id,leader)&&state.houses[leader].prestige>h.prestige+25)slots.push({type:"EMISSAIRE",params:{action:"break",target:leader}});
+    }
+    const dom=Object.values(state.houses).filter(x=>x.alive&&x.id!==h.id).map(x=>({id:x.id,n:holdingsOf(state,x.id).length,p:x.prestige})).sort((a,b)=>b.n-a.n||b.p-a.p)[0];   // coalition : on se ligue contre celui qui DOMINE (lieux ou prestige)
+    const bully=(dom&&(dom.n>=3||dom.p>h.prestige+20))?dom.id:null;
+    if(bully&&!slots.some(s=>s.type==="MARCHE")){ const t=winnable.filter(b=>b.owner===bully).sort((a,b)=>a.def-b.def)[0]; if(t)slots.push({type:"MARCHE",params:{from:t.from,to:t.to,soldiers:Math.floor(state.holdings[t.from].soldiers*0.9)}}); }
+    if(!slots.length){ if(h.gold>CONFIG.DEV_COST)slots.push({type:"DEV",params:{holding:mine[0].id}}); else if(canLevee())slots.push({type:"LEVEE",params:{count:Math.min(15,h.grain,h.gold)}}); }
+    slots.slice(0,3).forEach((s,i)=>orders.push({houseId:h.id,slot:i,type:s.type,params:s.params}));
+  }
+}
 function buildScenario(){ const H=(id,name,type,owner,soldiers)=>[id,{id,name,type,ownerHouseId:owner,fortification:0,soldiers,incomeBonus:0}];
   const holdings=Object.fromEntries([H("aoudaghost","Aoudaghost","oasis","aissata",70),H("goundam","Goundam","oasis","aissata",10),H("tinduk","Tindûk","oasis","tinduk",40),H("koumbi","Koumbi","city","tinduk",50),H("zalimba","Zalimba","port","zalimba",50),H("djenne","Djenné","city","djenne",50),H("tombouctou","Tombouctou","city","tombouctou",50),H("gao","Gao","city","gao",50)]);
   const mk=(id,name,isAI,capital)=>[id,{id,name,isAI,gold:CONFIG.START.gold,grain:CONFIG.START.grain,prestige:0,reputation:CONFIG.REP.start,capitalHoldingId:capital,alive:true}];
   const houses=Object.fromEntries([mk("aissata","Maison d'Aïssata",false,"aoudaghost"),mk("tinduk","Maison Tindûk",true,"tinduk"),mk("zalimba","Maison Zalimba",true,"zalimba"),mk("djenne","Maison Djenné",true,"djenne"),mk("tombouctou","Maison Tombouctou",true,"tombouctou"),mk("gao","Maison Gao",true,"gao")]);
   const edges=[["tombouctou","gao"],["gao","koumbi"],["tombouctou","djenne"],["gao","aoudaghost"],["koumbi","tinduk"],["djenne","aoudaghost"],["aoudaghost","tinduk"],["aoudaghost","zalimba"],["djenne","goundam"]];
   const treaties=[{a:"aissata",b:"djenne",type:"trade_pact",status:"active",proposedBy:"djenne"}];
-  return {tick:0,holdings,houses,edges,treaties}; }
+  for(const _h of Object.values(houses)){ const cap=holdings[_h.capitalHoldingId]; if(cap)cap.fortification=2; }   // capitales = bastions (survie + carte qui ne s'effondre pas)
+  const AMB={aissata:"commerce",tinduk:"conquete",zalimba:"renommee",djenne:"diplomatie",tombouctou:"bastion",gao:"conquete"}; for(const id in houses)houses[id].ambition=AMB[id];
+  return {tick:0,seed:Math.floor(Math.random()*1e9),holdings,houses,edges,treaties}; }
 
 /* ===== UI ===== */
-const PLAYER="aissata", KEY_S="lignees_state_v3", KEY_L="lignees_log_v3", SEASON_LENGTH=24, DIPLO_UNLOCK=2;
+let PLAYER="aissata"; const KEY_S="lignees_state_v3", KEY_L="lignees_log_v3", SEASON_LENGTH=24, DIPLO_UNLOCK=2;
 let state, fullLog, tab="conseil", recap=null, lastInvalid=[];
 let selectedOrders=[], selectedHolding=null, pendingMode=null, pendingFrom=null, eventChoice=null, showDiplo=false;
 const HOUSE_COLORS={ aissata:"#3b4cca", tinduk:"#c0392b", zalimba:"#138d75", djenne:"#b9770e", tombouctou:"#7d3c98", gao:"#1e8449" };
@@ -136,7 +202,7 @@ const ICON={ gold:"<svg viewBox='0 0 16 16' width='13' height='13' style='vertic
 const POS={ tombouctou:[80,55], gao:[185,52], koumbi:[300,55], djenne:[80,165], aoudaghost:[185,162], tinduk:[300,162], zalimba:[185,255], goundam:[42,238] };
 const EVENT_CHOICES={ harmattan:[["thesauriser","Thésauriser le grain (sûr)"],["partager","Partager (+10 🤝, −30 🌾)"],["speculer","Spéculer (+40 <svg viewBox='0 0 16 16' width='13' height='13' style='vertical-align:-2px;display:inline-block'><circle cx='8' cy='8' r='7' fill='#e8b923' stroke='#9c6f12' stroke-width='1.5'/><circle cx='8' cy='8' r='3.3' fill='none' stroke='#9c6f12' stroke-width='1.2'/></svg>, −15 🤝)"]], foire:[["investir","Investir (+50 <svg viewBox='0 0 16 16' width='13' height='13' style='vertical-align:-2px;display:inline-block'><circle cx='8' cy='8' r='7' fill='#e8b923' stroke='#9c6f12' stroke-width='1.5'/><circle cx='8' cy='8' r='3.3' fill='none' stroke='#9c6f12' stroke-width='1.2'/></svg>)"],["parader","Parader (+15 👑, −40 <svg viewBox='0 0 16 16' width='13' height='13' style='vertical-align:-2px;display:inline-block'><circle cx='8' cy='8' r='7' fill='#e8b923' stroke='#9c6f12' stroke-width='1.5'/><circle cx='8' cy='8' r='3.3' fill='none' stroke='#9c6f12' stroke-width='1.2'/></svg>)"],["mercenaires","Mercenaires (+20 ⚔️, −60 <svg viewBox='0 0 16 16' width='13' height='13' style='vertical-align:-2px;display:inline-block'><circle cx='8' cy='8' r='7' fill='#e8b923' stroke='#9c6f12' stroke-width='1.5'/><circle cx='8' cy='8' r='3.3' fill='none' stroke='#9c6f12' stroke-width='1.2'/></svg>)"]], pelerins:[["escorter","Escorter les pèlerins (+10 🤝)"],["taxer","Les taxer (+30 <svg viewBox='0 0 16 16' width='13' height='13' style='vertical-align:-2px;display:inline-block'><circle cx='8' cy='8' r='7' fill='#e8b923' stroke='#9c6f12' stroke-width='1.5'/><circle cx='8' cy='8' r='3.3' fill='none' stroke='#9c6f12' stroke-width='1.2'/></svg>, −5 🤝)"],["ignorer","Les laisser passer"]], crue:[["semer","Semer largement (−20 <svg viewBox='0 0 16 16' width='13' height='13' style='vertical-align:-2px;display:inline-block'><circle cx='8' cy='8' r='7' fill='#e8b923' stroke='#9c6f12' stroke-width='1.5'/><circle cx='8' cy='8' r='3.3' fill='none' stroke='#9c6f12' stroke-width='1.2'/></svg>, +30 🌾)"],["prier","Rendre grâce (+5 🤝)"],["rien","Ne rien faire"]], griot:[["honorer","Honorer le griot (−15 <svg viewBox='0 0 16 16' width='13' height='13' style='vertical-align:-2px;display:inline-block'><circle cx='8' cy='8' r='7' fill='#e8b923' stroke='#9c6f12' stroke-width='1.5'/><circle cx='8' cy='8' r='3.3' fill='none' stroke='#9c6f12' stroke-width='1.2'/></svg>, +12 👑)"],["modeste","Rester modeste (+3 🤝)"],["rien","L'ignorer"]], pillards:[["tribut","Payer un tribut (−30 <svg viewBox='0 0 16 16' width='13' height='13' style='vertical-align:-2px;display:inline-block'><circle cx='8' cy='8' r='7' fill='#e8b923' stroke='#9c6f12' stroke-width='1.5'/><circle cx='8' cy='8' r='3.3' fill='none' stroke='#9c6f12' stroke-width='1.2'/></svg>)"],["garde","Lever la garde (−10 <svg viewBox='0 0 16 16' width='13' height='13' style='vertical-align:-2px;display:inline-block'><circle cx='8' cy='8' r='7' fill='#e8b923' stroke='#9c6f12' stroke-width='1.5'/><circle cx='8' cy='8' r='3.3' fill='none' stroke='#9c6f12' stroke-width='1.2'/></svg>, +10 ⚔️)"],["rien","Ne rien faire (risqué)"]] };
 const EVENT_ORDER=["harmattan","foire","pelerins","crue","griot","pillards"];
-const eventId=()=> EVENT_ORDER[state.tick % EVENT_ORDER.length];
+const eventId=()=>{ const sd=state.seed||0; const hh=((sd^(state.tick*2654435761))>>>0); return EVENT_ORDER[hh%EVENT_ORDER.length]; };
 const val=id=>{const e=document.getElementById(id);return e?e.value:null;};
 const houseName=id=> state.houses[id]?state.houses[id].name:id;
 const dot=id=>`<span class="dot" style="background:${HOUSE_COLORS[id]||'#9a9a9a'}"></span>`;
@@ -156,9 +222,36 @@ function reset(){ if(!confirm("Recommencer une nouvelle partie ?"))return; local
 function newSeason(){ localStorage.removeItem(KEY_S); localStorage.removeItem(KEY_L); load(); recap=null; lastInvalid=[]; clearTurn(); setTab("conseil"); }
 function setTab(t){ tab=t; if(t==="apprendre")tutoStep=0; for(const x of ["conseil","carte","chronique","apprendre"])document.getElementById("tab-"+x).classList.toggle("active",x===t); render(); }
 
+/* ===== MULTIJOUEUR ASYNCHRONE (parties privées par code, serveur Railway) ===== */
+const LG_API="https://awema-games-production.up.railway.app";
+let mpOnline=false, mpGid=null, mpView=null, mpTimer=null, mpWaiting=false;
+function uid(){ try{ let u=localStorage.getItem("awema_uid"); if(!u){ u="u"+Math.random().toString(36).slice(2,9); localStorage.setItem("awema_uid",u); } return u; }catch(e){ return "u0"; } }
+function lgName(){ try{ return localStorage.getItem("awema_player")||"Joueur"; }catch(e){ return "Joueur"; } }
+async function mpApi(path,body){ try{ const r=await fetch(LG_API+path,{method:body?"POST":"GET",headers:body?{"Content-Type":"application/json"}:{},body:body?JSON.stringify(body):undefined}); return await r.json(); }catch(e){ return {ok:false,error:"réseau injoignable"}; } }
+function mpApply(v){ if(!v||!v.state)return false; mpView=v; if(v.id)mpGid=v.id; mpOnline=true; if(v.you)PLAYER=v.you; state=v.state; fullLog=v.log||[]; return true; }
+function mpStop(){ if(mpTimer){clearInterval(mpTimer);mpTimer=null;} }
+function mpPoll(){ mpStop(); mpTimer=setInterval(async()=>{ if(!mpOnline||!mpGid)return; const prev=state?state.tick:-1; const v=await mpApi("/api/lignees/state?gid="+encodeURIComponent(mpGid)+"&uid="+encodeURIComponent(uid())); if(!v||!v.ok)return; mpApply(v);
+  if(state.tick!==prev){ mpWaiting=false; clearTurn(); recap=null; if(tab==="conseil")render(); }
+  else if(mpWaiting&&tab==="conseil"){ render(); } }, 4000); }
+async function mpCreate(){ const house=(prompt("Quelle Maison veux-tu incarner ?\n(aissata, tinduk, zalimba, djenne, tombouctou, gao)","aissata")||"").trim(); if(!house)return; const v=await mpApi("/api/lignees/create",{uid:uid(),name:lgName(),house}); if(v.ok){ mpApply(v); recap=null; clearTurn(); mpPoll(); setTab("conseil"); alert("Partie créée ! 🔑 Code à partager : "+v.id); } else alert("Erreur : "+(v.error||"?")); }
+async function mpJoin(){ const code=(prompt("Code de la partie :")||"").trim().toUpperCase(); if(!code)return; const house=(prompt("Quelle Maison ? (aissata, tinduk, zalimba, djenne, tombouctou, gao)\nLaisse vide si tu reviens dans ta partie.","")||"").trim(); const v=await mpApi("/api/lignees/join",{uid:uid(),name:lgName(),gid:code,house}); if(v.ok){ mpApply(v); recap=null; clearTurn(); mpPoll(); setTab("conseil"); } else alert("Erreur : "+(v.error||"?")); }
+async function mpSubmit(){ const orders=selectedOrders.map(o=>({type:o.type,params:o.params})); const choice=eventChoice||EVENT_CHOICES[eventId()][0][0];
+  const before=state.houses[PLAYER]; const bb=before?{gold:before.gold,grain:before.grain,prestige:before.prestige,reputation:before.reputation,soldiers:totalSoldiers(state,PLAYER)}:null;
+  const v=await mpApi("/api/lignees/orders",{uid:uid(),gid:mpGid,orders,eventChoice:choice}); if(!v.ok){ alert("Erreur : "+(v.error||"?")); return; }
+  mpApply(v); clearTurn();
+  if(v.resolved&&bb){ const m2=state.houses[PLAYER]; const a={gold:m2.gold,grain:m2.grain,prestige:m2.prestige,reputation:m2.reputation,soldiers:totalSoldiers(state,PLAYER)};
+    mpWaiting=false; recap={ deltas:{gold:a.gold-bb.gold,grain:a.grain-bb.grain,soldiers:a.soldiers-bb.soldiers,prestige:a.prestige-bb.prestige,reputation:a.reputation-bb.reputation}, econ:null, entries:(fullLog||[]).filter(e=>e.tick===state.tick-1), events:[], playerCaptured:false }; SFX.resolve(); }
+  else mpWaiting=true;
+  setTab("conseil"); window.scrollTo(0,0); }
+async function mpForce(){ const v=await mpApi("/api/lignees/resolve",{uid:uid(),gid:mpGid}); if(v.ok){ mpWaiting=false; mpApply(v); clearTurn(); recap=null; setTab("conseil"); } }
+function mpLeave(){ mpStop(); mpOnline=false; mpGid=null; mpView=null; mpWaiting=false; PLAYER="aissata"; load(); recap=null; clearTurn(); setTab("conseil"); }
+function mpBar(){ if(!mpOnline) return `<div class="card" style="border-color:var(--accent)"><b>🌐 Multijoueur</b> <small>— parties privées entre ami·e·s</small><br><button class="mini" onclick="mpCreate()">➕ Créer une partie</button> <button class="mini" onclick="mpJoin()">🔗 Rejoindre (code)</button></div>`;
+  const wait=((mpView&&mpView.waitingFor)||[]).map(h=>houseName(h));
+  return `<div class="card" style="border-color:var(--accent)"><b>🌐 En ligne</b> · 🔑 <b>${mpGid}</b> · tu es ${dot(PLAYER)}${houseName(PLAYER)} <button class="mini" onclick="mpLeave()">Quitter</button>${mpWaiting?`<br><small>⏳ Ordres validés — en attente de : ${wait.length?wait.join(", "):"la résolution…"}</small> <button class="mini" onclick="mpForce()">⚡ Forcer la nuit</button>`:""}</div>`; }
+
 function confetti(){ let s=""; const cols=["#c8941f","#c0392b","#138d75","#3b4cca","#b9770e","#7d3c98"]; for(let i=0;i<18;i++){ s+=`<span class="conf" style="left:${Math.floor(Math.random()*100)}%;background:${cols[i%cols.length]};animation-delay:${(Math.random()*0.7).toFixed(2)}s"></span>`; } return `<div class="confetti">${s}</div>`; }
 
-function defPowerAt(to){ const hd=state.holdings[to]; const did=hd.ownerHouseId; let reinf=0; if(did)for(const ah of Object.values(state.holdings)){ if(ah.ownerHouseId&&ah.ownerHouseId!==did&&isMutualDefense(state,did,ah.ownerHouseId)&&neighbors(state,to).includes(ah.id))reinf+=Math.floor(ah.soldiers*CONFIG.MUTUAL_DEFENSE_REINFORCE_RATE); } return Math.floor(hd.soldiers*(1+CONFIG.FORTIFY_DEF_MULT*hd.fortification))+reinf; }
+function defPowerAt(to){ const hd=state.holdings[to]; const did=hd.ownerHouseId; let reinf=0; if(did)for(const ah of Object.values(state.holdings)){ if(ah.ownerHouseId&&ah.ownerHouseId!==did&&isMutualDefense(state,did,ah.ownerHouseId)&&neighbors(state,to).includes(ah.id))reinf+=Math.floor(ah.soldiers*CONFIG.MUTUAL_DEFENSE_REINFORCE_RATE); } return Math.floor(hd.soldiers*(CONFIG.TERRAIN_DEF[hd.type]||1)*(1+CONFIG.FORTIFY_DEF_MULT*hd.fortification))+reinf; }
 function marchWin(from,to){ return state.holdings[from].soldiers>defPowerAt(to); }
 function routeSafe(from,to){ const path=shortestPath(state,from,to); if(!path)return true; for(const hid of path.slice(1)){ const hd=state.holdings[hid]; if(hd.ownerHouseId&&hd.ownerHouseId!==PLAYER&&!hasActiveTreaty(state,PLAYER,hd.ownerHouseId)&&hd.soldiers>0)return false; } return true; }
 function renderMap(ev){ const r=24;
@@ -190,12 +283,12 @@ function toggleDiplo(){ showDiplo=!showDiplo; render(); }
 function addDiplo(){ addOrder({type:"EMISSAIRE",params:{action:val("d-action"),treaty:val("d-treaty"),target:val("d-target")}}); }
 function orderLabel(o){ const p=o.params; switch(o.type){ case"DEV":return `🏗️ Développer ${state.holdings[p.holding].name}`; case"FORTIFIE":return `🛡️ Fortifier ${state.holdings[p.holding].name}`; case"LEVEE":return `⚔️ Lever ${p.count} guerriers`; case"CARAVANE":return `🐫 Caravane ${state.holdings[p.from].name}→${state.holdings[p.to].name} (${p.gold}<svg viewBox='0 0 16 16' width='13' height='13' style='vertical-align:-2px;display:inline-block'><circle cx='8' cy='8' r='7' fill='#e8b923' stroke='#9c6f12' stroke-width='1.5'/><circle cx='8' cy='8' r='3.3' fill='none' stroke='#9c6f12' stroke-width='1.2'/></svg>)`; case"MARCHE":return `🗡️ Marcher ${p.soldiers}⚔️ ${state.holdings[p.from].name}→${state.holdings[p.to].name}`; case"EMISSAIRE":return `🕊️ ${p.action} · ${p.treaty} · ${houseName(p.target)}`; default:return o.type; } }
 
-function resolveNight(){ const orders=selectedOrders.map((o,i)=>({houseId:PLAYER,slot:i,type:o.type,params:o.params})); const choice=eventChoice||EVENT_CHOICES[eventId()][0][0];
+function resolveNight(){ if(mpOnline){ mpSubmit(); return; } const orders=selectedOrders.map((o,i)=>({houseId:PLAYER,slot:i,type:o.type,params:o.params})); const choice=eventChoice||EVENT_CHOICES[eventId()][0][0];
   lastInvalid=orders.filter(o=>!isOrderValid(state,o)).map(o=>ORDER_LABELS[o.type]||o.type);
   const me=state.houses[PLAYER]; const b={gold:me.gold,grain:me.grain,prestige:me.prestige,reputation:me.reputation,soldiers:totalSoldiers(state,PLAYER)};
   const r=resolveTick(state,{eventId:eventId(),eventChoices:{[PLAYER]:choice},orders}); fullLog=fullLog.concat(r.log); state=r.state; save();
   const m2=state.houses[PLAYER]; const a={gold:m2.gold,grain:m2.grain,prestige:m2.prestige,reputation:m2.reputation,soldiers:totalSoldiers(state,PLAYER)};
-  recap={ deltas:{gold:a.gold-b.gold,grain:a.grain-b.grain,soldiers:a.soldiers-b.soldiers,prestige:a.prestige-b.prestige,reputation:a.reputation-b.reputation}, entries:r.log.filter(e=>e.public||e.houseId===PLAYER), events:r.events, playerCaptured:r.events.some(e=>e.type==="attack"&&e.captured&&e.by===PLAYER) };
+  recap={ deltas:{gold:a.gold-b.gold,grain:a.grain-b.grain,soldiers:a.soldiers-b.soldiers,prestige:a.prestige-b.prestige,reputation:a.reputation-b.reputation}, econ:r.econ&&r.econ[PLAYER], entries:r.log.filter(e=>e.public||e.houseId===PLAYER), events:r.events, playerCaptured:r.events.some(e=>e.type==="attack"&&e.captured&&e.by===PLAYER) };
   SFX.resolve(); if(recap.deltas.gold>0)setTimeout(SFX.coin,180); if(recap.events.some(e=>e.type==="attack"))setTimeout(SFX.clash,260); if(recap.playerCaptured)setTimeout(SFX.capture,480);
   clearTurn(); setTab("conseil"); window.scrollTo(0,0); }
 function continueRecap(){ recap=null; render(); window.scrollTo(0,0); }
@@ -205,13 +298,14 @@ function render(){ const p=document.getElementById("panel"); if(tab==="conseil")
 
 function renderRecap(){ const d=recap.deltas; const chip=(k,ic)=>{const v=d[k];if(!v)return"";return `<span class="stat ${v>0?'pos':'neg'}">${ic} ${v>0?'+':''}${v}</span>`;};
   const chips=[chip('gold',ICON.gold),chip('grain',ICON.grain),chip('soldiers',ICON.soldiers),chip('prestige',ICON.prestige),chip('reputation',ICON.reputation)].filter(Boolean).join(" ")||"<small>Aucun changement notable.</small>";
+  const ecn=recap.econ; const econLine = ecn ? `<div class="hint" style="margin:.25rem 0">📊 <b>Revenus</b> +${ecn.incomeGold} or, +${ecn.incomeGrain} grain · <b>Intendance</b> −${ecn.upkeep} grain${ecn.desertions?` · <span class="neg">⚠️ Famine : −${ecn.desertions} ⚔️ désertent</span>`:""}</div>` : "";
   const events=recap.entries.length?recap.entries.map(e=>`<li>${e.text}</li>`).join(""):"<li><small>Nuit calme.</small></li>";
   const inv=lastInvalid.length?`<div class="warn">⚠ Ordre(s) ignoré(s) : ${lastInvalid.join(", ")} (impossible : ressources ou cible non voisine).</div>`:""; lastInvalid=[];
-  return `${recap.playerCaptured?confetti():''}<div class="card recap"><h2 style="border:none;margin-top:0">🌙 → ☀️ Résultats de la nuit</h2><div class="card">${renderMap(recap.events)}<div class="hint" style="text-align:center">Flèches = attaques · 🐫 = caravanes · 🏴 = capture · 💥 = combat</div></div><div style="margin:.4rem 0;font-size:1.05rem">${chips}</div><ul>${events}</ul>${inv}<button class="go" onclick="continueRecap()">Continuer ▶</button></div>`; }
+  return `${recap.playerCaptured?confetti():''}<div class="card recap"><h2 style="border:none;margin-top:0">🌙 → ☀️ Résultats de la nuit</h2><div class="card">${renderMap(recap.events)}<div class="hint" style="text-align:center">Flèches = attaques · 🐫 = caravanes · 🏴 = capture · 💥 = combat</div></div><div style="margin:.4rem 0;font-size:1.05rem">${chips}</div>${econLine}<ul>${events}</ul>${inv}<button class="go" onclick="continueRecap()">Continuer ▶</button></div>`; }
 
 function renderSeasonEnd(){ const board=Object.values(state.houses).slice().sort((a,b)=>b.prestige-a.prestige); const w=board[0]; const youWin=w.id===PLAYER;
-  const rows=board.map((h,i)=>`<tr class="${h.id===PLAYER?'me-row':''}"><td>${i+1}</td><td>${dot(h.id)}${h.name}</td><td class="num">${h.prestige}</td></tr>`).join("");
-  return `${confetti()}<div class="card recap"><h2 style="border:none;margin-top:0">🏁 Fin de la saison</h2><p style="font-size:1.1rem">${dot(w.id)}<b>${w.name}</b> l'emporte avec ${w.prestige} 👑.</p>${youWin?'<p><b>🎉 Victoire ! Ta lignée domine le Carrefour des Sables.</b></p>':'<p>Ta lignée perdure — la prochaine saison sera la tienne.</p>'}<table><tr><th>#</th><th>Maison</th><th class="num">👑</th></tr>${rows}</table><button class="go" onclick="newSeason()">Nouvelle saison ▶</button></div>`; }
+  const rows=board.map((h,i)=>`<tr class="${h.id===PLAYER?'me-row':''}"><td>${i+1}</td><td>${dot(h.id)}${h.name}</td><td class="num">${h.prestige}</td><td><small>${AMBITIONS[h.ambition]?(h.ambitionDone?'<span class="pos">✓</span> ':'<span class="neg">✗</span> ')+AMBITIONS[h.ambition].name:'—'}</small></td></tr>`).join("");
+  return `${confetti()}<div class="card recap"><h2 style="border:none;margin-top:0">🏁 Fin de la saison</h2><p style="font-size:1.1rem">${dot(w.id)}<b>${w.name}</b> l'emporte avec ${w.prestige} 👑.</p>${youWin?'<p><b>🎉 Victoire ! Ta lignée domine le Carrefour des Sables.</b></p>':'<p>Ta lignée perdure — la prochaine saison sera la tienne.</p>'}<table><tr><th>#</th><th>Maison</th><th class="num">👑</th><th>Ambition (révélée)</th></tr>${rows}</table><button class="go" onclick="newSeason()">Nouvelle saison ▶</button></div>`; }
 
 function actionPanel(){ const me=state.houses[PLAYER]; const full=selectedOrders.length>=3;
   if(pendingMode){ const what=pendingMode==="caravane"?"la destination de ta caravane":("le lieu à attaquer (un voisin de "+state.holdings[pendingFrom].name+")"); return `<div class="card"><b>👉 Sur la carte, touche ${what}.</b><br><small>Cibles entourées : <span style="color:#1a7f37">✅ bon choix</span> · <span style="color:#cf222e">⚠️ risqué</span>.</small><br><button class="mini" onclick="cancelPending()">Annuler</button></div>`; }
@@ -235,9 +329,10 @@ function renderConseil(){ if(recap) return renderRecap();
   const pct=Math.round(state.tick/SEASON_LENGTH*100);
   const orders = selectedOrders.length? selectedOrders.map((o,i)=>`<div class="slot"><span>${orderLabel(o)}</span><button class="mini" onclick="removeOrder(${i})">✖</button></div>`).join("") : `<div class="hint">Aucun ordre. Tu peux résoudre sans ordre, ou en ajouter via la carte.</div>`;
   const diplo = showDiplo? `<div style="margin-top:.4rem"><select id="d-action"><option value="propose">proposer</option><option value="accept">accepter</option><option value="break">rompre</option></select> <select id="d-treaty"><option value="non_aggression">non-agression</option><option value="mutual_defense">défense mutuelle</option><option value="trade_pact">pacte commercial</option></select> avec <select id="d-target">${Object.values(state.houses).filter(h=>h.id!==PLAYER).map(h=>`<option value="${h.id}">${h.name}</option>`).join("")}</select> <button class="mini" onclick="addDiplo()">Ajouter</button></div>`:"";
-  return `<div class="card help"><b>👋 Comment jouer</b><br>Tu diriges la <b>Maison d'Aïssata</b>. Chaque tour : <b>①</b> réponds à l'événement · <b>②</b> <b>touche la carte</b> pour donner jusqu'à 3 ordres · <b>③</b> « Résoudre la nuit ». 🎯 But : finir la saison avec le plus de 👑.</div>
+  return `${mpBar()}<div class="card help"><b>👋 Comment jouer</b><br>Tu diriges la <b>Maison d'Aïssata</b>. Chaque tour : <b>①</b> réponds à l'événement · <b>②</b> <b>touche la carte</b> pour donner jusqu'à 3 ordres · <b>③</b> « Résoudre la nuit ». 🎯 But : finir la saison avec le plus de 👑.</div>
     <h2>${dot(PLAYER)}Maison d'Aïssata</h2>
-    <div class="card" style="border-left:5px solid ${HOUSE_COLORS[PLAYER]}"><span class="stat">${ICON.gold} <b>${me.gold}</b></span><span class="stat">${ICON.grain} <b>${me.grain}</b></span><span class="stat">${ICON.prestige} <b>${me.prestige}</b></span>${state.tick>=DIPLO_UNLOCK?`<span class="stat">${ICON.reputation} <b>${me.reputation}</b></span>`:""}<br><small>Tes lieux : ${myH}</small><div style="margin-top:.3rem"><small>Saison — nuit ${state.tick} / ${SEASON_LENGTH}</small><div class="bar"><div style="width:${pct}%"></div></div></div></div>
+    <div class="card" style="border-left:5px solid ${HOUSE_COLORS[PLAYER]}"><span class="stat">${ICON.gold} <b>${me.gold}</b></span><span class="stat">${ICON.grain} <b>${me.grain}</b></span><span class="stat">${ICON.prestige} <b>${me.prestige}</b></span>${state.tick>=DIPLO_UNLOCK?`<span class="stat">${ICON.reputation} <b>${me.reputation}</b></span>`:""}<br><small>Tes lieux : ${myH}</small><div style="margin-top:.3rem"><small>${actOf(state.tick).ic} <b>${actOf(state.tick).name}</b> · nuit ${state.tick} / ${SEASON_LENGTH}${actOf(state.tick).mult>1?' · 👑 prestige ×'+actOf(state.tick).mult:''}</small><div class="bar"><div style="width:${pct}%"></div></div></div></div>
+    ${(function(){const amb=AMBITIONS[me.ambition];if(!amb)return"";const ok=amb.check(state,me);return '<div class="card" style="border-left:5px solid var(--gold)"><b>🎯 Ambition de ta lignée :</b> '+amb.name+' <small>— '+amb.desc+'</small> '+(ok?'<span class="pos">✓ en bonne voie</span>':'<span style="opacity:.65">(+50 👑 si accomplie en fin de saison)</span>')+'</div>';})()}
     <h2>🌙 Briefing de la nuit</h2><ul>${brief}</ul>
     <h2>① L'événement du jour — ${EVENTS[eventId()].name}</h2><div class="card"><small>Que décides-tu ?</small>${choices}</div>
     <h2>② Donne tes ordres <small>(touche la carte · ${selectedOrders.length}/3)</small></h2>

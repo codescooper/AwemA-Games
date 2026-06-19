@@ -13,6 +13,7 @@ import http from "node:http";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { WebSocketServer } from "ws";
+import LE from "./lignees-engine.cjs";   // moteur Lignées partagé (résolution autoritaire)
 
 const PORT = Number(process.env.PORT) || 8090;
 const DATA_FILE = process.env.DATA_FILE || "";
@@ -99,6 +100,27 @@ function board(game, limit) {
   return { ok: true, game: game || null, count: arr.length, board: ranked.slice(0, limit).map((r, i) => ({ rank: i + 1, uid: r.uid, name: r.name, indice: r.indice, score: r.score })) };
 }
 
+/* ---------- LIGNÉES — multijoueur asynchrone (parties privées par code) ----------
+   Serveur autoritaire : chaque humain soumet ses ordres ; le tour se résout via le
+   moteur partagé (lignees-engine.cjs) dès que tous les humains ont validé. Les
+   Maisons libres sont jouées par l'IA. État partagé persistant (volume /data). */
+const LG_FILE = DATA_FILE ? (dirname(DATA_FILE) + "/lignees.json") : "";
+const LG_HOUSES = ["aissata", "tinduk", "zalimba", "djenne", "tombouctou", "gao"];
+let games = Object.create(null);
+function lgLoad(){ if(!LG_FILE) return; try{ const o=JSON.parse(readFileSync(LG_FILE,"utf8")); if(o&&o.games) games=o.games; console.log("loaded "+Object.keys(games).length+" parties Lignees"); }catch(e){} }
+let lgTimer=null;
+function lgSave(){ if(!LG_FILE) return; clearTimeout(lgTimer); lgTimer=setTimeout(()=>{ try{ const cut=Date.now()-7*864e5; for(const id in games) if((games[id].updatedAt||0)<cut) delete games[id]; mkdirSync(dirname(LG_FILE),{recursive:true}); writeFileSync(LG_FILE, JSON.stringify({games}), "utf8"); }catch(e){ console.error("lignees save:", e.message); } }, 800); }
+lgLoad();
+function lgCode(){ const A="ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let c; do{ c=""; for(let i=0;i<5;i++)c+=A[Math.floor(Math.random()*A.length)]; }while(games[c]); return c; }
+const lgHouseOfUid=(g,uid)=>{ for(const h in g.seats) if(g.seats[h]&&g.seats[h].uid===uid) return h; return null; };
+const lgHumans=g=>Object.keys(g.seats).filter(h=>g.seats[h]);
+function lgView(g,uid){ return { id:g.id, state:g.state, seats:Object.fromEntries(Object.entries(g.seats).map(([h,s])=>[h,s?s.name:null])), you:lgHouseOfUid(g,uid), submitted:Object.keys(g.pending), waitingFor:lgHumans(g).filter(h=>!g.pending[h]), eventId:LE.eventIdFor(g.state), log:(g.log||[]).slice(-30), status:g.status }; }
+function lgResolve(g){ const orders=[], eventChoices={};
+  for(const h of lgHumans(g)){ const p=g.pending[h]; if(p){ (p.orders||[]).forEach((o,i)=>orders.push({houseId:h,slot:i,type:o.type,params:o.params})); if(p.eventChoice)eventChoices[h]=p.eventChoice; } }
+  const r=LE.resolveTick(g.state,{ eventId:LE.eventIdFor(g.state), eventChoices, orders });
+  g.state=r.state; g.log=(g.log||[]).concat(r.log.filter(e=>e.public)).slice(-200); g.pending={};
+  if(g.state.tick>=LE.CONFIG.SEASON_LENGTH) g.status="ended"; g.updatedAt=Date.now(); }
+
 /* ---------- http ---------- */
 const server = http.createServer(async (req, res) => {
   try {
@@ -117,6 +139,43 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && path === "/api/score") {
       let data; try { data = JSON.parse((await readBody(req)) || "{}"); } catch (e) { return sendJson(res, 400, { ok: false, error: "bad json" }); }
       return sendJson(res, 200, submit(data));
+    }
+    if (path.startsWith("/api/lignees/")) {
+      const body = (req.method === "POST") ? await readBody(req) : "";
+      let d = {}; if (body) { try { d = JSON.parse(body); } catch (e) { return sendJson(res, 400, { ok: false, error: "bad json" }); } }
+      const q = url.searchParams;
+      const uid = clean(d.uid || q.get("uid")); const gid = clean(d.gid || d.gameId || q.get("gid") || q.get("gameId"));
+      if (path === "/api/lignees/create" && req.method === "POST") {
+        if (!uid) return sendJson(res, 400, { ok: false, error: "uid requis" });
+        const house = LG_HOUSES.includes(d.house) ? d.house : "aissata";
+        const state = LE.buildScenario(); for (const h of Object.values(state.houses)) h.isAI = true; state.houses[house].isAI = false;
+        const id = lgCode();
+        games[id] = { id, state, seats: { [house]: { uid, name: clean(d.name) || "Joueur" } }, pending: {}, log: [], status: "playing", createdAt: Date.now(), updatedAt: Date.now() };
+        lgSave(); return sendJson(res, 200, { ok: true, ...lgView(games[id], uid) });
+      }
+      const g = games[gid];
+      if (!g) return sendJson(res, 404, { ok: false, error: "partie introuvable" });
+      if (path === "/api/lignees/state" && req.method === "GET") return sendJson(res, 200, { ok: true, ...lgView(g, uid) });
+      if (path === "/api/lignees/join" && req.method === "POST") {
+        if (!uid) return sendJson(res, 400, { ok: false, error: "uid requis" });
+        let house = lgHouseOfUid(g, uid);
+        if (!house) { house = LG_HOUSES.includes(d.house) ? d.house : null; if (!house || g.seats[house]) return sendJson(res, 400, { ok: false, error: "maison prise ou invalide" }); g.seats[house] = { uid, name: clean(d.name) || "Joueur" }; g.state.houses[house].isAI = false; g.updatedAt = Date.now(); lgSave(); }
+        return sendJson(res, 200, { ok: true, ...lgView(g, uid) });
+      }
+      const myHouse = lgHouseOfUid(g, uid);
+      if (!myHouse) return sendJson(res, 403, { ok: false, error: "tu n'es pas dans cette partie" });
+      if (path === "/api/lignees/orders" && req.method === "POST") {
+        if (g.status !== "playing") return sendJson(res, 400, { ok: false, error: "partie terminee" });
+        const orders = Array.isArray(d.orders) ? d.orders.slice(0, 3).map(o => ({ type: o.type, params: o.params })) : [];
+        g.pending[myHouse] = { orders, eventChoice: clean(d.eventChoice) || null }; g.updatedAt = Date.now();
+        let resolved = false; if (lgHumans(g).every(h => g.pending[h])) { lgResolve(g); resolved = true; }
+        lgSave(); return sendJson(res, 200, { ok: true, resolved, ...lgView(g, uid) });
+      }
+      if (path === "/api/lignees/resolve" && req.method === "POST") {
+        if (g.status === "playing") { lgResolve(g); lgSave(); }
+        return sendJson(res, 200, { ok: true, resolved: true, ...lgView(g, uid) });
+      }
+      return sendJson(res, 404, { ok: false, error: "route lignees inconnue" });
     }
     return sendJson(res, 404, { ok: false, error: "not found" });
   } catch (e) {

@@ -282,10 +282,12 @@ const server = http.createServer(async (req, res) => {
    État volatile (aucune persistance) ; un humain dans le village = une connexion. */
 const wss = new WebSocketServer({ noServer: true, maxPayload: 4096 });          // Village (/ws)
 const wssChess = new WebSocketServer({ noServer: true, maxPayload: 4096 });     // Échecs en duel (/ws/chess)
+const wssVoraces = new WebSocketServer({ noServer: true, maxPayload: 8192 });   // Voraces — duel live temps réel (/ws/voraces)
 server.on("upgrade", (req, socket, head) => {
   let pathname = "/"; try { pathname = new URL(req.url, "http://x").pathname; } catch (e) { }
   if (pathname === "/ws") wss.handleUpgrade(req, socket, head, w => wss.emit("connection", w, req));
   else if (pathname === "/ws/chess") wssChess.handleUpgrade(req, socket, head, w => wssChess.emit("connection", w, req));
+  else if (pathname === "/ws/voraces") wssVoraces.handleUpgrade(req, socket, head, w => wssVoraces.emit("connection", w, req));
   else socket.destroy();
 });
 let seq = 0;
@@ -418,6 +420,110 @@ wssChess.on("connection", (ws, req) => {
   ws.on("error", () => { try { ws.close(); } catch (e) { } });
 });
 
+/* ---------- VORACES — DUEL LIVE TEMPS RÉEL (/ws/voraces) ----------
+   Hybride : chaque client simule SA créature (contrôle fluide) ; le serveur est AUTORITAIRE
+   sur les FRUITS (spawn/positions/qui-mange) et l'ARBITRAGE DU KILL (masse autoritative
+   serveur, tick 20 Hz). 1v1 pur (pas d'IA). Repli solo côté client si la connexion échoue. */
+const VOR = { W: 3400, H: 2400, EAT_RATIO: 1.12, START_MASS: 12, FRUIT_TARGET: 120,
+  BASE_SPEED: 205, SLOW_MIN: 0.40, SLOW_K: 0.010, BOOST_MULT: 1.85, BOOST_DRAIN: 14, BOOST_MIN: 16,
+  HEAD_R_BASE: 8, R_K: 1.7, MAX_DUELS: 40 };
+const VTIERS = [{ v: 1, r: 5 }, { v: 3, r: 7 }, { v: 8, r: 9 }, { v: 20, r: 12 }];
+const VTIER_W = [62, 26, 9, 3];
+const vHeadR = m => VOR.HEAD_R_BASE + Math.sqrt(Math.max(0, m)) * VOR.R_K;
+const vBodyR = m => vHeadR(m) * 0.82;
+const vSpeedMax = m => VOR.BASE_SPEED * (VOR.SLOW_MIN + (1 - VOR.SLOW_MIN) / (1 + m * VOR.SLOW_K)) * VOR.BOOST_MULT;
+const vSegGoal = m => Math.max(6, Math.min(60, 6 + Math.floor(m / 6)));   // longueur du corps (trail autoritatif) selon la masse
+function vPickTier() { let r = Math.random() * 100; for (let i = 0; i < VTIER_W.length; i++) { r -= VTIER_W[i]; if (r < 0) return i; } return 0; }
+function vAddFruit(g) { const i = ++g.nextFid, t = vPickTier(), x = Math.round(40 + Math.random() * (VOR.W - 80)), y = Math.round(40 + Math.random() * (VOR.H - 80)); g.fruits.set(i, { x, y, t }); return { i, x, y, t }; }
+let vorSeq = 0;
+const voracesPeers = new Map();   // cid -> { ws, name, missed, gid }
+const voracesGames = new Map();   // gid -> { gid, over, tick, nextFid, fruits:Map, players:[{cid,name,mass,hx,hy,lastHx,lastHy,heading,seg:[],boost,lastSnapT}], lastTickT }
+function vorSend(cid, obj) { const p = voracesPeers.get(cid); if (p && p.ws.readyState === 1) { try { p.ws.send(JSON.stringify(obj)); } catch (e) { } } }
+function vorBroadcast(g, obj) { for (const pl of g.players) vorSend(pl.cid, obj); }
+function vorCleanup(g) { if (g._done) return; g._done = true; clearInterval(g.tick); voracesGames.delete(g.gid); for (const pl of g.players) { const pp = voracesPeers.get(pl.cid); if (pp && pp.gid === g.gid) pp.gid = null; } }
+function vorForfeit(cid, reason) {                          // cid quitte → l'adversaire gagne par forfait
+  const p = voracesPeers.get(cid); if (!p || !p.gid) return;
+  const g = voracesGames.get(p.gid); if (!g) { p.gid = null; return; }
+  if (!g.over) { g.over = true; const opp = g.players.find(pl => pl.cid !== cid); if (opp) vorSend(opp.cid, { t: "end", reason: reason || "left" }); }
+  vorCleanup(g);
+}
+function vorTick(g) {
+  if (g.over) return;
+  const now = Date.now(), dt = Math.max(0.001, Math.min(0.2, (now - g.lastTickT) / 1000)); g.lastTickT = now;
+  for (const p of g.players) { if (now - p.lastSnapT > 8000) { g.over = true; const o2 = g.players.find(x => x.cid !== p.cid); if (o2) vorSend(o2.cid, { t: "end", reason: "left" }); vorCleanup(g); return; } }   // timeout d'inactivité → pas de fuite de tick/slot ni de match infini
+  for (const p of g.players) { if (p.boost && p.mass > VOR.BOOST_MIN) p.mass = Math.max(VOR.BOOST_MIN, p.mass - VOR.BOOST_DRAIN * dt); }
+  const add = []; let guard = 0; while (g.fruits.size < VOR.FRUIT_TARGET && guard++ < 8) add.push(vAddFruit(g));
+  if (add.length) vorBroadcast(g, { t: "fr", add });
+  for (const ai of [0, 1]) {                                // arbitrage : ordre déterministe, 1er verdict gagne
+    const A = g.players[ai], B = g.players[ai ? 0 : 1];
+    if (!B.trail || !B.trail.length) continue;
+    if (A.mass < B.mass * VOR.EAT_RATIO) continue;          // A doit être ≥ 12 % plus gros
+    const thr = vHeadR(A.mass) * 0.7 + vBodyR(B.mass) * 0.8;
+    let hit = false;
+    for (const p of B.trail) { if (Math.hypot(A.hx - p.x, A.hy - p.y) < thr) { hit = true; break; } }   // contre le TRAIL autoritatif serveur, pas le seg déclaré
+    if (hit) { g.over = true; vorBroadcast(g, { t: "kill", who: ai ? 0 : 1, by: ai }); vorCleanup(g); return; }
+  }
+}
+wssVoraces.on("connection", (ws, req) => {
+  const o = req.headers.origin;
+  if (o && !originAllowed(o)) { try { ws.close(1008, "origin"); } catch (e) { } return; }
+  if (voracesPeers.size >= 200) { try { ws.close(1013, "full"); } catch (e) { } return; }
+  const cid = "v" + (++vorSeq).toString(36) + Math.random().toString(36).slice(2, 5);
+  const peer = { ws, name: "Vorace", missed: 0, gid: null, msgTimes: [] };
+  voracesPeers.set(cid, peer);
+  ws.on("pong", () => { peer.missed = 0; });
+  ws.on("message", (buf) => {
+    let m; try { m = JSON.parse(String(buf)); } catch (e) { return; }
+    if (!m || typeof m !== "object") return;
+    if (m.t === "s" || m.t === "ef" || m.t === "boost") { const tn = Date.now(); peer.msgTimes = peer.msgTimes.filter(x => tn - x < 1000); if (peer.msgTimes.length >= 40) return; peer.msgTimes.push(tn); }   // anti-flood (client honnête ~15-20 msg/s)
+    if (m.t === "join") {
+      if (peer.gid) return;
+      peer.name = maskProfanity(clean(m.n)) || "Vorace";
+      const wcid = duelWaiting["voraces"];
+      if (wcid && wcid !== cid && voracesPeers.has(wcid) && !voracesPeers.get(wcid).gid) {
+        if (voracesGames.size >= VOR.MAX_DUELS) { vorSend(cid, { t: "full" }); return; }   // plafond AVANT de vider la file (sinon le waiter est abandonné, bloqué « en attente »)
+        duelWaiting["voraces"] = null;
+        const wpeer = voracesPeers.get(wcid), gid = "vg" + (++vorSeq).toString(36);
+        const mk = (c, n, x, y) => ({ cid: c, name: n, mass: VOR.START_MASS, hx: x, hy: y, lastHx: x, lastHy: y, heading: 0, trail: [], boost: false, lastSnapT: Date.now() });
+        const g = { gid, over: false, nextFid: 0, fruits: new Map(), lastTickT: Date.now(),
+          players: [mk(wcid, wpeer.name, VOR.W * 0.25, VOR.H / 2), mk(cid, peer.name, VOR.W * 0.75, VOR.H / 2)] };
+        const initial = []; for (let k = 0; k < VOR.FRUIT_TARGET; k++) initial.push(vAddFruit(g));
+        voracesGames.set(gid, g); wpeer.gid = gid; peer.gid = gid;
+        g.tick = setInterval(() => vorTick(g), 50);
+        vorSend(wcid, { t: "start", you: 0, opp: peer.name, spawn: { x: g.players[0].hx, y: g.players[0].hy }, oppSpawn: { x: g.players[1].hx, y: g.players[1].hy }, world: { w: VOR.W, h: VOR.H }, fruits: initial });
+        vorSend(cid, { t: "start", you: 1, opp: wpeer.name, spawn: { x: g.players[1].hx, y: g.players[1].hy }, oppSpawn: { x: g.players[0].hx, y: g.players[0].hy }, world: { w: VOR.W, h: VOR.H }, fruits: initial });
+      } else { duelWaiting["voraces"] = cid; vorSend(cid, { t: "waiting" }); }
+      return;
+    }
+    const g = peer.gid ? voracesGames.get(peer.gid) : null;
+    if (!g || g.over) return;
+    const me = g.players.find(p => p.cid === cid), opp = g.players.find(p => p.cid !== cid);
+    if (!me) return;
+    if (m.t === "s") {
+      const now = Date.now(), nx = num(m.x, 0, VOR.W), ny = num(m.y, 0, VOR.H);
+      const dt = Math.max(0.001, Math.min(0.5, (now - me.lastSnapT) / 1000));
+      if (Math.hypot(nx - me.lastHx, ny - me.lastHy) <= vSpeedMax(me.mass) * dt * 1.6 + 12) { me.hx = nx; me.hy = ny; }   // anti-téléport PROPORTIONNEL (plus de marge forfaitaire accumulable)
+      me.heading = num(m.h, -7, 7);
+      // CORPS AUTORITATIF SERVEUR : trail reconstruit depuis l'historique de tête (borné par l'anti-téléport). Ni le joueur ni l'adversaire ne peut le falsifier → pas d'invincibilité par seg vide.
+      if (!me.trail.length || Math.hypot(me.hx - me.trail[0].x, me.hy - me.trail[0].y) > 5) me.trail.unshift({ x: me.hx, y: me.hy });
+      const cap = vSegGoal(me.mass); while (me.trail.length > cap) me.trail.pop();
+      me.lastHx = me.hx; me.lastHy = me.hy; me.lastSnapT = now;
+      if (opp) { const seg = []; for (const p of me.trail) seg.push(Math.round(p.x), Math.round(p.y)); vorSend(opp.cid, { t: "o", x: Math.round(me.hx), y: Math.round(me.hy), h: +(+me.heading).toFixed(3), m: Math.round(me.mass), seg }); }
+    } else if (m.t === "ef") {
+      if (!Array.isArray(m.ids)) return;
+      const del = [];
+      for (const raw of m.ids.slice(0, 24)) { const id = num(raw, 0, 1e9); const f = g.fruits.get(id); if (!f) continue;
+        if (Math.hypot(f.x - me.hx, f.y - me.hy) <= vHeadR(me.mass) + VTIERS[f.t].r + 28) { g.fruits.delete(id); me.mass += VTIERS[f.t].v; del.push(id); } }
+      vorSend(cid, { t: "fr", del, m: Math.round(me.mass) });
+      if (del.length && opp) vorSend(opp.cid, { t: "fr", del });
+    } else if (m.t === "boost") { me.boost = !!m.on; }
+    else if (m.t === "resign") { vorForfeit(cid, "resign"); }
+    else if (m.t === "leave") { clearWaiting(cid); vorForfeit(cid, "left"); }
+  });
+  ws.on("close", () => { clearWaiting(cid); vorForfeit(cid, "left"); voracesPeers.delete(cid); });
+  ws.on("error", () => { try { ws.close(); } catch (e) { } });
+});
+
 // heartbeat : éliminer les connexions mortes + garder le canal vivant à travers les proxies
 const wsHeartbeat = setInterval(() => {
   for (const [cid, p] of peers) {
@@ -426,6 +532,10 @@ const wsHeartbeat = setInterval(() => {
   }
   for (const [cid, p] of chessPeers) {
     if (p.missed >= 2) { try { p.ws.terminate(); } catch (e) { } chessPeers.delete(cid); clearWaiting(cid); chessEnd(cid, "left"); continue; }
+    p.missed++; try { p.ws.ping(); } catch (e) { }
+  }
+  for (const [cid, p] of voracesPeers) {
+    if (p.missed >= 2) { vorForfeit(cid, "left"); clearWaiting(cid); try { p.ws.terminate(); } catch (e) { } voracesPeers.delete(cid); continue; }
     p.missed++; try { p.ws.ping(); } catch (e) { }
   }
 }, 25000);

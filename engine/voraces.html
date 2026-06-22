@@ -66,14 +66,16 @@
       <li>🐍 <b>Dévore</b> une créature nettement plus petite que toi… mais fuis les plus grosses&nbsp;!</li>
       <li>🐢 Plus tu es <b>imposant</b>, plus tu es <b>lent</b> et lourd à tourner.</li>
       <li>🤝 <b>Alliances</b> : alliés = on ne se mange pas. Tu peux aussi <b>trahir</b> pour dévorer.</li>
-      <li>🤖 Les rivaux sont des <b>IA</b> (le multijoueur viendra plus tard).</li>
+      <li>🤖 En solo, les rivaux sont des <b>IA</b>. 🌐 <b>Duel live</b> : affronte un autre joueur en temps réel (premier à dévorer l'autre gagne).</li>
     </ul>
     <div style="margin-top:1rem;font-size:.9rem;opacity:.85">
       <b>Commandes</b> — 🖱️ Souris/doigt : diriger · ⚡ Clic/Espace : turbo (coûte de la masse) · 🤝 A / bouton : alliance.
     </div>
     <div class="row">
-      <button id="startBtn" class="btn primary">Plonger ▶</button>
+      <button id="startBtn" class="btn primary">Plonger ▶ <small style="opacity:.7;font-weight:400">solo</small></button>
+      <button id="duelBtn" class="btn ghost">🌐 Duel live</button>
     </div>
+    <div id="duelStatus" style="margin-top:.7rem;font-size:.92rem;color:#8fe9cd;min-height:1.2em"></div>
   </div>
 </div>
 
@@ -164,6 +166,12 @@ const pointer = { x: 0, y: 0, has: false };
 const input = { boost: false };
 let running = false, gameOver = false, apexShown = false;
 let lastT = 0, nextId = 1;
+/* ── DUEL LIVE (multijoueur temps réel) : NET=null en solo, objet en duel ── */
+const VOR_API = "https://awema-games-production.up.railway.app";
+const myName = () => { try { return localStorage.getItem("awema_player") || "Toi"; } catch (e) { return "Toi"; } };
+let NET = null, oppBuf = [], netSendT = 0, lastOppT = 0, loopGen = 0;
+let netPendingEat = new Set();   // fruits réseau signalés au serveur, en attente du verdict (anti re-spam + anti-désync)
+const OPP_DELAY = 100;   // ms : on rend l'adversaire ~100 ms dans le passé (interpolation lisse)
 let bestMass = (() => { try { return +localStorage.getItem("voraces_best") || 0; } catch (e) { return 0; } })();
 
 const KEY_BEST = "voraces_best";
@@ -246,6 +254,7 @@ function toast(text) { toasts.push({ text, t: 0 }); if (toasts.length > 4) toast
 
 function playerAllyAction() {
   const me = creatures[0];
+  if (NET) { toast("Pas d'alliance en duel — c'est chacun pour soi !"); return; }
   if (!me || !me.alive || me.allyCd > 0) return;
   me.allyCd = CFG.ALLY_COOLDOWN;
   const ally0 = nearestOther(me, CFG.ALLY_RANGE, o => true);
@@ -326,7 +335,7 @@ function moveCreature(c, dt) {
     c.mass -= CFG.BOOST_DRAIN * dt;
     c.pelletAcc += CFG.BOOST_DRAIN * dt;
     if (c.pelletAcc > 4) { c.pelletAcc = 0; const tail = c.segments[c.segments.length - 1];
-      if (fruits.length < CFG.FRUIT_MAX) fruits.push({ x: tail.x, y: tail.y, r: 5, v: 2, c: c.color, glow: 2 }); }
+      if (!NET && fruits.length < CFG.FRUIT_MAX) fruits.push({ x: tail.x, y: tail.y, r: 5, v: 2, c: c.color, glow: 2 }); }   // pas de granule local en duel (le serveur possède les fruits)
   } else c.boost = false;
 
   const v = speedOf(c) * dt;
@@ -396,6 +405,7 @@ function creatureCollisions() {
 function update(dt) {
   const me = creatures[0];
   if (me && me.alive) { me.boost = input.boost; me.allyCd = Math.max(0, me.allyCd - dt); }
+  if (NET) { netUpdate(dt); return; }   // ── DUEL : seul "moi" est simulé localement, l'adversaire est interpolé ──
 
   for (const c of creatures) { if (!c.alive) continue; if (!c.isPlayer) { c.allyCd = Math.max(0, c.allyCd - dt); aiThink(c, dt); } }
   for (const c of creatures) { if (c.alive) moveCreature(c, dt); }
@@ -564,7 +574,6 @@ function render() {
 
 /* ===== BOUCLE PRINCIPALE =================================================== */
 function frame(t) {
-  if (!running) return;
   if (CSSW !== window.innerWidth || CSSH !== window.innerHeight) resize();   // auto-guérison : page chargée dans un panneau replié, resize manqué…
   let dt = (t - lastT) / 1000; lastT = t;
   if (!(dt > 0)) dt = 0.016;
@@ -572,7 +581,10 @@ function frame(t) {
   if (!gameOver) update(dt);
   else { for (const t2 of toasts) t2.t += dt; toasts = toasts.filter(x => x.t < 2.8); update_camOnly(dt); }
   render();
-  requestAnimationFrame(frame);
+}
+function startLoop() {   // jeton de boucle : une SEULE boucle rAF vivante (pas de double simulation si on relance une partie / passe en duel)
+  const myGen = ++loopGen; lastT = performance.now();
+  (function step(t) { if (myGen !== loopGen || !running) return; frame(t); requestAnimationFrame(step); })(performance.now());
 }
 function update_camOnly(dt) { // après mort : le vivier continue de bouger en fond
   for (const c of creatures) { if (!c.alive) continue; if (!c.isPlayer) aiThink(c, dt); }
@@ -586,18 +598,26 @@ function update_camOnly(dt) { // après mort : le vivier continue de bouger en f
 }
 
 /* ===== CYCLE DE PARTIE ===================================================== */
-function startGame() {
-  creatures = []; fruits = []; toasts = []; gameOver = false; apexShown = false; nextId = 1;
-  const p = { x: CFG.WORLD.w / 2, y: CFG.WORLD.h / 2 };
-  creatures.push(makeCreature({ x: p.x, y: p.y, name: "Toi", color: PLAYER_COLOR, mass: CFG.START_MASS_PLAYER, isPlayer: true }));
-  for (let i = 0; i < CFG.TARGET_POP - 1; i++) creatures.push(spawnAI());
-  for (let i = 0; i < CFG.FRUIT_TARGET; i++) spawnFruit();
-  cam.x = p.x; cam.y = p.y; cam.zoom = 1.25;
+function startGame(mode) {
+  mode = (mode === "duel") ? "duel" : "solo";
+  creatures = []; fruits = []; toasts = []; gameOver = false; apexShown = false; nextId = 1; oppBuf = []; netPendingEat = new Set();
+  if (mode === "duel" && NET && NET.spawn) {
+    creatures.push(makeCreature({ x: NET.spawn.x, y: NET.spawn.y, name: "Toi", color: PLAYER_COLOR, mass: CFG.START_MASS_PLAYER, isPlayer: true }));
+    creatures.push(makeCreature({ x: NET.oppSpawn.x, y: NET.oppSpawn.y, name: NET.oppName || "Adversaire", color: "#ff7b7b", mass: CFG.START_MASS_PLAYER }));
+    for (const f of NET.fruits) fruits.push(netMakeFruit(f));
+    NET.lastBoost = false; netSendT = 0; lastOppT = performance.now();
+    cam.x = NET.spawn.x; cam.y = NET.spawn.y; cam.zoom = 1.25;
+  } else {
+    const p = { x: CFG.WORLD.w / 2, y: CFG.WORLD.h / 2 };
+    creatures.push(makeCreature({ x: p.x, y: p.y, name: "Toi", color: PLAYER_COLOR, mass: CFG.START_MASS_PLAYER, isPlayer: true }));
+    for (let i = 0; i < CFG.TARGET_POP - 1; i++) creatures.push(spawnAI());
+    for (let i = 0; i < CFG.FRUIT_TARGET; i++) spawnFruit();
+    cam.x = p.x; cam.y = p.y; cam.zoom = 1.25;
+  }
   input.boost = false; pointer.has = false;
   document.getElementById("intro").classList.add("hidden");
   document.getElementById("gameover").classList.add("hidden");
-  running = true; lastT = performance.now();
-  requestAnimationFrame(frame);
+  running = true; startLoop();
 }
 
 function endGame(won) {
@@ -644,6 +664,113 @@ document.getElementById("startBtn").addEventListener("click", startGame);
 document.getElementById("replayBtn").addEventListener("click", startGame);
 
 document.addEventListener("visibilitychange", () => { if (document.hidden) input.boost = false; });
+
+/* ===== DUEL LIVE (multijoueur temps réel via /ws/voraces) ================== */
+function setDuelStatus(t) { const el = document.getElementById("duelStatus"); if (el) el.textContent = t || ""; }
+function resetDuelBtn() { const b = document.getElementById("duelBtn"); if (b) b.textContent = "🌐 Duel live"; }
+function netSend(obj) { if (NET && NET.ws && NET.ws.readyState === 1) { try { NET.ws.send(JSON.stringify(obj)); } catch (e) { } } }
+function netMakeFruit(f) { const t = FRUIT_TIERS[f.t] || FRUIT_TIERS[0]; return { i: f.i, x: f.x, y: f.y, r: t.r, v: t.v, c: t.c, glow: t.glow }; }
+
+function netUpdate(dt) {
+  const me = creatures[0];
+  if (me && me.alive) {
+    moveCreature(me, dt);
+    netEatFruits(me);
+    if (me.boost !== NET.lastBoost) { NET.lastBoost = me.boost; netSend({ t: "boost", on: me.boost ? 1 : 0 }); }
+  }
+  netInterpOpp();
+  netSendT -= dt;
+  if (netSendT <= 0 && me && me.alive) { netSendT = 0.066; netSendSnapshot(me); }   // ~15 Hz
+  if (me && me.alive) { const h = head(me); cam.x = lerp(cam.x, h.x, 0.12); cam.y = lerp(cam.y, h.y, 0.12); const tz = clamp(1.25 / (1 + me.mass * 0.0016), 0.45, 1.25); cam.zoom = lerp(cam.zoom, tz, 0.05); }
+  for (const t of toasts) t.t += dt; toasts = toasts.filter(t => t.t < 2.8);
+}
+function netEatFruits(me) {
+  const h = head(me), reach = headR(me), ids = [];
+  for (const f of fruits) { if (f.i == null || netPendingEat.has(f.i)) continue; const rr = reach + f.r;
+    if (dist2(h.x, h.y, f.x, f.y) < rr * rr) { ids.push(f.i); netPendingEat.add(f.i); } }   // on SIGNALE seulement : ni retrait ni crédit local → zéro désync
+  if (ids.length) netSend({ t: "ef", ids });   // le serveur valide, supprime ('fr' del) et renvoie la masse autoritative ('fr' m)
+}
+function netSendSnapshot(me) {   // le serveur reconstruit le corps (trail) depuis la tête → on n'envoie PAS le corps (anti-triche + bande passante)
+  netSend({ t: "s", x: Math.round(head(me).x), y: Math.round(head(me).y), h: +me.heading.toFixed(3), m: Math.round(me.mass) });
+}
+function lerpSnap(a, b, f) {
+  const n = Math.min(a.seg.length, b.seg.length), seg = [];
+  for (let i = 0; i < n; i++) seg.push({ x: lerp(a.seg[i].x, b.seg[i].x, f), y: lerp(a.seg[i].y, b.seg[i].y, f) });
+  for (let i = n; i < b.seg.length; i++) seg.push({ x: b.seg[i].x, y: b.seg[i].y });
+  return { x: lerp(a.x, b.x, f), y: lerp(a.y, b.y, f), m: lerp(a.m, b.m, f), h: a.h + angleDiff(a.h, b.h) * f, seg };
+}
+function netInterpOpp() {
+  const opp = creatures[1]; if (!opp || !oppBuf.length) return;
+  const rt = performance.now() - OPP_DELAY;
+  let a = null, b = null;
+  for (let i = 0; i < oppBuf.length; i++) { if (oppBuf[i].t <= rt) a = oppBuf[i]; else { b = oppBuf[i]; break; } }
+  const s = (a && b) ? lerpSnap(a, b, clamp((rt - a.t) / (b.t - a.t || 1), 0, 1)) : (b || a || oppBuf[oppBuf.length - 1]);
+  if (!s) return;
+  opp.mass = s.m; opp.heading = s.h;
+  opp.segments = (s.seg && s.seg.length) ? s.seg.map(p => ({ x: p.x, y: p.y })) : [{ x: s.x, y: s.y }];
+  if (opp.mass > opp.maxMass) opp.maxMass = opp.mass;
+  while (oppBuf.length > 2 && oppBuf[1].t < rt) oppBuf.shift();
+}
+function connectDuel() {
+  let ws;
+  try { ws = new WebSocket(VOR_API.replace("https://", "wss://").replace("http://", "ws://") + "/ws/voraces"); }
+  catch (e) { duelFallback(); return; }
+  NET = { ws, you: 0, oppName: "", spawn: null, oppSpawn: null, fruits: [], lastBoost: false, started: false };
+  setDuelStatus("🔌 Connexion…");
+  ws.onopen = () => { setDuelStatus("🔎 Recherche d'un adversaire…"); netSend({ t: "join", n: myName() }); };
+  ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } onDuelMsg(m); };
+  ws.onclose = () => onDuelClose();
+  ws.onerror = () => { try { ws.close(); } catch (e) { } };
+}
+function onDuelMsg(m) {
+  if (!NET) return;
+  if (m.t === "waiting") setDuelStatus("🔎 En attente d'un adversaire… (garde l'onglet ouvert)");
+  else if (m.t === "full") setDuelStatus("Trop de duels en cours — réessaie dans un instant.");
+  else if (m.t === "start") {
+    NET.you = m.you; NET.oppName = m.opp || "Adversaire"; NET.spawn = m.spawn; NET.oppSpawn = m.oppSpawn; NET.fruits = m.fruits || []; NET.started = true;
+    setDuelStatus(""); resetDuelBtn(); startGame("duel"); toast("⚔️ Duel ! Toi vs " + NET.oppName);
+  }
+  else if (m.t === "o") {
+    const seg = []; if (Array.isArray(m.seg)) for (let k = 0; k + 1 < m.seg.length; k += 2) seg.push({ x: m.seg[k], y: m.seg[k + 1] });
+    oppBuf.push({ t: performance.now(), x: m.x, y: m.y, h: m.h, m: m.m, seg }); if (oppBuf.length > 10) oppBuf.shift(); lastOppT = performance.now();
+  }
+  else if (m.t === "fr") netApplyFruit(m);
+  else if (m.t === "kill") netEndDuel(m.who === NET.you ? "lose" : "win");
+  else if (m.t === "end") netEndDuel("win", m.reason);   // l'adversaire est parti → forfait gagnant
+}
+function netApplyFruit(m) {
+  if (m.del && m.del.length) { const set = new Set(m.del); fruits = fruits.filter(f => f.i == null || !set.has(f.i)); for (const id of m.del) netPendingEat.delete(id); }
+  if (m.add && m.add.length) for (const f of m.add) fruits.push(netMakeFruit(f));
+  if (typeof m.m === "number") { const me = creatures[0]; if (me) { me.mass = m.m; if (me.mass > me.maxMass) me.maxMass = me.mass; } }   // masse autoritative serveur
+}
+function onDuelClose() {
+  if (NET && NET.started && !gameOver) netEndDuel("interrupt");   // connexion perdue en plein duel
+  else if (NET && !NET.started) { duelFallback(); }                // échec avant l'appariement → repli solo
+  NET = null; resetDuelBtn();
+}
+function duelFallback() { NET = null; resetDuelBtn(); setDuelStatus(""); toast("Duel indisponible — partie solo"); startGame("solo"); }
+function netEndDuel(outcome, reason) {
+  if (gameOver) return;
+  const me = creatures[0]; if (me) { me.alive = false; saveBest(me.maxMass); }   // alive=false → le fond ne ré-déclenche pas endGame
+  const opp2 = creatures[1]; if (opp2) opp2.alive = false;   // ne pas laisser update_camOnly piloter l'adversaire en IA
+  gameOver = true;
+  const won = outcome === "win";
+  document.getElementById("goTitle").innerHTML = won ? "Duel gagné !" : (outcome === "interrupt" ? "Duel interrompu" : "Dévoré !");
+  document.getElementById("goSub").textContent = won ? ((reason === "left" || reason === "resign") ? "Ton adversaire a quitté le duel." : "Tu as dévoré ton adversaire !") : (outcome === "interrupt" ? "Connexion au duel perdue." : "Ton adversaire t'a dévoré.");
+  document.getElementById("goMass").textContent = me ? Math.round(me.maxMass) : 0;
+  document.getElementById("goRank").textContent = won ? "🏆 Victoire en duel" : (outcome === "interrupt" ? "" : "Vaincu en duel");
+  document.getElementById("goBest").textContent = "🏆 Ton record : " + bestMass;
+  document.getElementById("gameover").classList.remove("hidden");
+  const ws = NET && NET.ws; NET = null; resetDuelBtn(); try { ws && ws.close(); } catch (e) { }
+}
+(function () {
+  const b = document.getElementById("duelBtn");
+  if (!b) return;
+  b.addEventListener("click", () => {
+    if (NET) { try { netSend({ t: "leave" }); NET.ws.close(); } catch (e) { } NET = null; setDuelStatus(""); resetDuelBtn(); return; }
+    b.textContent = "⛌ Annuler"; connectDuel();
+  });
+})();
 
 /* ===== REDIMENSIONNEMENT =================================================== */
 function resize() {

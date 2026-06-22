@@ -15,6 +15,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { WebSocketServer } from "ws";
 import LE from "./lignees-engine.cjs";   // moteur Lignées partagé (résolution autoritaire)
+import { issueChallenge, verifyPoW, allowIssue } from "./pow.js";   // anti-bot proof-of-work (gated/no-op)
 
 const PORT = Number(process.env.PORT) || 8090;
 const DATA_FILE = process.env.DATA_FILE || "";
@@ -195,6 +196,12 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && path === "/api/leaderboard")
       return sendJson(res, 200, board(clean(url.searchParams.get("game")), url.searchParams.get("limit") || 50));
 
+    if (req.method === "GET" && path === "/api/pow") {              // émet un défi anti-bot (vide si désactivé)
+      const ip = (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || (req.socket && req.socket.remoteAddress) || "";
+      if (!allowIssue(ip)) return sendJson(res, 429, { ok: false, error: "trop de requetes" });
+      return sendJson(res, 200, issueChallenge());
+    }
+
     if (req.method === "POST" && path === "/api/score") {
       let data; try { data = JSON.parse((await readBody(req)) || "{}"); } catch (e) { return sendJson(res, 400, { ok: false, error: "bad json" }); }
       return sendJson(res, 200, submit(data));
@@ -243,6 +250,7 @@ const server = http.createServer(async (req, res) => {
       if (path === "/api/doleances" && req.method === "GET") return sendJson(res, 200, doView(uid));
       if (path === "/api/doleances/add" && req.method === "POST") {
         if (!uid) return sendJson(res, 400, { ok: false, error: "uid requis" });
+        const pv = verifyPoW(d.pow); if (!pv.ok) return sendJson(res, 403, { ok: false, error: "anti-bot : " + pv.error });
         const title = cleanTitle(d.title); if (title.length < 3) return sendJson(res, 400, { ok: false, error: "titre trop court" });
         if (Object.keys(doleances).length >= 150) return sendJson(res, 400, { ok: false, error: "trop de demandes — vote plutôt pour une idée existante" });
         if (Object.values(doleances).filter(x => x.byUid === uid).length >= 6) return sendJson(res, 400, { ok: false, error: "tu as déjà proposé beaucoup d'idées" });
@@ -253,6 +261,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (path === "/api/doleances/vote" && req.method === "POST") {
         if (!uid) return sendJson(res, 400, { ok: false, error: "uid requis" });
+        const pv = verifyPoW(d.pow); if (!pv.ok) return sendJson(res, 403, { ok: false, error: "anti-bot : " + pv.error });
         const it = doleances[clean(d.id)]; if (!it) return sendJson(res, 404, { ok: false, error: "demande introuvable" });
         const i = it.voters.indexOf(uid); if (i >= 0) it.voters.splice(i, 1); else it.voters.push(uid);
         doSave(); return sendJson(res, 200, doView(uid));

@@ -48,6 +48,9 @@
     <div id="prog"><i></i></div>
     <div id="coeurs"></div>
     <div id="scoreBox"><b id="score">0</b><br><span id="comboTxt"></span></div>
+    <div id="scoreBoxOpp" class="hide" style="position:fixed;top:30px;left:12px;text-align:left;font-variant-numeric:tabular-nums;text-shadow:0 2px 6px #000">
+      <span style="opacity:.8;font-size:.78rem">⚔️ <span id="oppName">Adv.</span></span><br>
+      <b id="oppScore" style="font-size:1.05rem;color:#9ad6ff">0</b> <span id="oppCombo" style="font-size:.82rem;opacity:.85"></span> <span id="oppHearts" style="font-size:.82rem"></span></div>
   </div>
 
   <div id="menu" class="ov">
@@ -57,6 +60,8 @@
       main <b>droite</b> pour ceux de droite. Trois danses, de plus en plus endiablées. Rate trop de frappes… et la transe t'emporte.</div>
     <div class="keys"><span>◀ gauche : <b>Q</b> / <b>←</b> / tape à gauche</span><span>droite ▶ : <b>D</b> / <b>→</b> / tape à droite</span></div>
     <button class="big" onclick="startRun()">Entrer dans le cercle ▶</button>
+    <button class="big" onclick="startDuel()" style="background:linear-gradient(180deg,#9ad6ff,#3a7ad0);color:#04223f">⚔️ Duel rythmique ▶</button>
+    <div class="hint" id="duelStatus"></div>
     <div class="hint" id="bestTxt"></div>
   </div>
 
@@ -81,6 +86,13 @@
     <a class="hint" href="index.html" style="color:#ffd9a8">← Menu</a>
   </div>
 
+  <div id="duelRes" class="ov hide">
+    <h1 id="duelResTitle">Duel</h1>
+    <div class="sub" id="duelResTxt"></div>
+    <button class="big" onclick="backToMenu()">Menu ▶</button>
+    <a class="hint" href="index.html" style="color:#ffd9a8">← Quitter</a>
+  </div>
+
 <script>
 /* ============================================================================
    TAM-TAM — combat rythmique. 100% local, hors-ligne, audio 100% WebAudio.
@@ -102,6 +114,10 @@ addEventListener("error", ev=>{ try{ let d=document.getElementById("errband");
 
 const TAU=Math.PI*2, rand=(a,b)=>a+Math.random()*(b-a), clamp=(v,a,b)=>v<a?a:v>b?b:v;
 const BEST_KEY="tamtam_best";
+const BACKEND_URL="https://awema-games-production.up.railway.app";
+const myName=()=>{ try{ return localStorage.getItem("awema_player")||"Toi"; }catch(e){ return "Toi"; } };
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+let duel=null;   // null = solo ; { ws, you, opp, seed, rng, audioStart, started, sentFinal } = duel
 
 /* ---- horloge unique (audio si dispo, sinon interne) ; timeSkew = test/debug ---- */
 let ac=null, audioOk=false, timeSkew=0;
@@ -152,15 +168,16 @@ let danse=0, notes=[], sounds=[], soundIdx=0, startT=0, endT=0;
 let hearts=5, score=0, combo=0, maxCombo=0, stats={parfait:0,bien:0,miss:0,whiff:0}, totalNotes=0;
 let judgeFx=null, beatFx=0, hitFx={L:0,R:0}, shake=0, runStats=[];
 
-function buildDanse(d){
-  const D=DANSES[d], spb=60/D.bpm, t0=nowSec()+0.8;
+function buildDanse(d, forcedStart){
+  const r = duel ? duel.rng : Math.random;                 // duel : PRNG seedé partagé → partition IDENTIQUE des 2 côtés
+  const D=DANSES[d], spb=60/D.bpm, t0=(forcedStart!=null)? forcedStart : nowSec()+0.8;
   startT=t0; notes=[]; sounds=[]; soundIdx=0;
   for (let b=0;b<COUNT_IN;b++) sounds.push({t:t0+b*spb, k:"click"});
   const off=t0+COUNT_IN*spb;
   for (let m=0;m<D.measures;m++){
     const pool=PATTERNS[Math.min(D.density + (m>=D.measures-4?0:0), PATTERNS.length-1)];
     const extra=(m>=D.measures*0.6 && D.density<2)? PATTERNS[D.density+1] : null;   // fin de danse : ça s'intensifie
-    const pat=(extra && Math.random()<0.4 ? extra : pool)[Math.floor(Math.random()*4)];
+    const pat=(extra && r()<0.4 ? extra : pool)[Math.floor(r()*4)];
     for (const [sub,side] of pat){
       const t=off+(m*8+sub)*spb/2;
       notes.push({ t, side, st:"pending" });
@@ -174,9 +191,10 @@ function buildDanse(d){
   endT=(notes.length?notes[notes.length-1].t:off)+1.2;
 }
 
-function startRun(){ initAudio(); danse=0; hearts=5; score=0; combo=0; maxCombo=0;
+function startRun(){ initAudio(); duel=null; document.getElementById("scoreBoxOpp").classList.add("hide");   // solo : jamais de PRNG seedé hérité
+  danse=0; hearts=5; score=0; combo=0; maxCombo=0;
   stats={parfait:0,bien:0,miss:0,whiff:0}; runStats=[];
-  for (const o of ["menu","inter","won","lost"]) document.getElementById(o).classList.add("hide");
+  for (const o of ["menu","inter","won","lost","duelRes"]) document.getElementById(o).classList.add("hide");
   document.getElementById("hud").classList.remove("hide");
   buildDanse(0); state="play"; syncHUD(); }
 function nextDanse(){ document.getElementById("inter").classList.add("hide");
@@ -185,6 +203,7 @@ function nextDanse(){ document.getElementById("inter").classList.add("hide");
 function endDanse(){
   runStats.push({ name:DANSES[danse].name, parfait:stats.parfait, bien:stats.bien, miss:stats.miss });
   if (danse>=DANSES.length-1) return winRun();
+  if (duel){ const nextStart=endT+0.8; danse++; buildDanse(danse, nextStart); state="play"; syncHUD(); return; }   // duel : enchaînement auto aligné (pas d'écran intermédiaire qui désynchroniserait)
   state="inter";
   document.getElementById("interTxt").innerHTML=
     `« ${DANSES[danse].name} » achevée — combo max <b>${maxCombo}</b>.<br>La suivante bat à <b>${DANSES[danse+1].bpm} BPM</b>… reste dans le rythme !`;
@@ -193,6 +212,7 @@ function endDanse(){
 function winRun(){
   state="won";
   const hits=stats.parfait+stats.bien, acc=hits/Math.max(1,hits+stats.miss);
+  if (duel) return duelFinish(acc);
   const st=acc>=0.95?3:acc>=0.85?2:1;
   let best=0; try{ best=+(localStorage.getItem(BEST_KEY)||0); if (score>best){ best=score; localStorage.setItem(BEST_KEY,String(best)); } }catch(e){}
   document.getElementById("wonStars").textContent="★".repeat(st)+"☆".repeat(3-st);
@@ -204,10 +224,91 @@ function winRun(){
 function loseRun(){
   state="lost";
   try{ const b=+(localStorage.getItem(BEST_KEY)||0); if (score>b) localStorage.setItem(BEST_KEY,String(score)); }catch(e){}
+  if (duel){ const hits=stats.parfait+stats.bien, acc=hits/Math.max(1,hits+stats.miss); return duelFinish(acc); }
   document.getElementById("lostTxt").innerHTML=
     `Danse ${danse+1}/3 — score <b>${score}</b>, combo max <b>${maxCombo}</b>.<br>Conseil : écoute le <b>tek</b> aigu — chaque esprit a le sien.`;
   document.getElementById("hud").classList.add("hide");
   document.getElementById("lost").classList.remove("hide");
+}
+
+/* ---- DUEL RYTHMIQUE (multijoueur via /ws/tamtam) : serveur léger, partition seedée partagée, départ synchronisé par t0 serveur ---- */
+let lastProgT=0, duelWs=null;
+function closeDuelWs(){ if(duelWs){ try{ duelWs.onclose=null; duelWs.onmessage=null; duelWs.onerror=null; duelWs.close(); }catch(e){} duelWs=null; } }   // neutralise le vieux socket : son onclose ne corrompt pas le duel suivant
+function setDuelStatus(t){ const e=document.getElementById("duelStatus"); if(e) e.textContent=t||""; }
+function dnet(o){ if(duel&&duel.ws&&duel.ws.readyState===1){ try{ duel.ws.send(JSON.stringify(o)); }catch(e){} } }
+function chartHash(){ if(!notes.length) return "0"; const b=notes[0].t; let h=notes.length>>>0; for(const n of notes){ h=(h*31 + Math.round((n.t-b)*1000) + (n.side==="R"?1:0))>>>0; } return h.toString(36); }   // RELATIF au 1er note → indépendant de audioStart (qui diffère entre clients)
+function startDuel(){
+  initAudio();   // débloque l'AudioContext sur le geste utilisateur (crucial mobile)
+  let ws; try{ ws=new WebSocket(BACKEND_URL.replace("https://","wss://").replace("http://","ws://")+"/ws/tamtam"); }catch(e){ duelFallback(); return; }
+  duelWs=ws; duel={ ws, you:null, opp:"", seed:0, rng:null, audioStart:0, started:false, sentFinal:false };
+  setDuelStatus("🔌 Connexion…");
+  ws.onopen=()=>{ setDuelStatus("🔎 Recherche d'un adversaire…"); dnet({t:"join", n:myName()}); };
+  ws.onmessage=ev=>{ let m; try{ m=JSON.parse(ev.data); }catch(e){ return; } onDuelMsg(m); };
+  ws.onclose=()=>{ onDuelClose(); };
+  ws.onerror=()=>{ try{ ws.close(); }catch(e){} };
+}
+function duelFallback(){ closeDuelWs(); duel=null; document.getElementById("scoreBoxOpp").classList.add("hide"); setDuelStatus(""); startRun(); }
+function onDuelClose(){ duelWs=null;
+  if(duel&&!duel.started){ duelFallback(); }
+  else if(duel&&duel.sentFinal){ showDuelVerdict({you:"draw",opp:0,reason:"timeout"}); }   // socket coupé pendant l'attente du verdict → repli local (pas de blocage)
+  else if(duel&&duel.started&&state==="play"){ duel=null; document.getElementById("scoreBoxOpp").classList.add("hide"); } }
+function onDuelMsg(m){
+  if(m.t==="waiting") setDuelStatus("🔎 En attente d'un adversaire… (garde l'onglet ouvert)");
+  else if(m.t==="full"){ setDuelStatus("Serveur plein — partie solo."); duelFallback(); }
+  else if(m.t==="desync"){ setDuelStatus("Désynchronisation — partie solo."); duelFallback(); }
+  else if(m.t==="start"){
+    duel.you=m.you; duel.opp=m.opp||"Adversaire"; duel.seed=m.seed>>>0; duel.rng=mulberry32(duel.seed); duel.started=true; duel.sentFinal=false;
+    const offset=m.srvNow-Date.now(), targetWall=m.t0-offset; let lead=(targetWall-Date.now())/1000; if(!(lead>0.05)) lead=0.3;   // clamp si on est en retard (RTT > LEAD)
+    duel.audioStart=nowSec()+lead;
+    startDuelRun();
+  }
+  else if(m.t==="oppProg") updateOppHUD(m);
+  else if(m.t==="verdict") showDuelVerdict(m);
+}
+function startDuelRun(){
+  danse=0; hearts=5; score=0; combo=0; maxCombo=0; stats={parfait:0,bien:0,miss:0,whiff:0}; runStats=[];
+  for(const o of ["menu","inter","won","lost","duelRes"]){ const el=document.getElementById(o); if(el) el.classList.add("hide"); }
+  document.getElementById("hud").classList.remove("hide");
+  document.getElementById("oppName").textContent=duel.opp; updateOppHUD({sc:0,cb:0,hp:5});
+  document.getElementById("scoreBoxOpp").classList.remove("hide");
+  setDuelStatus("");
+  buildDanse(0, duel.audioStart); state="play"; syncHUD();
+  dnet({t:"chash", h:chartHash()});   // garde-fou de parité : partitions divergentes → repli solo des 2 côtés
+}
+function updateOppHUD(m){
+  document.getElementById("oppScore").textContent=m.sc||0;
+  const mult=1+Math.min(3,Math.floor((m.cb||0)/10));
+  document.getElementById("oppCombo").textContent=(m.cb>1)?("×"+mult):"";
+  document.getElementById("oppHearts").textContent="❤".repeat(Math.max(0,m.hp||0));
+}
+function duelEmitProg(){ const now=performance.now(); if(now-lastProgT<150) return; lastProgT=now; dnet({t:"prog", sc:score, cb:combo, hp:hearts}); }
+function duelFinish(acc){
+  if(!duel||duel.sentFinal) return; duel.sentFinal=true;
+  try{ const b=+(localStorage.getItem(BEST_KEY)||0); if(score>b) localStorage.setItem(BEST_KEY,String(score)); }catch(e){}
+  dnet({t:"final", sc:score, acc:Math.round(acc*1000), cb:maxCombo});
+  document.getElementById("hud").classList.add("hide"); document.getElementById("scoreBoxOpp").classList.add("hide");
+  document.getElementById("duelResTitle").innerHTML="⏳ Manche terminée";
+  document.getElementById("duelResTxt").innerHTML=`Ton score : <b>${score}</b> · combo max <b>${maxCombo}</b>.<br>En attente du score de l'adversaire…`;
+  document.getElementById("duelRes").classList.remove("hide");
+  duel._wd=setTimeout(()=>{ if(duel&&duel.sentFinal) showDuelVerdict({you:"draw",opp:0,reason:"timeout"}); }, 35000);   // repli si le verdict serveur n'arrive jamais (perte de paquet/cleanup)
+}
+function showDuelVerdict(m){
+  if(duel&&duel._wd) clearTimeout(duel._wd);
+  document.getElementById("hud").classList.add("hide"); document.getElementById("scoreBoxOpp").classList.add("hide");
+  const win=m.you==="win", draw=m.you==="draw";
+  document.getElementById("duelResTitle").innerHTML= win?"🏆 Duel gagné !": draw?"🤝 Égalité !":"🥁 Duel perdu";
+  document.getElementById("duelResTxt").innerHTML= (m.reason==="left"||m.reason==="resign")
+    ? `Ton adversaire a quitté le duel — tu gagnes.<br>Ton score : <b>${score}</b>`
+    : `Ton score <b>${score}</b> · adversaire <b>${m.opp||0}</b> · combo max <b>${maxCombo}</b>.`;
+  document.getElementById("duelRes").classList.remove("hide");
+  state="won"; closeDuelWs(); duel=null;
+}
+function backToMenu(){
+  if(duel){ dnet({t:"leave"}); if(duel._wd) clearTimeout(duel._wd); } closeDuelWs(); duel=null; state="menu";
+  document.getElementById("scoreBoxOpp").classList.add("hide");
+  for(const o of ["hud","won","lost","inter","duelRes"]){ const el=document.getElementById(o); if(el) el.classList.add("hide"); }
+  document.getElementById("menu").classList.remove("hide"); setDuelStatus("");
+  try{ const b=+(localStorage.getItem(BEST_KEY)||0); if(b) document.getElementById("bestTxt").textContent="Record : "+b; }catch(e){}
 }
 
 /* ---- jugement : sur les notes, indépendant du rendu ---- */
@@ -250,6 +351,7 @@ function update(){
   if (judgeFx) judgeFx.t-=0.016;
   hitFx.L=Math.max(0,hitFx.L-0.07); hitFx.R=Math.max(0,hitFx.R-0.07);
   if (shake>0) shake=Math.max(0,shake-0.8);
+  if (duel) duelEmitProg();
   // fin de danse
   if (now>endT) endDanse();
   // progression

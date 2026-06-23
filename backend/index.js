@@ -283,11 +283,13 @@ const server = http.createServer(async (req, res) => {
 const wss = new WebSocketServer({ noServer: true, maxPayload: 4096 });          // Village (/ws)
 const wssChess = new WebSocketServer({ noServer: true, maxPayload: 4096 });     // Échecs en duel (/ws/chess)
 const wssVoraces = new WebSocketServer({ noServer: true, maxPayload: 8192 });   // Voraces — duel live temps réel (/ws/voraces)
+const wssTamtam = new WebSocketServer({ noServer: true, maxPayload: 4096 });    // Tam-Tam — duel rythmique (/ws/tamtam)
 server.on("upgrade", (req, socket, head) => {
   let pathname = "/"; try { pathname = new URL(req.url, "http://x").pathname; } catch (e) { }
   if (pathname === "/ws") wss.handleUpgrade(req, socket, head, w => wss.emit("connection", w, req));
   else if (pathname === "/ws/chess") wssChess.handleUpgrade(req, socket, head, w => wssChess.emit("connection", w, req));
   else if (pathname === "/ws/voraces") wssVoraces.handleUpgrade(req, socket, head, w => wssVoraces.emit("connection", w, req));
+  else if (pathname === "/ws/tamtam") wssTamtam.handleUpgrade(req, socket, head, w => wssTamtam.emit("connection", w, req));
   else socket.destroy();
 });
 let seq = 0;
@@ -524,6 +526,81 @@ wssVoraces.on("connection", (ws, req) => {
   ws.on("error", () => { try { ws.close(); } catch (e) { } });
 });
 
+/* ---------- TAM-TAM — DUEL RYTHMIQUE LIVE (/ws/tamtam) ----------
+   Serveur LÉGER (aucun tick) : appaire 2 joueurs, tire UN seed (partition partagée) + UN t0
+   (départ synchronisé), relaie la progression EN DIRECT, ARBITRE la fin (meilleur score).
+   Les 2 clients génèrent la même partition (PRNG seedé) et jugent localement. L'issue est
+   cosmétique (n'altère pas l'Indice, déjà recalculé/plafonné serveur). Repli solo si KO. */
+const TAM_LEAD = 2500, TAM_MAXMATCH = 180000, TAM_MAX_DUELS = 40;
+let tamSeq = 0;
+const tamPeers = new Map();   // cid -> { ws, name, missed, gid, msgTimes }
+const tamGames = new Map();   // gid -> { gid, a, b, seed, final:{}, chash:{}, over, timer }
+function tamSend(cid, obj) { const p = tamPeers.get(cid); if (p && p.ws.readyState === 1) { try { p.ws.send(JSON.stringify(obj)); } catch (e) { } } }
+function tamGameOf(cid) { for (const [, g] of tamGames) if (g.a === cid || g.b === cid) return g; return null; }
+function tamCleanup(g) { if (g._done) return; g._done = true; if (g.timer) clearTimeout(g.timer); if (g.graceTimer) clearTimeout(g.graceTimer); tamGames.delete(g.gid); for (const c of [g.a, g.b]) { const p = tamPeers.get(c); if (p && p.gid === g.gid) p.gid = null; } }
+function tamForfeit(cid, reason) {
+  const g = tamGameOf(cid); if (!g || g.over) { if (g) tamCleanup(g); return; }
+  if (g.final[cid]) return;   // ce joueur a DÉJÀ soumis son score → on ne le déclare pas perdant sur un hoquet : on laisse l'autre finir / le timer trancher
+  g.over = true; tamSend(g.a === cid ? g.b : g.a, { t: "verdict", you: "win", opp: 0, reason: reason || "left" }); tamCleanup(g);
+}
+function tamResolve(g) {
+  if (g.over) return; const sa = g.final[g.a], sb = g.final[g.b];
+  if (sa == null && sb == null) { g.over = true; tamSend(g.a, { t: "verdict", you: "draw", opp: 0, reason: "timeout" }); tamSend(g.b, { t: "verdict", you: "draw", opp: 0, reason: "timeout" }); tamCleanup(g); return; }
+  g.over = true;
+  const v = (A, B) => A == null ? "lose" : B == null ? "win" : A.sc > B.sc ? "win" : A.sc < B.sc ? "lose" : (A.acc > B.acc || (A.acc === B.acc && A.mc > B.mc)) ? "win" : (A.acc < B.acc || (A.acc === B.acc && A.mc < B.mc)) ? "lose" : "draw";
+  tamSend(g.a, { t: "verdict", you: v(sa, sb), opp: sb ? sb.sc : 0 });
+  tamSend(g.b, { t: "verdict", you: v(sb, sa), opp: sa ? sa.sc : 0 });
+  tamCleanup(g);
+}
+wssTamtam.on("connection", (ws, req) => {
+  const o = req.headers.origin;
+  if (o && !originAllowed(o)) { try { ws.close(1008, "origin"); } catch (e) { } return; }
+  if (tamPeers.size >= 200) { try { ws.close(1013, "full"); } catch (e) { } return; }
+  const cid = "t" + (++tamSeq).toString(36) + Math.random().toString(36).slice(2, 5);
+  const peer = { ws, name: "Joueur", missed: 0, gid: null, msgTimes: [] };
+  tamPeers.set(cid, peer);
+  ws.on("pong", () => { peer.missed = 0; });
+  ws.on("message", (buf) => {
+    let m; try { m = JSON.parse(String(buf)); } catch (e) { return; }
+    if (!m || typeof m !== "object") return;
+    { const tn = Date.now(); peer.msgTimes = peer.msgTimes.filter(x => tn - x < 1000); if (peer.msgTimes.length >= 30) return; peer.msgTimes.push(tn); }   // anti-flood TOUS types (serveur partagé : CPU bornée)
+    if (m.t === "join") {
+      if (peer.gid) return;
+      peer.name = maskProfanity(clean(m.n)) || "Joueur";
+      const wcid = duelWaiting["tamtam"];
+      if (wcid && wcid !== cid && tamPeers.has(wcid) && !tamPeers.get(wcid).gid) {
+        if (tamGames.size >= TAM_MAX_DUELS) { tamSend(cid, { t: "full" }); return; }   // plafond AVANT de vider la file
+        duelWaiting["tamtam"] = null;
+        const wpeer = tamPeers.get(wcid), gid = "tg" + (++tamSeq).toString(36);
+        const seed = (Math.random() * 4294967296) >>> 0;
+        const g = { gid, a: wcid, b: cid, seed, final: {}, chash: {}, over: false, timer: null };
+        tamGames.set(gid, g); wpeer.gid = gid; peer.gid = gid;
+        g.timer = setTimeout(() => tamResolve(g), TAM_MAXMATCH);                       // garde dure
+        tamSend(wcid, { t: "start", seed, t0: Date.now() + TAM_LEAD, srvNow: Date.now(), opp: peer.name, you: "a" });
+        tamSend(cid, { t: "start", seed, t0: Date.now() + TAM_LEAD, srvNow: Date.now(), opp: wpeer.name, you: "b" });
+      } else { duelWaiting["tamtam"] = cid; tamSend(cid, { t: "waiting" }); }
+      return;
+    }
+    const g = peer.gid ? tamGames.get(peer.gid) : null; if (!g || g.over) return;   // O(1) via peer.gid
+    const opp = g.a === cid ? g.b : g.a;
+    if (m.t === "prog") { tamSend(opp, { t: "oppProg", sc: num(m.sc, 0, 1e7), cb: num(m.cb, 0, 9999), hp: num(m.hp, 0, 5) }); }
+    else if (m.t === "chash") {                                                        // garde-fou de parité : partitions divergentes → repli solo des 2 côtés
+      g.chash[cid] = clean(m.h).slice(0, 24);
+      if (g.chash[g.a] != null && g.chash[g.b] != null && g.chash[g.a] !== g.chash[g.b]) { g.over = true; tamSend(g.a, { t: "desync" }); tamSend(g.b, { t: "desync" }); tamCleanup(g); }
+    }
+    else if (m.t === "final") {
+      if (g.final[cid]) return;                                                     // dédup : un seul final par joueur (sinon ré-armement du timer = partie zombie)
+      g.final[cid] = { sc: num(m.sc, 0, GAME_MAX.tamtam || 600000), acc: num(m.acc, 0, 1000), mc: num(m.cb, 0, 9999) };
+      if (g.final[g.a] && g.final[g.b]) tamResolve(g);
+      else if (!g.graceTimer) g.graceTimer = setTimeout(() => tamResolve(g), 30000);   // grâce 30 s ; la garde dure TAM_MAXMATCH (g.timer) reste armée
+    }
+    else if (m.t === "resign") { tamForfeit(cid, "resign"); }
+    else if (m.t === "leave") { clearWaiting(cid); tamForfeit(cid, "left"); }
+  });
+  ws.on("close", () => { tamPeers.delete(cid); clearWaiting(cid); tamForfeit(cid, "left"); });
+  ws.on("error", () => { try { ws.close(); } catch (e) { } });
+});
+
 // heartbeat : éliminer les connexions mortes + garder le canal vivant à travers les proxies
 const wsHeartbeat = setInterval(() => {
   for (const [cid, p] of peers) {
@@ -536,6 +613,10 @@ const wsHeartbeat = setInterval(() => {
   }
   for (const [cid, p] of voracesPeers) {
     if (p.missed >= 2) { vorForfeit(cid, "left"); clearWaiting(cid); try { p.ws.terminate(); } catch (e) { } voracesPeers.delete(cid); continue; }
+    p.missed++; try { p.ws.ping(); } catch (e) { }
+  }
+  for (const [cid, p] of tamPeers) {
+    if (p.missed >= 2) { tamForfeit(cid, "left"); clearWaiting(cid); try { p.ws.terminate(); } catch (e) { } tamPeers.delete(cid); continue; }
     p.missed++; try { p.ws.ping(); } catch (e) { }
   }
 }, 25000);

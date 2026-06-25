@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>AwemA — Choisis ton jeu</title>
-<!-- PWA : installable + hors-ligne (actif quand la plateforme est servie en http(s)/localhost ; sans effet en double-clic file://) -->
+<title>AwemA — Borne d'arcade</title>
+<!-- PWA : installable + hors-ligne (actif en http(s)/localhost ; sans effet en file://) -->
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#e8702a" />
 <meta name="mobile-web-app-capable" content="yes" />
@@ -13,233 +13,188 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="icon.svg" />
 <style>
-  :root { color-scheme: dark; }
+  :root { color-scheme: dark; --acc:#e8702a; --gold:#f0c64a; }
   * { box-sizing: border-box; }
   body { font-family: system-ui, -apple-system, sans-serif; margin: 0; min-height: 100vh; color: #eee;
-         background: radial-gradient(1200px 600px at 50% -10%, #1c2b3a, #0c1118 60%); display: flex; flex-direction: column; align-items: center; padding: 1.4rem 1rem 2.4rem; }
-  header { text-align: center; margin: 1rem 0 1.6rem; }
-  header h1 { font-size: clamp(1.6rem, 5vw, 2.4rem); margin: .2rem 0; letter-spacing: .5px; }
-  header p { opacity: .72; margin: .2rem 0; font-size: .95rem; }
-  .grid { display: grid; gap: 1.1rem; width: 100%; max-width: 880px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-  .card { position: relative; border-radius: 1rem; padding: 1.4rem 1.3rem 1.2rem; text-decoration: none; color: inherit;
-          border: 1px solid #ffffff1f; overflow: hidden; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
-          display: flex; flex-direction: column; min-height: 230px; }
-  .card:hover { transform: translateY(-4px); box-shadow: 0 14px 40px #0008; }
-  .card .emoji { font-size: 2.6rem; line-height: 1; }
-  .card h2 { margin: .7rem 0 .2rem; font-size: 1.3rem; }
-  .card .tag { font-size: .78rem; text-transform: uppercase; letter-spacing: 1.5px; opacity: .7; }
-  .card p { font-size: .9rem; line-height: 1.45; opacity: .9; margin: .55rem 0 1rem; flex: 1; }
-  .card .cta { align-self: flex-start; font-weight: 700; padding: .5rem .95rem; border-radius: .55rem; font-size: .95rem; }
-  /* Lignées — sable chaud */
-  .lignees { background: linear-gradient(160deg, #3a2f1d, #241b10); border-color: #c8941f44; }
-  .lignees:hover { border-color: #c8941f; }
-  .lignees .cta { background: #c8941f; color: #221a0c; }
-  .lignees .tag { color: #e8b75a; }
-  /* Voraces — vivier néon */
-  .voraces { background: linear-gradient(160deg, #0e2b2a, #07181c); border-color: #2fd6a644; }
-  .voraces:hover { border-color: #2fd6a6; }
-  .voraces .cta { background: #2fd6a6; color: #04231d; }
-  .voraces .tag { color: #6fe7c4; }
-  /* L'Âge des Sables — banco / terre cuite */
-  .sables { background: linear-gradient(160deg, #3a2a18, #241710); border-color: #a8631f55; }
-  .sables:hover { border-color: #a8631f; }
-  .sables .cta { background: #a8631f; color: #fff2e0; }
-  .sables .tag { color: #e0975a; }
-  /* Échecs à l'Ivoirienne — orange / vert (couleurs du drapeau) */
-  .echecs { background: linear-gradient(160deg, #3a2412, #14240f); border-color: #e8702a55; }
-  .echecs:hover { border-color: #e8702a; }
-  .echecs .cta { background: #e8702a; color: #2a1604; }
-  .echecs .tag { color: #f0975a; }
-  /* L'Atelier — apprendre à coder (indigo) */
-  .atelier { background: linear-gradient(160deg, #241d3a, #14111f); border-color: #7c5cff55; }
-  .atelier:hover { border-color: #7c5cff; }
-  .atelier .cta { background: #7c5cff; color: #100c1f; }
-  .atelier .tag { color: #b9a8ff; }
-  /* Harmattan — crépuscule braise (rouge / violet) */
-  .harmattan { background: linear-gradient(160deg, #3a1a10, #1f0f1e); border-color: #e8702a55; }
-  .harmattan:hover { border-color: #ff9a3c; }
-  .harmattan .cta { background: linear-gradient(180deg,#ffb24d,#e8702a); color: #2a1404; }
-  .harmattan .tag { color: #ff9a6a; }
-  /* Banco — chantier terre & poutre */
-  .banco { background: linear-gradient(160deg, #3a2a14, #1c1208); border-color: #c89a6455; }
-  .banco:hover { border-color: #e8a85a; }
-  .banco .cta { background: #c89a64; color: #2a1808; }
-  .banco .tag { color: #e0b884; }
-  /* Awalé Royal — nuit indigo & or (marché de nuit) */
-  .awale { background: linear-gradient(160deg, #241c44, #120e24); border-color: #7c5cff55; }
-  .awale:hover { border-color: #b9a8ff; }
-  .awale .cta { background: #f0c64a; color: #2a1c04; }
-  .awale .tag { color: #b9a8ff; }
-  /* Awalé (Oware) — plateau de bois, duel & IA */
-  .oware { background: linear-gradient(160deg, #3a2912, #18100a); border-color: #c8884455; }
-  .oware:hover { border-color: #e8a85a; }
-  .oware .cta { background: #e8a85a; color: #2a1804; }
-  .oware .tag { color: #e8c79a; }
-  /* Tam-Tam — nuit de danse (violet & feu) */
-  .tamtam { background: linear-gradient(160deg, #2a1a38, #160d1e); border-color: #ff9a5055; }
-  .tamtam:hover { border-color: #ffa050; }
-  .tamtam .cta { background: linear-gradient(180deg,#ffb24d,#e8702a); color: #2a1404; }
-  .tamtam .tag { color: #ffb88a; }
-  /* Le Grand Conseil — hall doré des classements (multijoueur) */
-  .classement { background: linear-gradient(160deg, #3a2f12, #16110a); border-color: #f0c64a55; }
-  .classement:hover { border-color: #f0c64a; }
-  .classement .cta { background: #f0c64a; color: #2a1c04; }
-  .classement .tag { color: #ffe08a; }
-  /* La Place — salon social, vert village */
-  .place { background: linear-gradient(160deg, #1d3320, #0e1a10); border-color: #13875a66; }
-  .place:hover { border-color: #2fd6a6; }
-  .place .cta { background: #13875a; color: #eafff4; }
-  .place .tag { color: #6fe7c4; }
-  /* Le Village — monde ouvert, terre & or */
-  .village { background: linear-gradient(160deg, #3a2a14, #15240f); border-color: #c89a4a66; }
-  .village:hover { border-color: #e8c060; }
-  .village .cta { background: #c89a4a; color: #2a1c04; }
-  .village .tag { color: #e0c084; }
-  .new { position: absolute; top: .9rem; right: .9rem; background: #ff5b6e; color: #fff; font-size: .68rem;
-         font-weight: 800; padding: .2rem .5rem; border-radius: 1rem; letter-spacing: .5px; }
-  footer { margin-top: 1.8rem; text-align: center; font-size: .82rem; opacity: .6; line-height: 1.7; }
+         background: radial-gradient(1200px 600px at 50% -8%, #1c2b3a, #0a0d14 62%); }
+  a { color: inherit; text-decoration: none; }
+  /* ── Enseigne (marquee) ── */
+  .marquee { overflow: hidden; border-bottom: 1px solid #ffffff1a; background: linear-gradient(180deg,#160f24,#0c0d16);
+             box-shadow: 0 0 40px #e8702a22 inset; }
+  .marquee .run { display: inline-block; white-space: nowrap; padding: .5rem 0; font-weight: 900; letter-spacing: .35em;
+                  font-size: 1rem; color: #ffd9a8; text-shadow: 0 0 12px #e8702a88; animation: slide 22s linear infinite; }
+  @keyframes slide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  /* ── Barre profil ── */
+  .bar { position: sticky; top: 0; z-index: 6; display: flex; gap: .6rem; align-items: center; flex-wrap: wrap;
+         padding: .55rem .9rem; background: #0a0d14e6; border-bottom: 1px solid #ffffff14; backdrop-filter: blur(8px); }
+  .bar .brand { font-size: 1.15rem; font-weight: 900; letter-spacing: .5px; }
+  .bar .brand small { font-weight: 600; opacity: .55; letter-spacing: .25em; font-size: .62rem; display:block; margin-top:-2px; }
+  .bar .sp { flex: 1; }
+  .chip { font-size: .82rem; background: #ffffff14; border: 1px solid #ffffff24; border-radius: 1rem; padding: .3rem .7rem; cursor: pointer; white-space: nowrap; }
+  .chip:hover { background: #ffffff22; }
+  .chip b { color: var(--gold); font-variant-numeric: tabular-nums; }
+  .chip .tier { margin-left: .2rem; }
+  .iconbtn { font: inherit; background: #ffffff14; border: 1px solid #ffffff24; border-radius: .55rem; padding: .3rem .55rem; cursor: pointer; color: #fff; }
+  .iconbtn:hover { background: #ffffff22; }
+  /* ── Catégories & cartes ── */
+  main { max-width: 1000px; margin: 0 auto; padding: 1rem 1rem 3rem; }
+  .cat { margin: 1.4rem 0 .4rem; display: flex; align-items: center; gap: .5rem; font-size: .82rem; text-transform: uppercase; letter-spacing: 1.6px; opacity: .6; }
+  .cat::after { content: ""; flex: 1; height: 1px; background: #ffffff14; }
+  .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)); }
+  .card { position: relative; border-radius: 1rem; padding: 1.2rem 1.15rem 1rem; border: 1px solid #ffffff1f; overflow: hidden;
+          display: flex; flex-direction: column; min-height: 196px; transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease; }
+  .card:hover, .card:focus-visible { transform: translateY(-4px); box-shadow: 0 14px 40px #0009; outline: none; }
+  .card .emoji { font-size: 2.4rem; line-height: 1; }
+  .card h2 { margin: .6rem 0 .15rem; font-size: 1.18rem; }
+  .card .tag { font-size: .72rem; text-transform: uppercase; letter-spacing: 1.2px; opacity: .7; display: flex; gap: .4rem; flex-wrap: wrap; }
+  .card p { font-size: .87rem; line-height: 1.42; opacity: .9; margin: .5rem 0 .9rem; flex: 1; }
+  .card .cta { align-self: flex-start; font-weight: 800; padding: .45rem .85rem; border-radius: .55rem; font-size: .9rem; background: #ffffff1c; }
+  .badge { position: absolute; top: .8rem; right: .8rem; font-size: .62rem; font-weight: 800; padding: .18rem .5rem; border-radius: 1rem; letter-spacing: .5px; }
+  .badge.mp { background: #2fd6a6; color: #04231d; } .badge.new { background: #ff5b6e; color: #fff; }
+  /* thèmes (repris des cartes d'origine) */
+  .t-voraces { background:linear-gradient(160deg,#0e2b2a,#07181c); border-color:#2fd6a644; } .t-voraces .cta{background:#2fd6a6;color:#04231d}
+  .t-lignees { background:linear-gradient(160deg,#3a2f1d,#241b10); border-color:#c8941f44; } .t-lignees .cta{background:#c8941f;color:#221a0c}
+  .t-sables { background:linear-gradient(160deg,#3a2a18,#241710); border-color:#a8631f55; } .t-sables .cta{background:#a8631f;color:#fff2e0}
+  .t-echecs { background:linear-gradient(160deg,#3a2412,#14240f); border-color:#e8702a55; } .t-echecs .cta{background:#e8702a;color:#2a1604}
+  .t-atelier { background:linear-gradient(160deg,#241d3a,#14111f); border-color:#7c5cff55; } .t-atelier .cta{background:#7c5cff;color:#100c1f}
+  .t-harmattan { background:linear-gradient(160deg,#3a1a10,#1f0f1e); border-color:#e8702a55; } .t-harmattan .cta{background:linear-gradient(180deg,#ffb24d,#e8702a);color:#2a1404}
+  .t-banco { background:linear-gradient(160deg,#3a2a14,#1c1208); border-color:#c89a6455; } .t-banco .cta{background:#c89a64;color:#2a1808}
+  .t-awale { background:linear-gradient(160deg,#241c44,#120e24); border-color:#7c5cff55; } .t-awale .cta{background:#f0c64a;color:#2a1c04}
+  .t-oware { background:linear-gradient(160deg,#3a2912,#18100a); border-color:#c8884455; } .t-oware .cta{background:#e8a85a;color:#2a1804}
+  .t-tamtam { background:linear-gradient(160deg,#2a1a38,#160d1e); border-color:#ff9a5055; } .t-tamtam .cta{background:linear-gradient(180deg,#ffb24d,#e8702a);color:#2a1404}
+  .t-classement { background:linear-gradient(160deg,#3a2f12,#16110a); border-color:#f0c64a55; } .t-classement .cta{background:#f0c64a;color:#2a1c04}
+  .t-place { background:linear-gradient(160deg,#1d3320,#0e1a10); border-color:#13875a66; } .t-place .cta{background:#13875a;color:#eafff4}
+  .t-village { background:linear-gradient(160deg,#3a2a14,#15240f); border-color:#c89a4a66; } .t-village .cta{background:#c89a4a;color:#2a1c04}
+  .install { font: inherit; font-weight: 800; cursor: pointer; background: var(--acc); color: #2a1404; border: 0; border-radius: .55rem; padding: .35rem .8rem; }
+  footer { text-align: center; opacity: .55; font-size: .8rem; line-height: 1.8; margin-top: 2rem; }
   footer a { color: #9fd0ff; }
-  .install { margin: .7rem auto 0; display: inline-block; font: inherit; font-weight: 800; cursor: pointer;
-    background: #e8702a; color: #2a1404; border: 0; border-radius: .6rem; padding: .5rem 1rem; box-shadow: 0 6px 22px #e8702a44; }
-  .install:active { transform: translateY(1px); }
+  /* ── Mode attractif ── */
+  #attract { position: fixed; inset: 0; z-index: 50; display: none; flex-direction: column; align-items: center; justify-content: center;
+             background: radial-gradient(800px 500px at 50% 40%, #1c2b3aee, #06080df7); text-align: center; cursor: pointer; }
+  #attract.on { display: flex; }
+  #attract .big { font-size: 5rem; line-height: 1; filter: drop-shadow(0 0 24px #0008); animation: pop .5s ease; }
+  #attract h3 { font-size: 1.7rem; margin: .8rem 0 .2rem; }
+  #attract p { opacity: .8; max-width: 30rem; padding: 0 1rem; }
+  #attract .hint { position: absolute; bottom: 2rem; font-size: .85rem; opacity: .6; letter-spacing: .1em; animation: blink 1.4s infinite; }
+  @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes blink { 50% { opacity: .15; } }
+  @media (prefers-reduced-motion: reduce){ .marquee .run{ animation:none } #attract .big{ animation:none } #attract .hint{ animation:none } }
 </style>
-  <script src="analytics.js"></script>
+  <script src="catalog.js"></script>
+  <script src="shared/awema.js"></script>
+  <script src="shared/analytics.js"></script>
 </head>
 <body>
-  <header>
-    <h1>🎮 AwemA — TheGame</h1>
-    <p>Choisis ton jeu. Tout tourne <b>en local, hors-ligne</b> — et tu peux <b>installer la plateforme</b> sur ton téléphone.</p>
-    <button id="installBtn" class="install" hidden>⬇️ Installer l'app</button>
-  </header>
+  <div class="marquee"><span class="run" id="run"></span></div>
 
-  <main class="grid">
-    <a class="card village" href="monde.html">
-      <span class="new">NOUVEAU</span>
-      <div class="emoji">🗺️</div>
-      <div class="tag">Multijoueur · monde ouvert</div>
-      <h2>Le Village</h2>
-      <p>Entre dans le village&nbsp;: <b>déplace ton avatar</b>, croise les autres, <b>palabre</b>, et marche jusqu'aux <b>cases de jeu</b> pour lancer une partie. Le cœur social de la plateforme (couche ③, prototype).</p>
-      <span class="cta">Entrer ▶</span>
-    </a>
+  <div class="bar">
+    <div class="brand">🎮 AwemA<small>BORNE D'ARCADE</small></div>
+    <span class="sp"></span>
+    <span class="chip" id="profile" title="Changer mon pseudo">👤 …</span>
+    <a class="chip" href="games/classements.html" title="Classements">🏆 Rangs</a>
+    <button class="iconbtn" id="soundBtn" title="Son">🔇</button>
+    <button class="install" id="installBtn" hidden>⬇️ Installer</button>
+  </div>
 
-    <a class="card classement" href="classements.html">
-      <span class="new">NOUVEAU</span>
-      <div class="emoji">🏆</div>
-      <div class="tag">Multijoueur · classements</div>
-      <h2>Le Grand Conseil</h2>
-      <p>Le hall des classements&nbsp;: ton <b>Indice AwemA</b> synthétise tes points de tous les jeux en un <b>rang</b> (Voyageur → Légende des griots), avec un <b>classement général</b> et un <b>par jeu</b>. La première pierre du multijoueur.</p>
-      <span class="cta">Voir mon rang ▶</span>
-    </a>
-
-    <a class="card place" href="salon.html">
-      <span class="new">NOUVEAU</span>
-      <div class="emoji">🌳</div>
-      <div class="tag">Multijoueur · salon social</div>
-      <h2>La Place</h2>
-      <p>Le village se retrouve sous l'<b>arbre à palabres</b>&nbsp;: vois qui est là, <b>tchatte</b>, et entre dans les <b>salles de jeu</b> pour lancer une partie. Couche ② du multijoueur (présence + chat, prototype).</p>
-      <span class="cta">Rejoindre ▶</span>
-    </a>
-
-    <a class="card atelier" href="atelier.html">
-      <div class="emoji">🎓</div>
-      <div class="tag">Apprendre · 2 pistes : Coding &amp; Vibecoding</div>
-      <h2>L'Atelier</h2>
-      <p>Apprends à créer les jeux de la plateforme, à ton rythme et en deux pistes au choix : <b>🧑‍💻 Coding</b> (tu écris le vrai code et tu comprends les méthodes) ou <b>🪄 Vibecoding</b> (tu diriges une IA de code et tu vérifies). Guidé par <b>Awa</b>, en direct dans le navigateur, avec XP et badges.</p>
-      <span class="cta">Commencer ▶</span>
-    </a>
-
-    <a class="card tamtam" href="tamtam.html">
-      <div class="emoji">🥁</div>
-      <div class="tag">Multijoueur · duel rythmique</div>
-      <h2>Tam-Tam</h2>
-      <p>Le cercle de danse est formé&nbsp;: des <b>esprits masqués</b> avancent vers ton djembé <b>en rythme</b>. Frappe gauche/droite au moment exact, enchaîne les combos jusqu'à la <b>transe</b> — trois danses, du calme à l'endiablé. Musique 100&nbsp;% générée. En solo, ou en <b>duel live</b> sur la même danse&nbsp;: meilleur score gagne.</p>
-      <span class="cta">Entrer dans le cercle ▶</span>
-    </a>
-
-    <a class="card awale" href="awale-royal.html">
-      <div class="emoji">🐚</div>
-      <div class="tag">Roguelike · combos de cartes</div>
-      <h2>Awalé Royal</h2>
-      <p>Les 48 graines de l'awalé en jeu de cartes façon <i>Balatro</i>&nbsp;: compose des combos (la Caravane, le Grenier plein, la Route de l'Or…), paie l'enchère de chaque village, achète <b>gri-gris</b> et <b>proverbes</b> au marché de nuit — et déjoue les caprices des Chefs.</p>
-      <span class="cta">Prendre la route ▶</span>
-    </a>
-
-    <a class="card banco" href="banco.html">
-      <div class="emoji">🧱</div>
-      <div class="tag">Puzzle · physique réelle</div>
-      <h2>Banco — Démolition</h2>
-      <p>Arme ta fronde et rase les ruines de banco&nbsp;: chaque poutre plie, <b>rougit sous la contrainte</b>, casse et s'effondre selon une <b>vraie simulation physique</b>. 7 chantiers, pierres limitées, étoiles à la clé. Vise les appuis&nbsp;!</p>
-      <span class="cta">Démolir ▶</span>
-    </a>
-
-    <a class="card harmattan" href="harmattan.html">
-      <div class="emoji">🌪️</div>
-      <div class="tag">Arcade · survie en horde</div>
-      <h2>Harmattan</h2>
-      <p>Le vent sec réveille les <b>esprits de la brousse</b>. Tes talismans frappent tout seuls&nbsp;: survis aux vagues, ramasse les graines d'âme et choisis tes pouvoirs (souffle, talismans, cercle sacré, tam-tam). Plus tu tiens, plus c'est dense.</p>
-      <span class="cta">Survivre ▶</span>
-    </a>
-
-    <a class="card lignees" href="conseil.html">
-      <div class="emoji">👑</div>
-      <div class="tag">Stratégie · tour par tour</div>
-      <h2>Lignées — Le Conseil</h2>
-      <p>Dirige une dynastie marchande au Carrefour des Sables. Commerce, alliances et ruse contre 5 Maisons rivales. Jouable au rythme qui te plaît : dormir ne fait jamais perdre.</p>
-      <span class="cta">Jouer ▶</span>
-    </a>
-
-    <a class="card sables" href="sables.html">
-      <div class="emoji">🏜️</div>
-      <div class="tag">Stratégie · temps réel (RTS)</div>
-      <h2>L'Âge des Sables</h2>
-      <p>Bâtis ta cité de terre crue au Sahel et traverse trois empires&nbsp;: Ghana, Mali, Songhaï. Récolte, construis, entraîne lanciers, archers et cavaliers, et détruis la Cité rivale. Façon Age of Empires — caravaniers qui s'emploient seuls. IA adverse.</p>
-      <span class="cta">Jouer ▶</span>
-    </a>
-
-    <a class="card echecs" href="echecs.html">
-      <div class="emoji">♟️</div>
-      <div class="tag">Stratégie · 1 ou 2 joueurs</div>
-      <h2>Échecs à l'Ivoirienne</h2>
-      <p>Le jeu d'échecs, habillé de la culture ivoirienne&nbsp;: le <b>Nanan</b> (roi), la <b>Reine Pokou</b>, la <b>Tata</b>, le <b>Komian</b> masqué, le <b>Dozo</b> chasseur et le <b>Planteur</b> de cacao. Règles complètes, IA hors-ligne, ou à deux.</p>
-      <span class="cta">Jouer ▶</span>
-    </a>
-
-    <a class="card oware" href="awale.html">
-      <div class="emoji">🫘</div>
-      <div class="tag">Multijoueur · duel & IA</div>
-      <h2>Awalé</h2>
-      <p>Le vrai jeu de semailles africain&nbsp;: prends les graines d'un trou et sème-les, <b>affame</b> l'adversaire puis <b>capture</b> en chaîne. Premier à 25 graines (sur 48) gagne. IA hors-ligne, ou <b>duel en ligne</b> contre un autre joueur.</p>
-      <span class="cta">Semer ▶</span>
-    </a>
-
-    <a class="card voraces" href="voraces.html">
-      <div class="emoji">🦠</div>
-      <div class="tag">Multijoueur · duel temps réel</div>
-      <h2>Voraces — Le Vivier</h2>
-      <p>Incarne une créature façon serpent dans un vivier grouillant. Gobe des fruits pour évoluer, dévore les plus petits, noue des alliances… et fuis les géants. Plus tu grossis, plus tu ralentis. En solo contre l'IA, ou <b>duel live 1v1</b> contre un autre joueur en temps réel.</p>
-      <span class="cta">Jouer ▶</span>
-    </a>
-  </main>
+  <main id="catalog"></main>
 
   <footer>
-    🔧 Outils&nbsp;: <a href="prototype.html">vérifier le moteur de Lignées</a> (7 contrôles)<br>
-    <small>AwemA · prototypes locaux — voir <code>docs/</code></small>
+    <span id="ver"></span> · <a href="games/atelier.html">🎓 Apprendre à créer les jeux</a> · <a href="games/idees.html">💡 Proposer un jeu</a><br>
+    <a href="games/prototype.html">🔧 Vérifier le moteur Lignées</a> · 100% local & hors-ligne · <a href="https://github.com/codescooper/AwemA-Games">code (AGPL-3.0)</a>
   </footer>
 
-  <script>
-    // Enregistrement défensif : seulement en contexte sécurisé (pas en file://), n'échoue jamais bruyamment.
-    if ("serviceWorker" in navigator && location.protocol !== "file:") {
-      addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
-    }
-    // Bouton d'installation (Chrome/Edge/Android) : apparaît quand la PWA est installable.
-    let deferredPrompt = null;
-    const installBtn = document.getElementById("installBtn");
-    addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredPrompt = e; if (installBtn) installBtn.hidden = false; });
-    if (installBtn) installBtn.onclick = async () => {
-      if (!deferredPrompt) return;
-      deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null; installBtn.hidden = true;
-    };
-    addEventListener("appinstalled", () => { if (installBtn) installBtn.hidden = true; });
-  </script>
+  <div id="attract" aria-hidden="true">
+    <div class="big" id="aEmoji">🎮</div>
+    <h3 id="aName"></h3>
+    <p id="aTag"></p>
+    <div class="hint">▶ touche / clique pour jouer</div>
+  </div>
+
+<script>
+(function () {
+  var G = (window.AWEMA && AWEMA.GAMES) || [];
+  var CATS = (window.AWEMA && AWEMA.CATEGORIES) || [];
+
+  /* ----- enseigne défilante ----- */
+  var live = G.filter(function (g) { return g.status === "live"; });
+  var run = live.map(function (g) { return g.emoji + " " + g.name; }).join("     ✦     ");
+  document.getElementById("run").textContent = "✦  " + run + "     ✦     " + run + "  ";
+  document.getElementById("ver").textContent = "AwemA v" + ((window.AWEMA && AWEMA.VERSION) || "0.1.0");
+
+  /* ----- barre profil ----- */
+  function refreshProfile() {
+    var idx = 0, tier = { ic: "🥾", name: "Voyageur" };
+    try { idx = AWEMA.indiceOf(AWEMA.localScores()); tier = AWEMA.tierOf(idx); } catch (e) {}
+    var el = document.getElementById("profile");
+    el.innerHTML = "👤 " + AWEMA.esc(AWEMA.name()) + " · <b>" + idx + "</b> <span class='tier'>" + tier.ic + "</span>";
+    el.title = tier.name + " · Indice " + idx + " — clique pour changer ton pseudo";
+  }
+  document.getElementById("profile").onclick = function () { AWEMA.promptName(function () { refreshProfile(); }); };
+  refreshProfile();
+
+  /* ----- rendu des catégories + cartes ----- */
+  function badge(g) {
+    var b = "";
+    if (g.badge === "NOUVEAU") b += '<span class="badge new">NOUVEAU</span>';
+    else if (g.multiplayer === "duel") b += '<span class="badge mp">DUEL</span>';
+    else if (g.multiplayer === "presence") b += '<span class="badge mp">EN LIGNE</span>';
+    return b;
+  }
+  function cta(g) { return g.status === "hub" ? "Entrer ▶" : g.status === "tool" ? "Ouvrir ▶" : "Jouer ▶"; }
+  var mainEl = document.getElementById("catalog"), html = "";
+  CATS.forEach(function (c) {
+    var items = G.filter(function (g) { return g.category === c.id && g.status !== "archived"; });
+    if (!items.length) return;
+    html += '<div class="cat">' + c.emoji + " " + c.label + "</div><div class=\"grid\">";
+    items.forEach(function (g) {
+      var mp = g.multiplayer === "duel" ? "Multijoueur · duel" : g.multiplayer === "presence" ? "Multijoueur · présence" : "Solo";
+      html += '<a class="card t-' + (g.theme || "classement") + '" href="' + g.file + '">' + badge(g) +
+        '<div class="emoji">' + g.emoji + "</div>" +
+        "<h2>" + AWEMA.esc(g.name) + "</h2>" +
+        '<div class="tag">' + mp + "</div>" +
+        "<p>" + AWEMA.esc(g.tagline || "") + "</p>" +
+        '<span class="cta">' + cta(g) + "</span></a>";
+    });
+    html += "</div>";
+  });
+  mainEl.innerHTML = html;
+
+  /* ----- son optionnel (défaut OFF, gesture-gated) ----- */
+  var SND_KEY = "awema_sound", sound = (AWEMA.lsGet(SND_KEY) === "1"), actx = null;
+  var sbtn = document.getElementById("soundBtn");
+  function paint() { sbtn.textContent = sound ? "🔊" : "🔇"; sbtn.title = sound ? "Son activé" : "Son coupé"; }
+  paint();
+  sbtn.onclick = function () { sound = !sound; AWEMA.lsSet(SND_KEY, sound ? "1" : "0"); paint(); if (sound) blip(660, .06); };
+  function blip(f, d) { if (!sound) return; try { actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    var o = actx.createOscillator(), g2 = actx.createGain(); o.type = "triangle"; o.frequency.value = f;
+    g2.gain.value = .04; o.connect(g2); g2.connect(actx.destination); o.start(); g2.gain.setTargetAtTime(0, actx.currentTime + (d || .05), .04); o.stop(actx.currentTime + .25); } catch (e) {} }
+  document.querySelectorAll(".card").forEach(function (c) { c.addEventListener("mouseenter", function () { blip(520, .04); }); });
+
+  /* ----- mode attractif (aperçus à l'inactivité) ----- */
+  var att = document.getElementById("attract"), idleT = null, cycT = null, i = 0;
+  function showAttract() {
+    if (!live.length) return;
+    att.classList.add("on"); att.setAttribute("aria-hidden", "false");
+    function step() { var g = live[i % live.length]; i++;
+      document.getElementById("aEmoji").textContent = g.emoji;
+      document.getElementById("aName").textContent = g.name;
+      document.getElementById("aTag").textContent = g.tagline || ""; }
+    step(); cycT = setInterval(step, 3000);
+  }
+  function hideAttract() { att.classList.remove("on"); att.setAttribute("aria-hidden", "true"); if (cycT) { clearInterval(cycT); cycT = null; } }
+  function resetIdle() { if (idleT) clearTimeout(idleT); if (att.classList.contains("on")) hideAttract(); idleT = setTimeout(showAttract, 25000); }
+  att.addEventListener("click", function () { hideAttract(); resetIdle(); });
+  ["pointermove", "pointerdown", "keydown", "touchstart", "wheel"].forEach(function (ev) { addEventListener(ev, resetIdle, { passive: true }); });
+  resetIdle();
+
+  /* ----- PWA ----- */
+  if ("serviceWorker" in navigator && location.protocol !== "file:")
+    addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+  var deferred = null, ib = document.getElementById("installBtn");
+  addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); deferred = e; if (ib) ib.hidden = false; });
+  if (ib) ib.onclick = function () { if (!deferred) return; deferred.prompt(); deferred.userChoice.finally(function () { deferred = null; ib.hidden = true; }); };
+  addEventListener("appinstalled", function () { if (ib) ib.hidden = true; });
+})();
+</script>
 </body>
 </html>

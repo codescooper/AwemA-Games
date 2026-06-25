@@ -1,10 +1,10 @@
 {
-  "name": "AwemA — TheGame",
+  "name": "AwemA — Borne d'arcade",
   "short_name": "AwemA",
-  "description": "Plateforme de mini-jeux 100% locaux et hors-ligne : stratégie, arcade, échecs, démolition physique, rythme, roguelike — plus un atelier pour apprendre à coder.",
+  "description": "Borne d'arcade de mini-jeux 100% locaux et hors-ligne : stratégie, arcade, échecs, démolition physique, rythme, roguelike — plus un atelier pour apprendre à créer les jeux.",
   "lang": "fr",
   "dir": "ltr",
-  "start_url": "monde.html",
+  "start_url": "index.html",
   "scope": ".",
   "display": "standalone",
   "orientation": "any",

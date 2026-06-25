@@ -23,6 +23,7 @@ test("le cabinet rend toutes les cartes du catalogue", async ({ page }) => {
   await page.goto("/index.html");
   await expect(page.locator("#catalog .card")).toHaveCount(SHOWN.length);
   await expect(page.locator("#profile")).toContainText("👤");
+  await expect(page.locator("#daily .daily-in")).toBeVisible();   // défi du jour + série
   expect(errors, "exceptions JS dans le cabinet").toEqual([]);
 });
 

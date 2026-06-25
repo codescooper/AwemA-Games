@@ -66,6 +66,12 @@
   .t-place { background:linear-gradient(160deg,#1d3320,#0e1a10); border-color:#13875a66; } .t-place .cta{background:#13875a;color:#eafff4}
   .t-village { background:linear-gradient(160deg,#3a2a14,#15240f); border-color:#c89a4a66; } .t-village .cta{background:#c89a4a;color:#2a1c04}
   .install { font: inherit; font-weight: 800; cursor: pointer; background: var(--acc); color: #2a1404; border: 0; border-radius: .55rem; padding: .35rem .8rem; }
+  #daily { max-width: 1000px; margin: .9rem auto 0; padding: 0 1rem; }
+  .daily-in { display: flex; align-items: center; gap: .85rem; flex-wrap: wrap; background: linear-gradient(160deg,#2a2150,#171130); border: 1px solid #7c5cff55; border-radius: .9rem; padding: .7rem .95rem; }
+  .d-streak { font-weight: 800; color: #ffb24d; white-space: nowrap; }
+  .d-ch { flex: 1; min-width: 180px; font-size: .95rem; }
+  .d-btn { background: #7c5cff; color: #fff; font-weight: 800; text-decoration: none; padding: .5rem .9rem; border-radius: .55rem; white-space: nowrap; }
+  .d-btn:hover { filter: brightness(1.12); }
   footer { text-align: center; opacity: .55; font-size: .8rem; line-height: 1.8; margin-top: 2rem; }
   footer a { color: #9fd0ff; }
   /* ── Mode attractif ── */
@@ -96,6 +102,8 @@
     <button class="iconbtn" id="soundBtn" title="Son">🔇</button>
     <button class="install" id="installBtn" hidden>⬇️ Installer</button>
   </div>
+
+  <section id="daily"></section>
 
   <main id="catalog"></main>
 
@@ -132,6 +140,24 @@
   }
   document.getElementById("profile").onclick = function () { AWEMA.promptName(function () { refreshProfile(); }); };
   refreshProfile();
+
+  /* ----- défi du jour + série (rétention) ----- */
+  (function () {
+    var el = document.getElementById("daily");
+    if (!el || !AWEMA.daily) return;
+    var st = AWEMA.daily.visit(), ch = AWEMA.daily.challenge(), s = st.streak || 1;
+    var fire = "🔥 " + s + " jour" + (s > 1 ? "s" : "") + " d'affilée" + (st.longest > s ? " · record " + st.longest : "");
+    if (ch) {
+      el.innerHTML = '<div class="daily-in"><div class="d-streak">' + fire + '</div>'
+        + '<div class="d-ch"><b>🎯 Défi du jour</b> — ' + (ch.done ? "✅ relevé ! " : "")
+        + "bats ton record à " + ch.game.emoji + " <b>" + AWEMA.esc(ch.game.name) + "</b></div>"
+        + '<a class="d-btn" id="dailyBtn" href="' + ch.game.file + '">' + (ch.done ? "Rejouer ▶" : "Relever le défi ▶") + "</a></div>";
+      var b = document.getElementById("dailyBtn");
+      if (b) b.addEventListener("click", function () { try { AWEMA.daily.markDone(); AWEMA.track("daily_accept", { game: ch.game.id, streak: s }); } catch (e) {} });
+    } else {
+      el.innerHTML = '<div class="daily-in"><div class="d-streak">' + fire + "</div></div>";
+    }
+  })();
 
   /* ----- rendu des catégories + cartes ----- */
   function badge(g) {

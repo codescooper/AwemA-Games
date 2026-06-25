@@ -169,4 +169,28 @@
     document.body.appendChild(bar);
   } catch (e){} };
 
+  /* ---- défi du jour + série (rétention J1) — SANS toucher à l'Indice (anti-triche préservé) ----
+     La série compte les jours d'affilée où le joueur revient ; le défi met en avant un jeu
+     (déterministe par date). C'est une boucle de RAPPEL, pas une source de points. */
+  function parseDayKey(k){ var p = String(k).split("-"); return new Date(+p[0], (+p[1]) - 1, +p[2]); }
+  function todayKey(){ var d = new Date(); return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
+  A.daily = {
+    KEY: "awema_daily_v1",
+    _load: function(){ try { return JSON.parse(lsGet(A.daily.KEY)) || {}; } catch (e){ return {}; } },
+    _save: function(o){ lsSet(A.daily.KEY, JSON.stringify(o)); },
+    /* met à jour la série — à appeler UNE fois au chargement du cabinet ; renvoie {last,streak,longest,...} */
+    visit: function(){ var o = A.daily._load(), t = todayKey();
+      if (o.last !== t){
+        var diff = o.last ? Math.round((parseDayKey(t) - parseDayKey(o.last)) / 86400000) : null;
+        o.streak = (diff === 1) ? ((o.streak || 0) + 1) : 1;   // hier → +1 ; sinon → repart à 1
+        o.last = t; o.longest = Math.max(o.longest || 0, o.streak); A.daily._save(o);
+      }
+      return o; },
+    /* le jeu mis en avant aujourd'hui (déterministe par date, parmi les jeux notés) */
+    challenge: function(){ var L = scored(); if (!L.length) return null;
+      var t = todayKey(), h = 5381; for (var i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
+      return { game: L[h % L.length], done: (A.daily._load().cdate === t) }; },
+    markDone: function(){ var o = A.daily._load(); o.cdate = todayKey(); A.daily._save(o); }
+  };
+
 })(typeof window !== "undefined" ? window : this);

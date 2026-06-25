@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Contribuer à AwemA</title>
+<style>
+  :root { color-scheme: dark; --acc:#e8702a; --gold:#f0c64a; --vio:#7c5cff; --teal:#2fd6a6; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui,-apple-system,sans-serif; margin:0; min-height:100vh; color:#f3ece0;
+    background: radial-gradient(1100px 600px at 50% -10%, #21331f, #0b0d12 62%); display:flex; flex-direction:column; align-items:center; padding:1rem .9rem 3rem; }
+  a { color:#cdbcff; }
+  .top { width:100%; max-width:880px; display:flex; align-items:center; gap:.7rem; flex-wrap:wrap; }
+  .top h1 { font-size:clamp(1.4rem,4.5vw,2rem); margin:.2rem 0; }
+  .top .sp { flex:1; }
+  .tbtn { font:inherit; color:#fff; background:#ffffff14; border:1px solid #ffffff2e; border-radius:.5rem; padding:.35rem .7rem; cursor:pointer; text-decoration:none; font-size:.85rem; }
+  .tbtn:hover { background:#ffffff24; }
+  .wrap { width:100%; max-width:880px; }
+  .lead { font-size:1.05rem; line-height:1.55; opacity:.92; margin:.6rem 0 1.2rem; }
+  .lead b { color:var(--gold); }
+  .cards { display:grid; gap:1rem; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); }
+  .card { border-radius:1rem; padding:1.2rem 1.15rem; border:1px solid #ffffff1f; display:flex; flex-direction:column; }
+  .card .emoji { font-size:2.3rem; line-height:1; }
+  .card h2 { margin:.55rem 0 .2rem; font-size:1.22rem; }
+  .card p { font-size:.92rem; line-height:1.5; opacity:.9; margin:.3rem 0 .9rem; flex:1; }
+  .card .acts { display:flex; flex-direction:column; gap:.45rem; }
+  .btn { display:inline-block; text-decoration:none; text-align:center; font-weight:700; padding:.5rem .8rem; border-radius:.55rem; font-size:.92rem; color:#11140d; }
+  .btn.ghost { background:#ffffff12; color:#f3ece0; border:1px solid #ffffff2e; font-weight:600; }
+  .test { background:linear-gradient(160deg,#0e2b2a,#07181c); border-color:#2fd6a655; } .test .btn{background:var(--teal)}
+  .idea { background:linear-gradient(160deg,#3a2f12,#16110a); border-color:#f0c64a55; } .idea .btn{background:var(--gold)}
+  .code { background:linear-gradient(160deg,#241d3a,#14111f); border-color:#7c5cff55; } .code .btn{background:var(--vio);color:#fff}
+  .how { margin:1.6rem 0 0; background:#ffffff0c; border:1px solid #ffffff1c; border-radius:.9rem; padding:1rem 1.1rem; }
+  .how h3 { margin:.1rem 0 .5rem; font-size:1rem; }
+  .how ol { margin:.3rem 0 0; padding-left:1.2rem; line-height:1.65; font-size:.92rem; }
+  .how code { background:#ffffff18; padding:.05rem .35rem; border-radius:.3rem; font-size:.88em; }
+  .note { font-size:.82rem; opacity:.65; line-height:1.6; text-align:center; margin-top:1.5rem; }
+  .note a { color:#9fd0ff; }
+</style>
+  <script src="../shared/analytics.js"></script>
+</head>
+<body>
+  <div class="top">
+    <h1>🤝 Contribuer à AwemA</h1>
+    <span class="sp"></span>
+    <a class="tbtn" href="../index.html">≡ Cabinet</a>
+  </div>
+
+  <div class="wrap">
+    <p class="lead"><b>C'est ta borne aussi.</b> AwemA grandit avec sa communauté — tu peux aider <b>même sans coder</b> :
+      joue et donne ton avis, propose les prochains jeux, ou mets les mains dans le code. Tout est <b>ouvert</b> (open-source).</p>
+
+    <div class="cards">
+      <!-- Tester -->
+      <div class="card test">
+        <div class="emoji">🧪</div>
+        <h2>Jouer & tester</h2>
+        <p>Le plus utile, tout de suite : joue 5–10 min sur ton téléphone et dis-nous ce que tu <b>ressens</b> — ce qui amuse, ce qui bloque, ce qui bugue.</p>
+        <div class="acts">
+          <a class="btn" href="https://github.com/codescooper/AwemA-Games/issues/new?template=playtest.yml" target="_blank" rel="noopener">Donner mon avis</a>
+          <a class="btn ghost" href="https://github.com/codescooper/AwemA-Games/issues/new?template=bug.yml" target="_blank" rel="noopener">🐛 Signaler un bug</a>
+          <a class="btn ghost" href="https://github.com/codescooper/AwemA-Games/blob/main/TESTING.md" target="_blank" rel="noopener">Guide de test</a>
+        </div>
+      </div>
+
+      <!-- Proposer -->
+      <div class="card idea">
+        <div class="emoji">💡</div>
+        <h2>Proposer un jeu</h2>
+        <p>Une idée de jeu ? Écris-la aux <b>Doléances</b> : la communauté vote, et la plus demandée passe « en développement ». Tu décides de la suite.</p>
+        <div class="acts">
+          <a class="btn" href="idees.html">Ouvrir les Doléances</a>
+        </div>
+      </div>
+
+      <!-- Coder -->
+      <div class="card code">
+        <div class="emoji">🛠️</div>
+        <h2>Coder (AfroCodeurs bienvenus)</h2>
+        <p>JavaScript <b>vanilla</b>, zéro install, chaque jeu = <b>un seul fichier</b>. Débute par une « bonne première tâche », ou apprends d'abord à l'Atelier.</p>
+        <div class="acts">
+          <a class="btn" href="https://github.com/codescooper/AwemA-Games/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Guide du dev + 1res tâches</a>
+          <a class="btn ghost" href="https://github.com/codescooper/AwemA-Games" target="_blank" rel="noopener">Voir le code (GitHub)</a>
+          <a class="btn ghost" href="atelier.html">🎓 Apprendre à créer un jeu</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="how">
+      <h3>🌱 Comment la borne grandit</h3>
+      <ol>
+        <li>Un jeu = <b>un fichier HTML autonome</b> dans <code>engine/games/</code> (il marche même en double-clic, hors-ligne).</li>
+        <li>On ajoute <b>une entrée</b> au catalogue (<code>engine/catalog.js</code>) → le jeu apparaît <b>tout seul</b> dans le cabinet, le classement et le cache hors-ligne.</li>
+        <li>Si le jeu enseigne une méthode, on ajoute son <b>étude de cas</b> à l'Atelier. Et on vérifie avec <code>npm run check</code>.</li>
+      </ol>
+    </div>
+
+    <p class="note">
+      Projet <b>solo &amp; bootstrap</b>, <b>F2P éthique</b> (pas de pay-to-win, pas de loot boxes).
+      Code sous licence <a href="https://github.com/codescooper/AwemA-Games/blob/main/LICENSE" target="_blank" rel="noopener">AGPL-3.0</a> ·
+      <a href="https://github.com/codescooper/AwemA-Games/blob/main/CODE_OF_CONDUCT.md" target="_blank" rel="noopener">Code de conduite</a>.
+      Merci de faire vivre la place 🪘
+    </p>
+  </div>
+
+  <script>try { if (window.track) track("contribute_open"); } catch (e) {}</script>
+</body>
+</html>

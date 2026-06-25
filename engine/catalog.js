@@ -15,7 +15,7 @@
 (function (g) {
   g.AWEMA = g.AWEMA || {};
 
-  g.AWEMA.CACHE = "awema-v24";   // ← nom du cache SW : bump à CHAQUE changement de shell
+  g.AWEMA.CACHE = "awema-v25";   // ← nom du cache SW : bump à CHAQUE changement de shell
 
   g.AWEMA.CATEGORIES = [
     { id: "arcade",    label: "Arcade & action",  emoji: "🕹️" },
@@ -107,6 +107,10 @@
     { id: "idees", name: "Les Doléances", emoji: "💡", file: "games/idees.html",
       category: "social", theme: "place", multiplayer: "none", ws: null,
       tagline: "Propose et vote les prochains jeux : la communauté décide de la suite.",
+      score: null, atelier: null, status: "hub" },
+    { id: "contribuer", name: "Contribuer", emoji: "🤝", file: "games/contribuer.html",
+      category: "social", theme: "place", multiplayer: "none", ws: null,
+      tagline: "C'est ta borne aussi : teste, propose un jeu, ou code. Tout est open-source (AGPL).",
       score: null, atelier: null, status: "hub" },
 
     /* ---- Outils (dev) ---- */

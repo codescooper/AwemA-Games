@@ -23,4 +23,4 @@ createServer(async (req, res) => {
     res.writeHead(200, { "content-type": MIME[extname(full).toLowerCase()] || "application/octet-stream", "cache-control": "no-store" });
     res.end(body);
   } catch (e) { res.writeHead(500).end("500 — " + e.message); }
-}).listen(PORT, () => console.log("AwemA arcade → http://127.0.0.1:" + PORT + "/  (Ctrl+C pour arrêter)"));
+}).listen(PORT, "0.0.0.0", () => console.log("AwemA arcade → http://127.0.0.1:" + PORT + "/  (et http://<ip-locale>:" + PORT + "/ depuis un téléphone du même réseau)  ·  Ctrl+C pour arrêter"));

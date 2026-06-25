@@ -1,6 +1,11 @@
 # Dépendances
 node_modules/
 
+# Tests / Playwright (artefacts générés)
+/test-results/
+/playwright-report/
+/playwright/.cache/
+
 # Config locale Claude (machine-spécifique, peut contenir des autorisations propres au poste)
 .claude/settings.local.json
 

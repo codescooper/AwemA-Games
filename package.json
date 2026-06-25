@@ -7,9 +7,11 @@
   "scripts": {
     "serve": "node tools/serve.mjs",
     "check": "node tools/check.mjs",
+    "smoke": "playwright test",
     "play": "tsx engine/games/_archive/prototype.ts"
   },
   "devDependencies": {
+    "@playwright/test": "^1.48.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   }

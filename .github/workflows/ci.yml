@@ -1,0 +1,32 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    name: Cohérence (catalogue + parité)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - run: node tools/check.mjs        # zéro dépendance : catalogue ↔ fichiers ↔ SW ↔ classements ↔ atelier ↔ parité ↔ liens ↔ stubs
+
+  smoke:
+    name: Smoke navigateur (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+      - run: npm run smoke
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

@@ -1,0 +1,53 @@
+import { test, expect } from "@playwright/test";
+import { readFileSync } from "node:fs";
+
+/* Charge le catalogue (script classique → on l'évalue avec un faux `self`). */
+const ctx = {};
+new Function("self", readFileSync(new URL("../engine/catalog.js", import.meta.url), "utf8"))(ctx);
+const SHOWN = ctx.AWEMA.GAMES.filter(g => g.status !== "archived");   // cartes rendues par le cabinet
+
+/* Smoke hermétique : on coupe le réseau externe (PostHog, WS Railway) → rapide et
+   déterministe. Les jeux doivent rester sains hors-ligne (offline-first). */
+test.beforeEach(async ({ page }) => {
+  await page.route("**/*", route => {
+    const u = route.request().url();
+    if (u.startsWith("http://127.0.0.1") || u.startsWith("http://localhost") || u.startsWith("data:") || u.startsWith("blob:"))
+      return route.continue();
+    return route.abort();                       // bloque tout l'externe
+  });
+});
+
+test("le cabinet rend toutes les cartes du catalogue", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", e => errors.push(e.message));
+  await page.goto("/index.html");
+  await expect(page.locator("#catalog .card")).toHaveCount(SHOWN.length);
+  await expect(page.locator("#profile")).toContainText("👤");
+  expect(errors, "exceptions JS dans le cabinet").toEqual([]);
+});
+
+for (const g of SHOWN) {
+  test(`${g.id} se charge sans exception JS`, async ({ page }) => {
+    const errors = [];
+    page.on("pageerror", e => errors.push(`${g.id}: ${e.message}`));
+    await page.goto("/" + g.file, { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(800);             // laisse tourner l'init / la 1re frame
+    expect(errors).toEqual([]);
+  });
+}
+
+test("un stub d'ancienne URL redirige vers games/", async ({ page }) => {
+  await page.goto("/voraces.html");
+  await page.waitForURL("**/games/voraces.html", { timeout: 6000 });
+  expect(page.url()).toContain("/games/voraces.html");
+});
+
+test("l'Atelier démarre et affiche ses deux pistes", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", e => errors.push(e.message));
+  await page.goto("/games/atelier.html");
+  await expect(page.locator("#tab-code")).toBeVisible();
+  await expect(page.locator("#tab-vibe")).toBeVisible();
+  await expect(page.locator("#toc .lk").first()).toBeVisible();
+  expect(errors, "exceptions JS dans l'Atelier").toEqual([]);
+});

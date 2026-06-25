@@ -36,6 +36,8 @@
   .pc.v { background: radial-gradient(circle at 36% 30%, #3fcf95, var(--v)); border: 2px solid #fff5; }
   .pc.chk { outline: 3px solid #ff4040; animation: pulse 1s infinite; }
   @keyframes pulse { 0%,100%{ outline-color:#ff4040; } 50%{ outline-color:#ff404033; } }
+  /* Pièces « classiques » : symboles d'échecs (monochromes) → couleur sombre + relief léger pour la lisibilité sur les jetons orange/vert */
+  .board.classic .pc { color: #1c1206; text-shadow: 0 1px 0 #ffffff66; font-size: clamp(20px, 6.6vmin, 40px); font-weight: 700; }
   .panel { width: min(92vw, 320px); display: flex; flex-direction: column; gap: .7rem; }
   .card { background: #ffffff0d; border: 1px solid #ffffff1c; border-radius: .7rem; padding: .7rem .8rem; }
   .turn { display: flex; align-items: center; gap: .5rem; font-weight: 700; }
@@ -104,6 +106,12 @@
             <option value="4">IA — Difficile</option>
           </select>
         </div>
+        <div class="row" style="margin-top:.5rem">
+          <select id="pieceSet" title="Apparence des pièces" onchange="setPieceSet()">
+            <option value="actuel">🪘 Pièces actuelles</option>
+            <option value="classique">♟️ Pièces classiques</option>
+          </select>
+        </div>
         <label class="opt" style="margin-top:.5rem"><input type="checkbox" id="pvp" onchange="togglePvp()"> 2 joueurs (sans IA)</label>
         <button class="btn" id="onlineBtn" onclick="toggleOnline()" style="margin-top:.55rem;width:100%">🌐 Duel en ligne</button>
       </div>
@@ -137,7 +145,11 @@
    Vert   = noirs  ('b', minuscules), en haut, IA, joue vers le bas.
    ========================================================================== */
 
-const GLYPH = { k: "👑", q: "👸", r: "🏰", b: "🎭", n: "🏹", p: "🌱" };
+const GLYPH = { k: "👑", q: "👸", r: "🏰", b: "🎭", n: "🏹", p: "🌱" };          // « Actuel » : habillage ivoirien (emoji)
+const GLYPH_CLASSIC = { k: "♚", q: "♛", r: "♜", b: "♝", n: "♞", p: "♟" };       // « Classique » : symboles d'échecs (les noms ivoiriens restent)
+const PIECE_KEY = "echecs_pieces";
+let pieceSet = (function () { try { return localStorage.getItem(PIECE_KEY) === "classique" ? "classique" : "actuel"; } catch (e) { return "actuel"; } })();
+function glyph(t) { return (pieceSet === "classique" ? GLYPH_CLASSIC : GLYPH)[t]; }
 const PROMO_NAME = { q: "Reine Pokou", r: "Tata", b: "Komian", n: "Dozo" };
 const VAL = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
 
@@ -325,8 +337,8 @@ function countMissing() {
   const now = {}; for (const k in start) now[k] = 0;
   for (const p of S.board) if (p !== "." && now[p] !== undefined) now[p]++;
   const capByO = [], capByV = [];   // pièces vertes prises par Orange / oranges prises par Vert
-  for (const k of ["p","n","b","r","q"]) { for (let i = now[k]; i < start[k]; i++) capByO.push(GLYPH[k]); }
-  for (const k of ["P","N","B","R","Q"]) { for (let i = now[k]; i < start[k]; i++) capByV.push(GLYPH[typ(k)]); }
+  for (const k of ["p","n","b","r","q"]) { for (let i = now[k]; i < start[k]; i++) capByO.push(glyph(k)); }
+  for (const k of ["P","N","B","R","Q"]) { for (let i = now[k]; i < start[k]; i++) capByV.push(glyph(typ(k))); }
   return { capByO, capByV };
 }
 
@@ -345,7 +357,7 @@ function render() {
     if (p !== ".") {
       const t = document.createElement("div");
       t.className = "pc " + (col(p) === "w" ? "o" : "v");
-      t.textContent = GLYPH[typ(p)];
+      t.textContent = glyph(typ(p));
       if (typ(p) === "k" && chkSide === col(p)) t.classList.add("chk");
       sq.appendChild(t);
     }
@@ -408,7 +420,7 @@ function askPromo(ms) {
   for (const pr of ["q","r","b","n"]) {
     const m = ms.find(x => x.promo === pr); if (!m) continue;
     const btn = document.createElement("button"); btn.className = "po";
-    btn.innerHTML = GLYPH[pr] + "<small>" + PROMO_NAME[pr] + "</small>";
+    btn.innerHTML = glyph(pr) + "<small>" + PROMO_NAME[pr] + "</small>";
     btn.onclick = () => { document.getElementById("modal").classList.remove("show"); applyMove(m); };
     box.appendChild(btn);
   }
@@ -446,6 +458,14 @@ function undo() {
   render(); updateStatus();
 }
 function setDiff() { depth = +document.getElementById("diff").value; }
+function setPieceSet() {
+  const v = document.getElementById("pieceSet").value;
+  pieceSet = (v === "classique" ? "classique" : "actuel");
+  try { localStorage.setItem(PIECE_KEY, pieceSet); } catch (e) {}
+  document.getElementById("board").classList.toggle("classic", pieceSet === "classique");
+  render();
+  try { if (window.track) track("echecs_pieceset", { set: pieceSet }); } catch (e) {}
+}
 function togglePvp() { pvp = document.getElementById("pvp").checked; render(); updateStatus(); if (!pvp && !over && S.turn === AI) { thinking = true; render(); setTimeout(aiPlay, 240); } }
 
 /* ---- DUEL EN LIGNE (échecs multijoueur via le serveur WebSocket /ws/chess) ---- */
@@ -498,6 +518,8 @@ function onRemoteMove(mm) {
   if (ms.length) applyMove(ms[0], true);
 }
 
+try { document.getElementById("pieceSet").value = pieceSet; } catch (e) {}
+document.getElementById("board").classList.toggle("classic", pieceSet === "classique");
 newGame();
 </script>
 </body>

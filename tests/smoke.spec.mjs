@@ -52,3 +52,14 @@ test("l'Atelier démarre et affiche ses deux pistes", async ({ page }) => {
   await expect(page.locator("#toc .lk").first()).toBeVisible();
   expect(errors, "exceptions JS dans l'Atelier").toEqual([]);
 });
+
+test("Échecs : bascule Classique/Actuel des pièces + persistance", async ({ page }) => {
+  await page.goto("/games/echecs.html");
+  await expect(page.locator("#board .pc").first()).toBeVisible();        // pièces présentes (set actuel)
+  await page.selectOption("#pieceSet", "classique");
+  await expect(page.locator("#board.classic")).toBeVisible();           // classe appliquée
+  const t = await page.locator("#board .pc").first().textContent();
+  expect(/[♔-♟]/.test(t || "")).toBeTruthy();                 // un symbole d'échec classique est rendu
+  await page.reload();
+  await expect(page.locator("#board.classic")).toBeVisible();           // choix persisté
+});

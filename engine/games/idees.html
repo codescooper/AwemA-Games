@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Les Doléances — propose le prochain jeu</title>
+<style>
+  :root { color-scheme: dark; --gold:#f0c64a; --vio:#7c5cff; --grn:#13875a; }
+  * { box-sizing: border-box; }
+  body { font-family:system-ui,-apple-system,sans-serif; margin:0; min-height:100vh; color:#f3ece0;
+    background: radial-gradient(1100px 600px at 50% -8%, #2a2440, #0c0a16 64%); display:flex; flex-direction:column; align-items:center; padding:1rem .7rem 3rem; }
+  a { color:#cdbcff; }
+  .top { width:100%; max-width:760px; display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
+  .top h1 { font-size:clamp(1.3rem,4.5vw,1.9rem); margin:.2rem 0; }
+  .top .sp { flex:1; }
+  .tbtn { font:inherit; color:#fff; background:#ffffff14; border:1px solid #ffffff2e; border-radius:.5rem; padding:.35rem .6rem; cursor:pointer; text-decoration:none; font-size:.85rem; }
+  .tbtn:hover { background:#ffffff24; }
+  .wrap { width:100%; max-width:760px; display:flex; flex-direction:column; gap:.9rem; margin-top:.7rem; }
+  .card { background:#ffffff0c; border:1px solid #ffffff1c; border-radius:.9rem; padding:.9rem 1rem; }
+  .intro { font-size:.92rem; line-height:1.55; opacity:.9; }
+  .intro b { color:var(--gold); }
+  /* formulaire */
+  .form { display:flex; flex-direction:column; gap:.5rem; }
+  .form .row { display:flex; gap:.5rem; flex-wrap:wrap; }
+  .form input { flex:1; min-width:140px; font:inherit; background:#0b0d16; color:#fff; border:1px solid #ffffff2e; border-radius:.55rem; padding:.55rem .7rem; }
+  .form button { font:inherit; font-weight:800; background:var(--gold); color:#2a1c04; border:0; border-radius:.55rem; padding:.55rem 1rem; cursor:pointer; }
+  /* liste */
+  .req { display:flex; align-items:center; gap:.7rem; background:#ffffff0c; border:1px solid #ffffff18; border-radius:.7rem; padding:.6rem .7rem; }
+  .req.win { border-color:var(--gold); background:linear-gradient(180deg,#322611,#1a1408); }
+  .req .vote { display:flex; flex-direction:column; align-items:center; gap:.1rem; min-width:54px; }
+  .req .vbtn { font:inherit; cursor:pointer; background:#ffffff12; border:1px solid #ffffff2e; border-radius:.5rem; padding:.25rem .5rem; font-size:1rem; }
+  .req .vbtn.on { background:var(--grn); border-color:transparent; }
+  .req .vn { font-variant-numeric:tabular-nums; font-weight:800; font-size:1.05rem; }
+  .req .body { flex:1; min-width:0; }
+  .req .t { font-weight:700; }
+  .req .meta { font-size:.78rem; opacity:.8; margin-top:.15rem; }
+  .tag { display:inline-block; font-size:.72rem; background:#ffffff14; border:1px solid #ffffff2e; border-radius:1rem; padding:.05rem .5rem; margin-right:.3rem; }
+  .tag.by { color:#8fe0d4; } .tag.dev { color:#ffd9a8; }
+  .badge { font-size:.72rem; background:var(--gold); color:#2a1c04; font-weight:800; border-radius:1rem; padding:.1rem .55rem; }
+  .badge.dev { background:var(--grn); color:#eafff4; }
+  .note { font-size:.8rem; opacity:.62; text-align:center; line-height:1.5; }
+</style>
+  <script src="../shared/analytics.js"></script>
+  <script src="../shared/pow.js"></script>
+</head>
+<body>
+  <div class="top">
+    <h1>💡 Les Doléances</h1>
+    <span class="sp"></span>
+    <a class="tbtn" href="monde.html">🗺️ Village</a>
+    <a class="tbtn" href="../index.html">≡ Menu</a>
+  </div>
+
+  <div class="wrap">
+    <div class="card intro">
+      Propose le <b>prochain jeu</b> de la plateforme, ou vote pour les idées des autres.
+      Chaque demande porte le <b>nom du demandeur</b> et, une fois prise en charge, le <b>tag du développeur</b>.
+      <br>🏗️ Chaque semaine, la <b>demande la plus votée passe en phase de développement</b>.
+    </div>
+
+    <div class="card">
+      <div class="form">
+        <input id="title" maxlength="60" placeholder="Ton idée de jeu (ex. « Course de pirogues »)" />
+        <div class="row">
+          <input id="dev" maxlength="24" placeholder="Développeur (tag, optionnel)" />
+          <button onclick="addReq()">＋ Proposer</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="list"></div>
+
+    <div class="note" id="note"></div>
+  </div>
+
+<script>
+/* ============================================================================
+   LES DOLÉANCES — demandes de jeu votables (couche sociale), 100% local.
+   Chaque demande : titre + demandeur (toi) + tag développeur. Vote 1/personne.
+   Clôture de semaine (démo) : la n°1 passe « en développement ».
+   ─ Couture réseau : remplacer Store.* (localStorage) par des appels serveur. ─
+   ========================================================================== */
+addEventListener("error", ev=>{ try{ let d=document.getElementById("errband");
+  if(!d){ d=document.createElement("div"); d.id="errband"; d._n=0;
+    d.style.cssText="position:fixed;left:8px;top:8px;right:8px;z-index:99;background:#5a1410;color:#ffd9d0;border:1px solid #ff6b6b;border-radius:8px;padding:8px 10px;font:13px/1.4 system-ui;white-space:pre-wrap";
+    document.body.appendChild(d);} d._n++; d.textContent="⛔ "+(ev.message||"erreur"); }catch(e){} });
+
+const lsGet=k=>{ try{ return localStorage.getItem(k); }catch(e){ return null; } };
+const lsSet=(k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+function uid(){ let u=lsGet("awema_uid"); if(!u){ u="u"+Math.random().toString(36).slice(2,9); lsSet("awema_uid",u);} return u; }
+const myName=()=> lsGet("awema_player") || "Toi";
+
+/* ---- serveur partagé (avec repli hors-ligne local) ---- */
+const BACKEND_URL="https://awema-games-production.up.railway.app";
+let reqs=[], online=false, pollT=null;
+
+const KEY="awema_requests_v1";                              // repli local : graine + localStorage
+const SEED=[
+  { id:"seed0", title:"Course de pirogues sur la lagune", by:"Kouamé", dev:"", voters:Array.from({length:14},(_,i)=>"s0"+i), status:"open" },
+  { id:"seed1", title:"Gestion de plantation de cacao", by:"Aïssata", dev:"", voters:Array.from({length:23},(_,i)=>"s1"+i), status:"open" },
+  { id:"seed2", title:"Awalé traditionnel en duel", by:"Awa la griotte", dev:"AwemA Studio", voters:Array.from({length:18},(_,i)=>"s2"+i), status:"dev" },
+  { id:"seed3", title:"Combat de masques (baston en ligne)", by:"N'Dri", dev:"", voters:[], status:"open" },
+];
+function localLoad(){ try{ const r=JSON.parse(lsGet(KEY)); if(Array.isArray(r)&&r.length) return r.map(x=>({ ...x, voters:x.voters||[] })); }catch(e){}
+  const s=SEED.map(x=>({ ...x })); lsSet(KEY,JSON.stringify(s)); return s; }
+function localSave(){ lsSet(KEY, JSON.stringify(reqs)); }
+
+async function api(path, opts){ const r=await fetch(BACKEND_URL+path, opts); if(!r.ok) throw new Error("http "+r.status); const j=await r.json(); if(!j.ok) throw new Error(j.error||"refusé"); return j; }
+const postBody=o=>({ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(o) });
+const votesOf=r=> online ? r.votes : (r.voters||[]).length;
+const votedBy=r=> online ? !!r.voted : (r.voters||[]).includes(uid());
+const setNote=html=>{ document.getElementById("note").innerHTML=html; };
+
+async function refresh(){
+  try{ const j=await api("/api/doleances?uid="+encodeURIComponent(uid())); online=true; reqs=j.list; render(); }
+  catch(e){ if(!reqs.length) reqs=localLoad(); online=false; render(); }
+}
+async function addReq(){
+  const t=document.getElementById("title").value.trim(); if(t.length<3) return;
+  const dev=document.getElementById("dev").value.trim();
+  document.getElementById("title").value=""; document.getElementById("dev").value="";
+  if(online){ try{ let pow=null; if(window.powToken) pow=await powToken(()=>setNote("🔐 vérification anti-robot…")); reqs=(await api("/api/doleances/add", postBody({ uid:uid(), title:t, by:myName(), dev, pow }))).list; render(); track("doleance_add"); }catch(e){ setNote("⚠️ "+e.message); } return; }
+  reqs.push({ id:"r"+Date.now(), title:t.slice(0,60), by:myName(), dev:dev.slice(0,24), voters:[uid()], status:"open" }); localSave(); render();
+}
+async function toggleVote(id){
+  if(online){ try{ let pow=null; if(window.powToken) pow=await powToken(()=>setNote("🔐 vérification anti-robot…")); reqs=(await api("/api/doleances/vote", postBody({ uid:uid(), id, pow }))).list; render(); track("doleance_vote"); }catch(e){ setNote("⚠️ vote impossible"); } return; }
+  const r=reqs.find(x=>x.id===id); if(!r) return; const u=uid(); r.voters=r.voters||[]; const i=r.voters.indexOf(u);
+  if(i>=0) r.voters.splice(i,1); else r.voters.push(u); localSave(); render();
+}
+
+function render(){
+  const sorted=reqs.slice().sort((a,b)=>(b.status==="dev")-(a.status==="dev")||votesOf(b)-votesOf(a));
+  const topOpen=reqs.filter(r=>r.status!=="dev").sort((a,b)=>votesOf(b)-votesOf(a))[0];
+  document.getElementById("list").innerHTML=sorted.map(r=>{
+    const voted=votedBy(r), isWin=topOpen&&r.id===topOpen.id&&r.status!=="dev";
+    return `<div class="req ${isWin?'win':''}">
+      <div class="vote"><button class="vbtn ${voted?'on':''}" onclick="toggleVote('${r.id}')" ${r.status==="dev"?'disabled':''}>👍</button><span class="vn">${votesOf(r)}</span></div>
+      <div class="body">
+        <div class="t">${esc(r.title)} ${isWin?'<span class="badge">💡 demande de la semaine</span>':''} ${r.status==="dev"?'<span class="badge dev">🏗️ en dev</span>':''}</div>
+        <div class="meta"><span class="tag by">🙋 ${esc(r.by)}</span>${r.dev?`<span class="tag dev">🛠️ ${esc(r.dev)}</span>`:'<span class="tag">🛠️ dev à assigner</span>'}</div>
+      </div></div>`; }).join("");
+  setNote(online
+    ? "🌍 <b>Votes partagés en direct</b> · 1 voix par idée · la n°1 part en dev chaque semaine."
+    : "🔌 Hors-ligne — votes enregistrés en local <span class='tag'>se synchronisera en ligne</span>");
+}
+
+refresh();
+pollT=setInterval(()=>{ if(!document.hidden) refresh(); }, 8000);   // votes partagés quasi temps réel
+</script>
+</body>
+</html>

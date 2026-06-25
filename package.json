@@ -1,11 +1,13 @@
 {
-  "name": "lignees-prototype",
-  "version": "0.0.1",
+  "name": "awema-arcade",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Lignées — prototype local-first (moteur pur, déterministe). Voir docs/.",
+  "description": "AwemA — borne d'arcade de mini-jeux web, 100% local & offline-first (PWA). Voir README.md.",
   "scripts": {
-    "play": "tsx engine/prototype.ts"
+    "serve": "node tools/serve.mjs",
+    "check": "node tools/check.mjs",
+    "play": "tsx engine/games/_archive/prototype.ts"
   },
   "devDependencies": {
     "tsx": "^4.19.0",

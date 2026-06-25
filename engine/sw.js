@@ -1,14 +1,20 @@
-/* AwemA — service worker : cache hors-ligne de toute la plateforme.
-   Stratégie cache-first (tout est statique et autonome) avec mise à jour réseau
-   en arrière-plan. Bump CACHE pour invalider lors d'une nouvelle version. */
-const CACHE = "awema-v23";
-const SHELL = [
-  ".", "index.html", "manifest.webmanifest", "icon.svg",
-  "monde.html", "classements.html", "salon.html", "cinema.html", "idees.html",
-  "atelier.html", "harmattan.html", "banco.html", "awale-royal.html", "tamtam.html",
-  "conseil.html", "sables.html", "echecs.html", "awale.html", "voraces.html", "prototype.html",
-  "analytics.js", "lignees-engine.js", "pow.js",
+/* AwemA — service worker : cache hors-ligne de TOUTE la plateforme.
+   Le SHELL est DÉRIVÉ du catalogue unique (catalog.js) via importScripts →
+   aucune liste à maintenir à la main (fin de la dérive menu/SHELL/classements).
+   Stratégie cache-first + rafraîchissement réseau en arrière-plan.
+   Pour invalider à une nouvelle version : bumper `AWEMA.CACHE` dans catalog.js. */
+importScripts("./catalog.js");
+
+const G = (self.AWEMA && self.AWEMA.GAMES) || [];
+const CACHE = (self.AWEMA && self.AWEMA.CACHE) || "awema-v24";
+const CORE = [
+  "./", "index.html", "manifest.webmanifest", "icon.svg", "catalog.js",
+  "shared/awema.js", "shared/analytics.js", "shared/pow.js", "shared/lignees-engine.js",
 ];
+const live = G.filter(g => g.status !== "archived");
+const SHELL = CORE
+  .concat(live.map(g => g.file))                     // jeux : games/<id>.html
+  .concat(live.map(g => g.file.split("/").pop()));   // stubs de redirection : <ancien-nom>.html
 
 self.addEventListener("install", e => {
   e.waitUntil((async () => {
@@ -44,7 +50,7 @@ self.addEventListener("fetch", e => {
       if (res && res.ok && res.type === "basic") { const c = await caches.open(CACHE); c.put(req, res.clone()); }
       return res;
     } catch (err) {
-      // hors-ligne et non caché : pour une navigation, renvoyer le menu
+      // hors-ligne et non caché : pour une navigation, renvoyer le cabinet
       if (req.mode === "navigate") { const fallback = await caches.match("index.html"); if (fallback) return fallback; }
       return Response.error();
     }

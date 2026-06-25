@@ -1,0 +1,2049 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>L'Âge des Sables</title>
+<style>
+  :root { --sand:#e7d3a6; --sand2:#d9c08a; --paper:#fcf5e2; --ink:#3a2e1f; --line:#cdb88c;
+          --accent:#a8631f; --gold:#c8941f; --player:#2f5fb0; --enemy:#b1432f; color-scheme: light; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #cdb88c; color: var(--ink);
+               font-family: system-ui, -apple-system, sans-serif; touch-action: none; user-select: none; }
+  #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
+
+  /* barre du haut */
+  #topbar { position: fixed; top: 0; left: 0; right: 0; height: 42px; z-index: 5; display: flex; align-items: center; gap: .15rem;
+            padding: 0 .5rem; background: linear-gradient(#fcf5e2ee,#efdfb6ee); border-bottom: 2px solid var(--line); }
+  .res { font-weight: 700; font-variant-numeric: tabular-nums; padding: 0 .4rem; font-size: .92rem; white-space: nowrap; }
+  .res small { font-weight: 400; opacity: .65; }
+  #ageChip { color: var(--accent); }
+  #ageChip small { color: var(--accent); opacity: .8; }
+  #topbar .sp { flex: 1; }
+  .tbtn { font: inherit; font-size: .8rem; padding: .3rem .55rem; border: 1px solid var(--line); background: var(--paper);
+          color: var(--ink); border-radius: .4rem; cursor: pointer; text-decoration: none; white-space: nowrap; }
+  .tbtn:hover { background: #fff; }
+  .tbtn.on { background: #2e7d32; color: #fff; border-color: #2e7d32; }
+
+  /* barre de commande (bas) */
+  #cmdbar { position: fixed; left: 0; right: 0; bottom: 0; min-height: 96px; z-index: 5; display: flex; gap: .6rem;
+            padding: .5rem .6rem; background: linear-gradient(#efdfb6ee,#e3cf9aee); border-top: 2px solid var(--line); }
+  #selInfo { width: 188px; flex-shrink: 0; font-size: .82rem; border-right: 1px solid var(--line); padding-right: .5rem; overflow: hidden; }
+  #selInfo b { color: var(--accent); }
+  #actions { display: flex; flex-wrap: wrap; gap: .4rem; align-content: flex-start; flex: 1; }
+  .act { font: inherit; font-size: .8rem; padding: .4rem .55rem; border: 1px solid var(--line); background: var(--paper);
+         color: var(--ink); border-radius: .45rem; cursor: pointer; line-height: 1.15; text-align: left; min-width: 92px; }
+  .act:hover:not(:disabled) { background: #fff; border-color: var(--accent); }
+  .act:disabled { opacity: .42; cursor: default; }
+  .act.adv { border-color: var(--gold); background: #fff7e0; }
+  .act .c { display: block; font-size: .68rem; opacity: .7; }
+
+  /* overlays */
+  .overlay { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; padding: 1rem;
+             background: radial-gradient(900px 520px at 50% 28%, #efdcad, #cdb88c 72%); }
+  .panel { width: 100%; max-width: 560px; max-height: 92vh; overflow:auto; background: var(--paper); border: 2px solid var(--line);
+           border-radius: 1rem; padding: 1.3rem 1.5rem 1.5rem; box-shadow: 0 18px 50px #0006; }
+  .panel h1 { margin: .1rem 0 .1rem; font-size: 1.7rem; color: var(--ink); }
+  .panel h2 { margin: .1rem 0 .9rem; font-size: 1rem; font-weight: 500; color: var(--accent); }
+  .panel ul { padding-left: 1.1rem; line-height: 1.5; font-size: .92rem; }
+  .panel ul b { color: var(--accent); }
+  .row { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: 1.1rem; }
+  .btn { flex: 1; min-width: 140px; padding: .8rem 1rem; font-size: 1.05rem; font-weight: 700; border: none; border-radius: .6rem; cursor: pointer; text-align: center; text-decoration: none; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+  .codexcard { border: 1px solid var(--line); border-left: 4px solid var(--gold); border-radius: .5rem; padding: .55rem .75rem; margin: .5rem 0; background: #fffdf6; }
+  .codexcard h3 { margin: 0 0 .2rem; font-size: .98rem; color: var(--accent); }
+  .codexcard p { margin: 0; font-size: .86rem; line-height: 1.45; }
+  .hidden { display: none !important; }
+  .mini { opacity: .6; font-size: .8rem; }
+</style>
+  <script src="../shared/analytics.js"></script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="topbar">
+  <span class="res">🌾 <span id="rFood">0</span> <small>vivres</small></span>
+  <span class="res">🌴 <span id="rWood">0</span> <small>bois</small></span>
+  <span class="res">✦ <span id="rGold">0</span> <small>or</small></span>
+  <span class="res">👤 <span id="rPop">0/0</span></span>
+  <span class="res" id="ageChip">🏛️ <span id="ageName">Ghana</span><small id="ageProg"></small></span>
+  <span class="sp"></span>
+  <span class="res mini" id="clock">0:00</span>
+  <button class="tbtn on" id="sndBtn" onclick="toggleSound()" title="Son (touche M)">🔊</button>
+  <button class="tbtn on" id="pxBtn" onclick="togglePixel()" title="Style pixel art (touche P)">▦ Pixel</button>
+  <button class="tbtn" id="cmdBtn" onclick="selectCommander()" title="Sélectionner le commandant (touche C)">🎖️</button>
+  <button class="tbtn" id="idleBtn" onclick="cycleIdle()" title="Sélectionner le prochain villageois oisif (touche .)">💤 0</button>
+  <button class="tbtn on" id="autoBtn" onclick="toggleAuto()" title="Auto-emploi : les villageois oisifs vont récolter seuls">⚙ Auto</button>
+  <button class="tbtn" onclick="toggleCodex()">📖 Codex</button>
+  <a class="tbtn" href="../index.html">≡ Menu</a>
+</div>
+
+<div id="cmdbar">
+  <div id="selInfo"><span class="mini">Rien de sélectionné. Clique une unité ou un bâtiment.</span></div>
+  <div id="actions"></div>
+</div>
+
+<!-- Intro (cadre documentaire) -->
+<div id="intro" class="overlay">
+  <div class="panel">
+    <h1>🏜️ L'Âge des Sables</h1>
+    <h2>Sahel, du Ghana au Songhaï — bâtis, commerce, fais grandir ton empire.</h2>
+    <p style="font-size:.92rem;line-height:1.5;margin:.2rem 0 .6rem">
+      Aux carrefours du grand désert prospèrent des cités de terre crue. L'<b>or</b> du Sud y croise le <b>sel</b> du Nord ;
+      les caravanes relient Djenné, Tombouctou et Gao. Conduis ta cité à travers les <b>trois grands empires</b> — et surpasse ta rivale.</p>
+    <ul>
+      <li>⛏️ <b>Récolte</b> : tes <b>caravaniers</b> exploitent champs (🌾), palmeraies (🌴) et filons (✦) — et s'emploient <b>tout seuls</b>.</li>
+      <li>🏗️ <b>Construis</b> : maisons (population), <b>champs</b> (vivres ; un villageois les ressème une fois épuisés), caserne (soldats), marché (or), tour de guet (défense).</li>
+      <li>🏛️ <b>Avance d'Âge</b> : <b>Ghana → Mali → Songhaï</b>. Chaque empire débloque des unités et renforce les tiens.</li>
+      <li>⚔️ <b>Combats</b> : lanciers, archers, cavaliers — chacun en contre un autre. <b>Détruis la Cité rivale</b> pour l'emporter. L'armée lancée <b>enchaîne</b> les ennemis en vue jusqu'au rappel ; envoyée sur une tour, elle les <b>rase toutes</b>.</li>
+      <li>🎖️ <b>Commandant</b> (formé à la Cité, reste au village) : ordonne à l'armée de <b>garder</b> (encercler) ou <b>patrouiller</b>. 🏹 <b>Chasse</b> les gazelles sauvages pour des vivres.</li>
+    </ul>
+    <p class="mini" style="margin-top:.7rem">🖱️ <b>Clic gauche</b> : sélectionner (glisser = cadre, double-clic = tout le même type) · <b>Clic droit</b> : déplacer / récolter / construire / attaquer / ralliement · <b>Ctrl+chiffre</b> : créer un groupe, <b>chiffre</b> : le rappeler · <b>.</b> villageois oisif · <b>H</b> cité · <b>Z Q S D</b> / flèches : vue · clic <b>minicarte</b>.</p>
+    <div class="row">
+      <button class="btn ghost" onclick="startGame('paisible')">🕊️ Paisible</button>
+      <button class="btn primary" onclick="startGame('facile')">🙂 Facile ▶</button>
+      <button class="btn ghost" onclick="startGame('normal')">⚔️ Normal</button>
+      <button class="btn ghost" onclick="startGame('difficile')">🔥 Difficile</button>
+    </div>
+    <p class="mini" style="margin:.5rem 0 .1rem;text-align:center">🕊️ Paisible : l'IA ne t'attaque pas · 🙂 Facile · ⚔️ Normal · 🔥 Difficile (héros, sorciers, esprits, vagues rapides)</p>
+    <div class="row">
+      <button class="btn ghost" onclick="startGame('spectacle', true)">👁️ Observer (IA vs IA)</button>
+      <button class="btn ghost" onclick="toggleCodex()">📖 Le saviez-vous ?</button>
+    </div>
+  </div>
+</div>
+
+<!-- Fin -->
+<div id="result" class="overlay hidden">
+  <div class="panel" style="text-align:center">
+    <h1 id="resTitle">Victoire</h1>
+    <h2 id="resSub"></h2>
+    <div id="resStats" class="mini" style="margin:.4rem 0 .2rem"></div>
+    <div class="row">
+      <button class="btn primary" onclick="startGame()">Rejouer ▶</button>
+      <a class="btn ghost" href="../index.html">Menu</a>
+    </div>
+  </div>
+</div>
+
+<!-- Codex -->
+<div id="codex" class="overlay hidden">
+  <div class="panel">
+    <h1>📖 Codex</h1>
+    <h2>L'histoire derrière le jeu — faits réels du Sahel médiéval.</h2>
+    <div id="codexBody"></div>
+    <div class="row"><button class="btn primary" onclick="toggleCodex()">Fermer</button></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ===========================================================================
+   L'ÂGE DES SABLES — RTS temps réel (façon Age of Empires), 100 % local.
+   Direction artistique & documentaire : empires marchands du Sahel médiéval
+   (terre crue, or-sel, caravanes) — l'univers de « Lignées ».
+   Récolte → construction → Âges (Ghana→Mali→Songhaï) → combat → détruire la Cité rivale.
+   Automatisation poussée + collisions corrigées. Adversaire : IA.
+   =========================================================================== */
+
+/* ===== CONFIG (toute la balance ici) ====================================== */
+const CFG = {
+  TS: 40, MW: 80, MH: 56,                       // tuiles & taille de carte (grande)
+  START: { food: 200, wood: 200, gold: 120 },
+  POP_BASE: 6, POP_PER_HOUSE: 5, POP_MAX: 60,
+  GATHER_RATE: 7, CARRY_CAP: 12,                // récolte
+  COST: {
+    villager: { food: 50 }, maison: { wood: 35 }, caserne: { wood: 70, gold: 20 }, marche: { wood: 60, gold: 30 },
+    tour: { wood: 100, gold: 25 }, champ: { wood: 60 },
+    lancier: { food: 45, wood: 20 }, archer: { food: 40, gold: 25 }, cavalier: { food: 60, gold: 45 },
+    commandant: { food: 80, gold: 40 }, feticheur: { food: 80, gold: 60 }, sorcier: { food: 60, gold: 70 }, caravane: { gold: 80 }, eclaireur: { food: 35 },
+    atelier: { wood: 50 }, baie: { wood: 80 }, tamtam: { wood: 70, gold: 40 },
+    foret: { food: 20 }, cloture: { wood: 15 }, portail: { wood: 30, gold: 10 },
+    merveille: { food: 600, wood: 600, gold: 500 },
+  },
+  TRAIN_TIME: { villager: 6, lancier: 9, archer: 11, cavalier: 14, commandant: 12, feticheur: 14, caravane: 10, eclaireur: 7 },
+  BUILD_WORK: { maison: 16, caserne: 28, marche: 22, tour: 22, champ: 12, atelier: 16, baie: 22, tamtam: 24, foret: 5, cloture: 6, portail: 9, merveille: 90 },   // secondes-ouvrier
+  UNIT: {
+    villager: { hp: 28, speed: 62, atk: 3, range: 16, cd: 1.1, r: 9 },
+    lancier:  { hp: 52, speed: 56, atk: 7, range: 18, cd: 1.0, r: 10 },
+    archer:   { hp: 40, speed: 60, atk: 6, range: 98, cd: 1.45, r: 9, ranged: true },
+    cavalier: { hp: 95, speed: 100, atk: 12, range: 20, cd: 1.1, r: 12 },
+    commandant: { hp: 520, speed: 78, atk: 70, range: 20, cd: 1.0, r: 12 },   // héros : ~10× un soldat (lancier 52/7)
+    feticheur:  { hp: 80, speed: 70, atk: 5, range: 18, cd: 1.3, r: 11, support: true },  // ×2 allié + conversion
+    sorcier:    { hp: 55, speed: 88, atk: 9, range: 72, cd: 1.3, r: 10, ranged: true, flying: true },  // troupe aérienne (natte volante)
+    caravane:   { hp: 55, speed: 52, atk: 0, range: 0, cd: 1, r: 10 },                    // commerce : navette entre marchés, vulnérable aux razzias
+    eclaireur:  { hp: 50, speed: 120, atk: 4, range: 16, cd: 1.2, r: 10, scout: true },   // cavalier léger : rapide, grande vision, explore le brouillard
+  },
+  ANIMAL: { hp: 22, speed: 34, fleeSpeed: 50, r: 11, food: 130, fleeRange: 60 },
+  // pierre-feuille-ciseaux : lance > cheval > archer > lance (multiplicateur de dégâts)
+  COUNTER: { lancier: { cavalier: 1.7 }, cavalier: { archer: 1.7 }, archer: { lancier: 1.6 } },
+  BLD: {
+    cite:    { hp: 600, hw: 38, hh: 34, dropoff: true },
+    maison:  { hp: 120, hw: 22, hh: 18 },
+    caserne: { hp: 220, hw: 32, hh: 24 },
+    marche:  { hp: 130, hw: 28, hh: 20, gold: 2.4 },     // or/sec (commerce)
+    tour:    { hp: 300, hw: 15, hh: 30, range: 132, atk: 9, cd: 1.3, ranged: true }, // défense
+    champ:   { hp: 90, hw: 22, hh: 15, farm: true, food: 420, regen: 1.7 },          // vivres renouvelables (cultivé)
+    atelier: { hp: 150, hw: 24, hh: 18, dropoff: true },                             // atelier de bois : dépôt + débloque la baie
+    baie:    { hp: 150, hw: 30, hh: 16, food: 2.2 },                                 // baie aux pirogues : pêche (vivres/sec) près d'un lac
+    tamtam:  { hp: 170, hw: 20, hh: 26 },                                            // tam-tam parleur : chant des esprits
+    foret:   { hp: 60, hw: 22, hh: 18, forest: true, wood: 320, mature: 35 },        // forêt plantée : mûrit (~35 s) puis bois récoltable
+    cloture: { hp: 160, hw: 18, hh: 11, wall: true },                                // clôture : maillon de mur, PV évolutifs
+    portail: { hp: 210, hw: 22, hh: 12, wall: true, gate: true },                    // portail : s'ouvre à l'approche d'un habitant, bloque l'ennemi
+    merveille: { hp: 950, hw: 44, hh: 46 },                                          // Grande Mosquée de Djenné : achevée → décompte de victoire
+  },
+  // ── LES TROIS EMPIRES (façon « Âges » d'AoE) ──────────────────────────────
+  AGE: [
+    { name: "Ghana", tint: "#c8a24a", gather: 1,    hp: 1,    atk: 1 },           // âge de départ
+    { name: "Mali",  tint: "#c8941f", gather: 1.18, hp: 1.2,  atk: 1.12,
+      cost: { food: 280, gold: 120 }, reqBld: "marche",  time: 16,
+      codex: ["L'essor du Mali", "Au XIIIᵉ siècle, Soundiata Keïta fédère les royaumes mandingues et fonde l'empire du Mali, qui prospère sur l'or du Bouré et le grand commerce transsaharien."] },
+    { name: "Songhaï", tint: "#9a5b1f", gather: 1.4, hp: 1.45, atk: 1.3,
+      cost: { food: 520, wood: 200, gold: 320 }, reqBld: "caserne", time: 26,
+      codex: ["La puissance du Songhaï", "Aux XVᵉ–XVIᵉ siècles, l'empire Songhaï, depuis Gao, devient le plus vaste d'Afrique de l'Ouest : Sonni Ali et les Askia bâtissent une puissante cavalerie et une flotte sur le Niger."] },
+  ],
+  // Âge minimal requis pour débloquer chaque unité / bâtiment
+  UNLOCK: { villager: 0, maison: 0, champ: 0, caserne: 0, marche: 0, lancier: 0, archer: 1, tour: 1, cavalier: 2, commandant: 0, feticheur: 1, sorcier: 1, atelier: 0, baie: 0, tamtam: 1, foret: 0, cloture: 0, portail: 0, caravane: 0, merveille: 2, eclaireur: 0 },
+  UPGRADES: {                                      // arbre d'améliorations (faction-wide, uniques, achetés au bâtiment concerné)
+    outils:      { name: "Outils de fer", icon: "🪓", at: "atelier", age: 0, mult: 1.35, cost: { wood: 120, gold: 40 },  desc: "Récolte +35%" },
+    forge:       { name: "Forge",         icon: "⚔️", at: "caserne",  age: 1, mult: 1.25, cost: { wood: 120, gold: 120 }, desc: "Attaque militaire +25%" },
+    cuirasse:    { name: "Cuirasses",     icon: "🛡️", at: "caserne",  age: 1, mult: 1.20, cost: { wood: 160, gold: 90 },  desc: "PV des soldats +20%" },
+    comptoir:    { name: "Comptoir",      icon: "💰", at: "marche",   age: 1, mult: 1.30, cost: { wood: 100, gold: 150 }, desc: "Or marché & commerce +30%" },
+    meurtrieres: { name: "Meurtrières",   icon: "🏹", at: "tour",     age: 1, mult: 1.35, cost: { wood: 140, gold: 80 },  desc: "Dégâts des tours +35%" },
+  },
+  TRADE_RATE: 0.07, WONDER_TIME: 150,              // commerce (or/px) ; durée du décompte de victoire de la Merveille (s)
+  WALL_UP: { max: 3, mult: 0.85, cost: { wood: 120, gold: 60 } },   // clôture : niveaux de résistance (×PV cumulés)
+  PROJ_SPEED: 330, AGGRO: 130, VISION: 300, LEASH: 240, RESEED_TIME: 4, RESEED_COST: { wood: 12 }, ESCORT_DIST: 420, THREAT: 95, GATE_OPEN: 58,
+  RETINUE: 6, VDEF: 52,                          // escorte du commandant ; portée d'auto-défense des villageois
+  FETICH_MULT: 2, CONVERT_MULT: 0.5, CONVERT: { range: 95, cd: 4 }, SORCIER_CD: 3,    // féticheur : ×2 allié ; conversion (÷2) ; invocation sorcier
+  CHANT: { cd: 40, duration: 25, per: 2 }, SPIRIT: { atk: 5, cd: 1.0, range: 42, orbitR: 22 },  // tam-tam : 2 esprits gardiens / soldat
+  // ── NIVEAUX DE DIFFICULTÉ (règlent l'IA ennemie) ──────────────────────────
+  // firstWave: temps min (s) avant le 1er assaut · waveGap: secondes entre vagues · army: combattants requis pour attaquer
+  // vills/soldiers/sorc: plafonds · tech: utilise féticheur/commandant/tam-tam/sorciers · power: × dégâts de l'IA
+  DIFF: {
+    paisible:  { name: "Paisible",  firstWave: 9999, waveGap: 150, army: 20, vills: 8,  soldiers: 6,  sorc: 0, tech: false, power: 0.55 },
+    facile:    { name: "Facile",    firstWave: 240,  waveGap: 80,  army: 12, vills: 10, soldiers: 12, sorc: 0, tech: false, power: 0.75 },
+    normal:    { name: "Normal",    firstWave: 120,  waveGap: 50,  army: 11, vills: 12, soldiers: 18, sorc: 3, tech: true,  power: 1 },
+    difficile: { name: "Difficile", firstWave: 70,   waveGap: 38,  army: 10, vills: 14, soldiers: 24, sorc: 5, tech: true,  power: 1.25 },
+    spectacle: { name: "Spectacle", firstWave: 175,  waveGap: 38,  army: 9,  vills: 11, soldiers: 24, sorc: 6, tech: true,  power: 1 },   // observation : les 2 IA se développent à fond puis s'affrontent en vagues
+  },
+};
+const RES_ICON = { food: "🌾", wood: "🌴", gold: "✦" };
+const RES_NAME = { food: "vivres", wood: "bois", gold: "or" };
+const COL = { player: "#2f5fb0", enemy: "#b1432f" };
+
+/* ===== CODEX (documentaire) =============================================== */
+const CODEX = [
+  ["L'or et le sel", "Le commerce transsaharien échangeait l'or d'Afrique de l'Ouest contre le sel du Sahara — denrée si rare au Sud qu'elle s'y troquait parfois à poids égal contre l'or."],
+  ["Les trois empires", "Du VIIIᵉ au XVIᵉ siècle, trois grands empires se succèdent au Sahel occidental : le Ghana, puis le Mali, puis le Songhaï, vivant du contrôle des routes de l'or et du sel."],
+  ["Tombouctou", "Cité-carrefour du Mali puis du Songhaï, Tombouctou fut un grand centre de commerce et de savoir, avec ses universités et mosquées (Sankoré) et des milliers de manuscrits."],
+  ["L'architecture de terre", "Les cités sahéliennes sont bâties en banco (terre crue). La grande mosquée de Djenné, hérissée de poutres de bois (les « toron »), en est le symbole."],
+  ["Mansa Moussa", "Empereur du Mali au XIVᵉ siècle, son pèlerinage à La Mecque (1324) et son or distribué en chemin frappèrent les mémoires jusqu'en Égypte et en Europe."],
+  ["Les caravanes", "Des caravanes de chameaux traversaient le Sahara, reliant les cités du Sahel aux marchés d'Afrique du Nord. Le commerce, plus que la guerre, faisait la richesse."],
+  ["Le griot", "Gardiens de la mémoire, les griots transmettaient oralement l'histoire des lignées, les généalogies et les hauts faits des souverains."],
+  ["Archers et cavaliers", "Les armées du Mali et du Songhaï mêlaient une infanterie d'archers à une cavalerie redoutée, montée sur des chevaux importés à grands frais par les routes du désert."],
+  ["L'agriculture du fleuve", "Le long du Niger, les crues annuelles nourrissaient le riz, le mil et le sorgho ; champs et pâturages soutenaient les grandes cités marchandes autant que l'or et le sel."],
+];
+
+/* ===== UTILITAIRES ======================================================== */
+const TAU = Math.PI * 2;
+const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
+const lerp = (a, b, t) => a + (b - a) * t;
+const rand = (a, b) => a + Math.random() * (b - a);
+const randInt = (a, b) => Math.floor(rand(a, b + 1));
+const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
+const dist2 = (ax, ay, bx, by) => { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; };
+// point déterministe sur un anneau autour d'un centre (réparti par id) — évite les piles
+function ringPos(id, cx, cy, r) { const a = id * 2.39996; return [cx + Math.cos(a) * r, cy + Math.sin(a) * r]; }
+const isMil = u => u.type !== "villager" && u.type !== "caravane" && u.type !== "eclaireur";   // caravane (commerce) & éclaireur (exploration) = civils
+
+/* ===== SON (procédural, WebAudio — aucun fichier) ======================== */
+const SND = (function () {
+  let ctx = null, master = null, muted = false; const last = {};
+  function init() { if (ctx) return; try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; } master = ctx.createGain(); master.gain.value = 0.5; master.connect(ctx.destination); ambient(); }
+  function resume() { if (ctx && ctx.state === "suspended") ctx.resume(); }
+  function tone(f, dur, type, vol, slide, dly) { if (!ctx || muted) return; const t = ctx.currentTime + (dly || 0), o = ctx.createOscillator(), g = ctx.createGain(); o.type = type || "sine"; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(1, slide), t + dur); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol || 0.3, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0006, t + dur); o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.03); }
+  function noise(dur, vol, freq) { if (!ctx || muted) return; const t = ctx.currentTime, n = (ctx.sampleRate * dur) | 0, b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; const s = ctx.createBufferSource(); s.buffer = b; const fl = ctx.createBiquadFilter(); fl.type = "bandpass"; fl.frequency.value = freq || 1200; const g = ctx.createGain(); g.gain.setValueAtTime(vol || 0.2, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur); s.connect(fl); fl.connect(g); g.connect(master); s.start(t); s.stop(t + dur); }
+  function ambient() { const n = (ctx.sampleRate * 2) | 0, b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * .5; const s = ctx.createBufferSource(); s.buffer = b; s.loop = true; const fl = ctx.createBiquadFilter(); fl.type = "lowpass"; fl.frequency.value = 360; const g = ctx.createGain(); g.gain.value = .05; s.connect(fl); fl.connect(g); g.connect(master); s.start(); }
+  const seq = (arr, type, vol, gap) => arr.forEach((f, i) => tone(f, gap * 1.6, type, vol, null, i * gap));
+  const fx = {
+    select: () => tone(680, .06, "square", .1), command: () => tone(900, .05, "triangle", .09),
+    build: () => { noise(.12, .16, 500); tone(200, .12, "sine", .1, 140); }, done: () => seq([523, 784], "sine", .16, .09),
+    train: () => tone(440, .1, "sawtooth", .09, 640), melee: () => noise(.07, .15, 280), arrow: () => noise(.13, .09, 2600),
+    death: () => tone(200, .22, "sawtooth", .11, 70), chant: () => seq([392, 494, 587, 698], "sine", .1, .13),
+    age: () => seq([523, 659, 784, 1047], "triangle", .16, .11), convert: () => tone(880, .3, "sine", .11, 320),
+    win: () => seq([523, 659, 784, 1047, 1318], "triangle", .18, .14), lose: () => seq([392, 330, 262], "sawtooth", .15, .18),
+  };
+  const thr = { melee: 70, arrow: 95, death: 130 };
+  function play(name) { if (!ctx || muted) return; resume(); if (thr[name]) { const t = performance.now(); if (t - (last[name] || 0) < thr[name]) return; last[name] = t; } (fx[name] || (() => { }))(); }
+  function toggleMute() { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.5; if (!muted) resume(); return muted; }
+  return { init, play, toggleMute, isMuted: () => muted };
+})();
+
+/* ===== ÉTAT =============================================================== */
+const cv = document.getElementById("game"); let ctx = cv.getContext("2d");   // ctx réassignable : redirigé vers le calque d'entités pour le contour
+let CSSW = 0, CSSH = 0, DPR = 1, terrain = null;
+let PXS = 1, pixelMode = true;   // pixel art : taille d'un pixel d'art en pixels ÉCRAN (DPR pris en compte) ; 1 = résolution native (max netteté), haut = gros
+let entLayer = null, entCtx = null, silLayer = null, silCtx = null, outlineOn = true;   // calque des sprites + silhouette (contour noir pixel art)
+let units = [], buildings = [], nodes = [], floats = [], parts = [], projectiles = [], corpses = [], rubble = [], birds = [], animals = [], spirits = [], lakes = [], fish = [], pirogues = [];
+let nav = null, navTimer = 0, pathBudget = 0;      // grille de navigation A* (obstacles statiques) + budget de calcul/frame
+let res = { player: { food: 0, wood: 0, gold: 0 }, enemy: { food: 0, wood: 0, gold: 0 } };
+let age = { player: 0, enemy: 0 };                 // index dans CFG.AGE
+let advancing = { player: null, enemy: null };     // {t,time} pendant une transition d'Âge
+let autoEmploy = true;                             // auto-emploi des villageois oisifs (joueur)
+let armyStance = "free";                           // ordre du commandant : 'free' | 'guard' | 'patrol'
+let spectator = false;                             // mode observation : les deux camps pilotés par l'IA
+let aiFlip = false;                                // alterne l'ordre des 2 IA en observation (équité : pas d'avantage du 1er coup)
+let clotureLevel = { player: 0, enemy: 0 };        // niveau de résistance des clôtures par camp
+let escortTimer = 0;                               // cadence d'assignation des escortes de villageois
+let gateFlag = { player: false, enemy: false };    // un portail existe-t-il pour ce camp ? (active l'enceinte)
+let stats = { player: { kills: 0, peakPop: 0 }, enemy: { kills: 0, peakPop: 0 } };   // statistiques de partie (écran de score)
+let visGrid = null, fogOn = false, visTimer = 0;   // brouillard de guerre : 0=inexploré 1=exploré(mémoire) 2=visible ; actif pour le joueur hors mode observation
+let upg = { player: {}, enemy: {} };               // améliorations recherchées par camp (arbre d'améliorations)
+let DIFFICULTY = CFG.DIFF.normal;                  // niveau courant (règle l'IA ennemie)
+let lastDiff = "normal";                           // dernier niveau choisi (pour Rejouer)
+const groups = {};                                 // groupes de contrôle 1..9 -> [ids]
+const cam = { x: 0, y: 0 };
+let sel = new Set();                 // unités joueur sélectionnées
+let selBld = null;                   // bâtiment sélectionné
+let buildMode = null;                // type de bâtiment en placement
+let running = false, over = false, won = false;
+let lastT = 0, gameT = 0, nextId = 1, aiTimer = 0, tipTimer = 12, _balRot = 0, idleCursor = 0;
+const keys = {};
+const mouse = { x: 0, y: 0, down: false, dragStart: null, dragging: false, lastClick: { t: -9, x: 0, y: 0 } };
+const TOP = 42, BOT = 96;            // hauteurs des barres
+const worldW = () => CFG.MW * CFG.TS, worldH = () => CFG.MH * CFG.TS;
+
+/* ===== CRÉATION D'ENTITÉS ================================================= */
+function makeUnit(faction, type, x, y) {
+  const u = CFG.UNIT[type], hp = Math.round(u.hp * CFG.AGE[age[faction]].hp * (type !== "villager" && type !== "caravane" && type !== "eclaireur" ? upgMult(faction, "cuirasse") : 1));   // cuirasses : +PV des soldats
+  return { id: nextId++, kind: "unit", faction, type, x, y, hp, maxHp: hp,
+    state: "idle", tx: x, ty: y, target: null, gNode: null, lastNodeType: "food", post: null,
+    order: null, follow: null, converted: false, flying: !!u.flying, commander: type === "commandant",
+    carry: { type: null, amount: 0 }, cd: 0, work: 0, facing: 1, bob: rand(0, TAU), swing: 0, lunge: 0, idleT: 0 };
+}
+function makeBuilding(faction, type, x, y, complete) {
+  const b = CFG.BLD[type];
+  let maxHp = b.hp;
+  if (b.wall) maxHp = Math.round(b.hp * (1 + (clotureLevel[faction] || 0) * CFG.WALL_UP.mult));   // PV de clôture selon le niveau
+  return { id: nextId++, kind: "building", faction, type, x, y, hw: b.hw, hh: b.hh,
+    maxHp: maxHp, hp: complete ? maxHp : Math.max(1, maxHp * 0.15), progress: complete ? 1 : 0,
+    dropoff: !!b.dropoff, farm: !!b.farm, forest: !!b.forest, wall: !!b.wall, gate: !!b.gate, open: false, foodNode: null, woodNode: null, matured: false, matureT: 0,
+    queue: [], trainT: 0, cd: 0, smokeT: 0, rally: { x: x, y: y + b.hh + 28 } };
+}
+function makeNode(type, x, y, amount) { return { id: nextId++, kind: "node", type, x, y, r: 15, amount, maxAmount: amount }; }
+
+/* ===== POPULATION, RESSOURCES, ÂGES ======================================= */
+const popCap = f => clamp(CFG.POP_BASE + buildings.filter(b => b.faction === f && b.type === "maison" && b.progress >= 1).length * CFG.POP_PER_HOUSE, 0, CFG.POP_MAX);
+const popUsed = f => units.filter(u => u.faction === f && u.hp > 0).length;
+function canAfford(f, cost) { for (const k in cost) if (res[f][k] < cost[k]) return false; return true; }
+function pay(f, cost) { for (const k in cost) res[f][k] -= cost[k]; }
+const ageOf = f => CFG.AGE[age[f]];
+const fetichMult = f => units.some(u => u.faction === f && u.type === "feticheur" && u.hp > 0) ? CFG.FETICH_MULT : 1;   // ×2 si un féticheur du camp est présent
+const diffPower = f => (spectator || f !== "enemy") ? 1 : DIFFICULTY.power;   // handicap de puissance de l'IA selon la difficulté
+const gatherRate = u => CFG.GATHER_RATE * ageOf(u.faction).gather * fetichMult(u.faction) * upgMult(u.faction, "outils") * (u.converted ? CFG.CONVERT_MULT : 1);
+const hasUpg = (f, id) => !!(upg[f] && upg[f][id]);                       // amélioration acquise ?
+const upgMult = (f, id) => hasUpg(f, id) ? CFG.UPGRADES[id].mult : 1;     // multiplicateur (1 si non acquise)
+const effAtk = u => CFG.UNIT[u.type].atk * ageOf(u.faction).atk * fetichMult(u.faction) * diffPower(u.faction) * upgMult(u.faction, "forge") * (u.converted ? CFG.CONVERT_MULT : 1);
+const unlocked = (f, type) => age[f] >= (CFG.UNLOCK[type] || 0);
+
+function canAdvance(f) {
+  const next = CFG.AGE[age[f] + 1];
+  if (!next) return { ok: false, reason: "empire maximal" };
+  if (advancing[f]) return { ok: false, reason: "transition en cours" };
+  if (next.reqBld && !buildings.some(b => b.faction === f && b.type === next.reqBld && b.progress >= 1)) return { ok: false, reason: bldName(next.reqBld) + " requis", next };
+  if (!canAfford(f, next.cost)) return { ok: false, reason: "ressources", next };
+  return { ok: true, next };
+}
+function startAdvance(f) {
+  const c = canAdvance(f); if (!c.ok) { if (f === "player") tip("⚠ " + c.reason); return false; }
+  pay(f, c.next.cost); advancing[f] = { t: 0, time: c.next.time };
+  if (f === "player") { tip("⏳ Transition vers le " + c.next.name + "…"); refreshCmd(); }
+  return true;
+}
+function onAgeUp(f) {
+  const prev = CFG.AGE[age[f] - 1], cur = CFG.AGE[age[f]], rH = cur.hp / prev.hp;
+  for (const u of units) if (u.faction === f) { u.maxHp = Math.round(u.maxHp * rH); u.hp = Math.min(u.maxHp, Math.round(u.hp * rH) + 6); }
+  const cite = buildings.find(b => b.faction === f && b.type === "cite");
+  if (cite) for (let i = 0; i < 46; i++) parts.push({ x: cite.x + rand(-cite.hw, cite.hw), y: cite.y + rand(-cite.hh, cite.hh), vx: rand(-34, 34), vy: rand(-95, -20), life: 0, max: rand(0.6, 1.25), r: rand(2, 4.5), color: "#f0c64a" });
+  if (f === "player") {
+    tip("🏛️ Ton empire devient le " + cur.name + " !"); SND.play("age");
+    if (cur.codex && !CODEX.some(c => c[0] === cur.codex[0])) CODEX.unshift(cur.codex);
+    refreshCmd();
+  }
+}
+
+/* ===== DROP-OFF & RÉCOLTE ================================================= */
+function nearestDropoff(f, x, y) {
+  let best = null, bd = Infinity;
+  for (const b of buildings) if (b.faction === f && b.dropoff && b.progress >= 1) { const d = dist2(x, y, b.x, b.y); if (d < bd) { bd = d; best = b; } }
+  return best;
+}
+function nearestNode(type, x, y) {
+  let best = null, bd = Infinity;
+  for (const n of nodes) if (n.amount > 0 && (!type || n.type === type)) { const d = dist2(x, y, n.x, n.y); if (d < bd) { bd = d; best = n; } }
+  return best;
+}
+// choisit une ressource en tournant les types → répartit les caravaniers
+function balancedNode(u) {                 // répartition ÉQUITABLE : envoie le caravanier vers la ressource la moins couverte
+  const cnt = { food: 0, wood: 0, gold: 0 };
+  for (const o of units) if (o.faction === u.faction && o.type === "villager" && o.gNode && o.gNode.amount > 0 && (o.state === "gather" || o.state === "return")) cnt[o.gNode.type]++;
+  const avail = ["food", "wood", "gold"].filter(t => nearestNode(t, u.x, u.y)).sort((a, b) => cnt[a] - cnt[b]);
+  for (const t of avail) { const n = nearestNode(t, u.x, u.y); if (n) return n; }
+  return nearestNode(null, u.x, u.y);
+}
+function nodeAtPoint(x, y, r) { for (const n of nodes) if (n.amount > 0 && dist(x, y, n.x, n.y) <= n.r + r) return n; return null; }
+function enemyAtPoint(x, y, r, f) {
+  for (const u of units) if (u.faction !== f && u.hp > 0 && dist(x, y, u.x, u.y) <= CFG.UNIT[u.type].r + r) return u;
+  for (const b of buildings) if (b.faction !== f && b.hp > 0 && Math.abs(x - b.x) < b.hw + r && Math.abs(y - b.y) < b.hh + r) return b;
+  return null;
+}
+// champ achevé → crée un gisement de vivres renouvelable, lié au bâtiment
+function completeFarm(b) {
+  if (b.foodNode) return;
+  const n = makeNode("food", b.x, b.y, CFG.BLD.champ.food);
+  n.r = 18; n.farm = b; n.regen = CFG.BLD.champ.regen; b.foodNode = n; nodes.push(n);
+}
+// chantier (du même camp) le plus proche encore inachevé — pour enchaîner les constructions
+function nearestUnfinished(faction, x, y) {
+  let best = null, bd = Infinity;
+  for (const b of buildings) if (b.faction === faction && b.progress < 1) { const d = dist2(x, y, b.x, b.y); if (d < bd) { bd = d; best = b; } }
+  return best;
+}
+const playerCite = () => buildings.find(b => b.faction === "player" && b.type === "cite");
+// tour ennemie la plus proche (n'importe où) — pour la purge "détruire toutes les tours"
+function nearestEnemyTower(u) { let best = null, bd = Infinity; for (const b of buildings) { if (b.hp <= 0 || b.faction === u.faction || b.type !== "tour") continue; const d = dist2(u.x, u.y, b.x, b.y); if (d < bd) { bd = d; best = b; } } return best; }
+// unité (n'importe quel camp) la plus proche — pour la fuite des animaux
+function nearestUnitTo(x, y, range) { let best = null, bd = range * range; for (const u of units) { if (u.hp <= 0) continue; const d = dist2(x, y, u.x, u.y); if (d < bd) { bd = d; best = u; } } return best; }
+// place chaque soldat sur l'anneau de garde/patrouille autour de la Cité
+function stancePos(u) {
+  const c = buildings.find(b => b.faction === u.faction && b.type === "cite"); if (!c) return null;
+  const army = units.filter(x => x.faction === u.faction && isMil(x) && !x.commander && x.type !== "feticheur").sort((a, b) => a.id - b.id);
+  const n = Math.max(1, army.length), idx = Math.max(0, army.indexOf(u));
+  const half = Math.ceil(n / 2), inner = idx < half;                 // 1ʳᵉ moitié → autour de la Cité ; 2ᵉ moitié → autour de TOUS les bâtiments
+  let outerR = 132 + c.hw;                                           // rayon extérieur : englobe le bâtiment le plus éloigné
+  for (const b of buildings) if (b.faction === u.faction) { const d = dist(b.x, b.y, c.x, c.y) + Math.max(b.hw, b.hh) + 30; if (d > outerR) outerR = d; }
+  const R = inner ? (116 + c.hw) : outerR;
+  const grpN = Math.max(1, inner ? half : n - half), grpI = inner ? idx : idx - half;
+  const ang = grpI / grpN * TAU + (armyStance === "patrol" ? gameT * 0.45 : 0);
+  return { x: clamp(c.x + Math.cos(ang) * R, 16, worldW() - 16), y: clamp(c.y + Math.sin(ang) * R, 16, worldH() - 16) };
+}
+// ordre du commandant à toute l'armée (sauf lui-même)
+function setStance(s) {
+  armyStance = s;
+  for (const u of units) if (u.faction === "player" && isMil(u) && !u.commander && u.type !== "feticheur") { u.order = null; u.state = (s === "free") ? "idle" : "guard"; }
+  tip(s === "guard" ? "🛡️ L'armée encercle et garde le village" : s === "patrol" ? "🥾 L'armée patrouille autour du village" : "🏳️ Armée au repos");
+  refreshCmd();
+}
+// emplacement d'un soldat d'escorte autour du commandant (anneau serré, tourne doucement)
+function escortSlot(u, cmd) {
+  const team = units.filter(x => x.follow === cmd.id && x.hp > 0).sort((a, b) => a.id - b.id);
+  const n = Math.max(1, team.length), idx = Math.max(0, team.indexOf(u));
+  const ang = idx / n * TAU + gameT * 0.2, R = 32 + n * 2.5;
+  return { x: clamp(cmd.x + Math.cos(ang) * R, 16, worldW() - 16), y: clamp(cmd.y + Math.sin(ang) * R, 16, worldH() - 16) };
+}
+// le commandant rallie les N soldats les plus proches qui le suivent et combattent avec lui
+function callRetinue(cmd) {
+  if (!cmd) return;
+  const soldiers = units.filter(u => u.faction === cmd.faction && isMil(u) && !u.commander && u.type !== "feticheur" && u.hp > 0)
+    .sort((a, b) => dist2(a.x, a.y, cmd.x, cmd.y) - dist2(b.x, b.y, cmd.x, cmd.y)).slice(0, CFG.RETINUE);
+  for (const u of soldiers) { u.follow = cmd.id; u.order = null; u.state = "escort"; }
+  if (cmd.faction === "player") tip(soldiers.length ? "📯 " + soldiers.length + " soldats rejoignent le commandant" : "Aucun soldat à rallier");
+}
+// escorte AUTO : 2 soldats oisifs pour chaque villageois éloigné du village ; libérée au retour
+function assignVillagerEscorts(f) {
+  const c = buildings.find(b => b.faction === f && b.type === "cite"); if (!c) return;
+  for (const u of units) if (u.follow != null && u.state === "escort") {
+    const host = units.find(x => x.id === u.follow && x.hp > 0);
+    if (!host || (host.type === "villager" && dist(host.x, host.y, c.x, c.y) < CFG.ESCORT_DIST - 70)) { u.follow = null; u.state = "idle"; }
+  }
+  const free = units.filter(u => u.faction === f && (u.type === "lancier" || u.type === "archer" || u.type === "cavalier") && u.state === "idle" && !u.follow && !u.order && u.hp > 0);
+  for (const v of units) {
+    if (!free.length) break;
+    if (v.faction !== f || v.type !== "villager" || v.hp <= 0) continue;
+    if (dist(v.x, v.y, c.x, c.y) < CFG.ESCORT_DIST) continue;
+    const have = units.filter(u => u.follow === v.id && u.hp > 0).length;
+    for (let k = have; k < 2 && free.length; k++) { const s = free.shift(); s.follow = v.id; s.order = null; s.state = "escort"; }
+  }
+}
+
+/* ===== COMMANDES ========================================================== */
+function commandGather(u, node) { u.state = "gather"; u.gNode = node; u.lastNodeType = node.type; u.target = null; u.idleT = 0; }
+function commandMove(u, x, y) { u.state = "move"; u.tx = x; u.ty = y; u.target = null; u.gNode = null; u.idleT = 0; u.order = null; u.follow = null; if (isMil(u)) u.post = { x, y }; }
+function commandBuild(u, b) { u.state = "build"; u.target = b; u.gNode = null; u.idleT = 0; }
+function commandAttack(u, t) { u.state = "attack"; u.target = t; u.gNode = null; u.idleT = 0; }
+
+/* ===== MOUVEMENT & COLLISIONS ============================================= */
+function blockedAt(u, x, y) {            // la position (x,y) est-elle infranchissable ?
+  if (u.flying) return false;            // une unité volante franchit tout
+  if (onLake(x, y)) return true;         // les unités terrestres ne marchent PAS sur l'eau
+  const r = CFG.UNIT[u.type].r - 2;
+  for (const b of buildings) {
+    if (b.hp <= 0 || b.farm || b.forest) continue;                              // champs & forêts franchissables (on y récolte)
+    if (b.gate) { if (b.faction === u.faction) continue; }                      // portail ami : ouvert → on passe (l'ennemi est bloqué)
+    else if (b.wall && b.faction === u.faction && !gateFlag[u.faction]) continue; // mur ami franchissable tant qu'aucun portail (anti-piège)
+    if ((u.state === "build" || u.state === "attack") && u.target === b) continue; // on rejoint sa cible
+    if (Math.abs(x - b.x) < b.hw + r && Math.abs(y - b.y) < b.hh + r) return true;
+  }
+  return false;
+}
+function nearestOwnGate(u) { let best = null, bd = Infinity; for (const b of buildings) if (b.hp > 0 && b.gate && b.faction === u.faction && b.progress >= 1) { const d = dist2(u.x, u.y, b.x, b.y); if (d < bd) { bd = d; best = b; } } return best; }
+
+/* ===== NAVIGATION (pathfinding A* sur grille) ============================ */
+function markNav() {                                // (re)construit la grille d'obstacles statiques (lacs + gros bâtiments)
+  const W = CFG.MW, H = CFG.MH, g = new Uint8Array(W * H);
+  for (const L of lakes) {
+    const x0 = Math.max(0, (L.x - L.rw) / CFG.TS | 0), x1 = Math.min(W - 1, (L.x + L.rw) / CFG.TS | 0);
+    const y0 = Math.max(0, (L.y - L.rh) / CFG.TS | 0), y1 = Math.min(H - 1, (L.y + L.rh) / CFG.TS | 0);
+    for (let gy = y0; gy <= y1; gy++) for (let gx = x0; gx <= x1; gx++) { const dx = ((gx + .5) * CFG.TS - L.x) / L.rw, dy = ((gy + .5) * CFG.TS - L.y) / L.rh; if (dx * dx + dy * dy < 1.18) g[gy * W + gx] = 1; }
+  }
+  for (const b of buildings) { if (b.hp <= 0 || b.farm || b.forest || b.wall) continue;   // murs/champs/forêts gérés en local
+    const x0 = Math.max(0, (b.x - b.hw) / CFG.TS | 0), x1 = Math.min(W - 1, (b.x + b.hw) / CFG.TS | 0);
+    const y0 = Math.max(0, (b.y - b.hh) / CFG.TS | 0), y1 = Math.min(H - 1, (b.y + b.hh) / CFG.TS | 0);
+    for (let gy = y0; gy <= y1; gy++) for (let gx = x0; gx <= x1; gx++) g[gy * W + gx] = 1;
+  }
+  nav = g;
+}
+const navAt = (gx, gy) => (gx < 0 || gy < 0 || gx >= CFG.MW || gy >= CFG.MH) ? 1 : nav[gy * CFG.MW + gx];
+function lineBlocked(x1, y1, x2, y2) {              // un obstacle statique coupe-t-il la ligne directe ?
+  if (!nav) return false;
+  const steps = Math.ceil(dist(x1, y1, x2, y2) / (CFG.TS * 0.5));
+  for (let i = 1; i < steps; i++) { const t = i / steps; if (navAt((x1 + (x2 - x1) * t) / CFG.TS | 0, (y1 + (y2 - y1) * t) / CFG.TS | 0)) return true; }
+  return false;
+}
+function nearestFreeCell(gx, gy) { for (let r = 1; r < 14; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const x = gx + dx, y = gy + dy; if (x >= 0 && y >= 0 && x < CFG.MW && y < CFG.MH && !navAt(x, y)) return [x, y]; } return null; }
+function findPath(x1, y1, x2, y2) {                 // A* → liste de waypoints (monde), ou null
+  if (!nav) return null;
+  const W = CFG.MW, H = CFG.MH;
+  let sx0 = clamp(x1 / CFG.TS | 0, 0, W - 1), sy0 = clamp(y1 / CFG.TS | 0, 0, H - 1), tx0 = clamp(x2 / CFG.TS | 0, 0, W - 1), ty0 = clamp(y2 / CFG.TS | 0, 0, H - 1);
+  if (navAt(tx0, ty0)) { const f = nearestFreeCell(tx0, ty0); if (!f) return null; tx0 = f[0]; ty0 = f[1]; }
+  if (navAt(sx0, sy0)) { const f = nearestFreeCell(sx0, sy0); if (f) { sx0 = f[0]; sy0 = f[1]; } }
+  const N = W * H, came = new Int32Array(N).fill(-1), gsc = new Float32Array(N).fill(1e9), inOpen = new Uint8Array(N), open = [];
+  const HE = (x, y) => Math.abs(x - tx0) + Math.abs(y - ty0), s = sy0 * W + sx0, tgt = ty0 * W + tx0;
+  gsc[s] = 0; open.push(s); inOpen[s] = 1;
+  const DIRS = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  let found = false, guard = 0;
+  while (open.length && guard++ < 7000) {
+    let bk = 0, bf = 1e18; for (let k = 0; k < open.length; k++) { const c = open[k], f = gsc[c] + HE(c % W, c / W | 0); if (f < bf) { bf = f; bk = k; } }
+    const cur = open[bk]; open[bk] = open[open.length - 1]; open.pop(); inOpen[cur] = 0;
+    if (cur === tgt) { found = true; break; }
+    const cx = cur % W, cy = cur / W | 0;
+    for (const [dx, dy] of DIRS) { const nx = cx + dx, ny = cy + dy; if (nx < 0 || ny < 0 || nx >= W || ny >= H || navAt(nx, ny)) continue; if (dx && dy && (navAt(cx + dx, cy) || navAt(cx, cy + dy))) continue;
+      const ni = ny * W + nx, nc = gsc[cur] + (dx && dy ? 1.414 : 1); if (nc < gsc[ni]) { gsc[ni] = nc; came[ni] = cur; if (!inOpen[ni]) { open.push(ni); inOpen[ni] = 1; } } }
+  }
+  if (!found) return null;
+  const path = []; let c = tgt; while (c !== -1 && c !== s) { path.push({ x: (c % W + .5) * CFG.TS, y: ((c / W | 0) + .5) * CFG.TS }); c = came[c]; }
+  path.reverse(); return path;
+}
+function ensurePath(u, tx, ty) {                    // (re)calcule un chemin si nécessaire (avec budget par frame)
+  const stale = !u.path || !u.pathT || Math.abs(tx - u.pathT.x) > CFG.TS || Math.abs(ty - u.pathT.y) > CFG.TS || (gameT - (u.pathTime || 0)) > 1.3;
+  if (stale && pathBudget > 0) { pathBudget--; u.path = findPath(u.x, u.y, tx, ty); u.pathI = 0; u.pathT = { x: tx, y: ty }; u.pathTime = gameT; }
+}
+function currentWaypoint(u) {
+  if (!u.path) return null;
+  while (u.pathI < u.path.length && dist(u.x, u.y, u.path[u.pathI].x, u.path[u.pathI].y) < CFG.TS * 0.55) u.pathI++;
+  return u.pathI < u.path.length ? u.path[u.pathI] : null;
+}
+function stepTo(u, tx, ty, dt) {        // avance vers (tx,ty) ; A* pour les gros obstacles + contournement local + séparation
+  if (dist(u.x, u.y, tx, ty) < 2) { u.stuckT = 0; u.path = null; return true; }
+  if (!u.flying && lineBlocked(u.x, u.y, tx, ty)) {       // NAVIGATION A* : un obstacle statique coupe la route → viser le prochain waypoint du chemin
+    ensurePath(u, tx, ty);
+    const wp = currentWaypoint(u);
+    if (wp) { tx = wp.x; ty = wp.y; }
+  } else if (u.path) u.path = null;                        // ligne directe libre → on lâche le chemin
+  // ROUTAGE PORTAIL : coincé contre un mur ami + un portail existe → viser l'entrée (le portail)
+  if ((u.stuckT || 0) > 0.35 && !u.flying && gateFlag[u.faction]) {
+    const r0 = CFG.UNIT[u.type].r;
+    let nearOwnWall = false;
+    for (const w of buildings) if (w.hp > 0 && w.wall && !w.gate && w.faction === u.faction && Math.abs(u.x - w.x) < w.hw + r0 + 14 && Math.abs(u.y - w.y) < w.hh + r0 + 14) { nearOwnWall = true; break; }
+    if (nearOwnWall) { const g = nearestOwnGate(u); if (g && dist(u.x, u.y, g.x, g.y) > 16) { tx = g.x; ty = g.y; } }
+  }
+  const d = dist(u.x, u.y, tx, ty);
+  const sp = CFG.UNIT[u.type].speed, step = sp * dt;
+  const baseAng = Math.atan2(ty - u.y, tx - u.x);
+
+  // (ré)initialise le suivi quand la cible change nettement
+  if (u.lastTx === undefined || Math.abs(tx - u.lastTx) > 24 || Math.abs(ty - u.lastTy) > 24) {
+    u.lastTx = tx; u.lastTy = ty; u.lastD = d; u.stuckT = 0; u.progT = 0; u.detourSide = (u.id % 2) ? 1 : -1;
+  }
+  // détection « bloqué ou ralenti » : progrès réel vers la cible trop faible sur une fenêtre courte
+  u.progT = (u.progT || 0) + dt;
+  if (u.progT >= 0.3) {
+    if ((u.lastD - d) < sp * u.progT * 0.35) u.stuckT = (u.stuckT || 0) + u.progT;   // avance < 35 % du théorique → bloqué
+    else u.stuckT = 0;
+    u.lastD = d; u.progT = 0;
+  }
+  if (u.stuckT > 2.2) { u.detourSide = -(u.detourSide || 1); u.stuckT = 0.5; }        // cul-de-sac → on tente l'autre côté
+
+  const detour = u.stuckT > 0.35, side = u.detourSide || 1;                           // contournement engagé d'un côté fixe
+  const offs = detour ? [0.6 * side, 1.0 * side, 1.5 * side, 2.1 * side, 2.7 * side, -0.7 * side, -1.2 * side]
+                      : [0, 0.45, -0.45, 0.9, -0.9, 1.4, -1.4, 2.0, -2.0];
+  let moved = false, ang = baseAng;
+  for (const o of offs) {                                                             // balaye les caps, prend le 1er libre
+    const a = baseAng + o, nx = u.x + Math.cos(a) * step, ny = u.y + Math.sin(a) * step;
+    if (!blockedAt(u, nx, ny)) { u.x = nx; u.y = ny; ang = a; moved = true; break; }
+  }
+  if (!moved) {                                                                       // entièrement cerné → pas latéral + change de côté
+    const a = baseAng + Math.PI / 2 * side;
+    u.x += Math.cos(a) * step * 0.6; u.y += Math.sin(a) * step * 0.6; u.detourSide = -side;
+  }
+  u.facing = Math.cos(ang) < 0 ? -1 : 1;
+  u.bob += dt * 9;
+  return false;
+}
+function separate(u) {                  // évite l'empilement (symétrique, doux + anti-blocage)
+  for (const o of units) {
+    if (o === u || o.hp <= 0 || !!o.flying !== !!u.flying) continue;   // pas de collision entre couches sol / air
+    const rr = CFG.UNIT[u.type].r + CFG.UNIT[o.type].r;
+    const dx = u.x - o.x, dy = u.y - o.y, d = Math.hypot(dx, dy);
+    if (d > 0 && d < rr) { const push = (rr - d) * (o.faction === u.faction ? 0.5 : 0.25); u.x += (dx / d) * push; u.y += (dy / d) * push; }
+    else if (d === 0) { u.x += rand(-1, 1); u.y += rand(-1, 1); }   // déverrouille une superposition exacte
+  }
+  u.x = clamp(u.x, 8, worldW() - 8); u.y = clamp(u.y, 8, worldH() - 8);
+}
+function collideBuildings(u) {          // les bâtiments & lacs repoussent → on glisse au lieu de coller
+  if (u.flying) return;                 // les volants survolent tout
+  const r = CFG.UNIT[u.type].r;
+  for (const b of buildings) {
+    if (b.hp <= 0 || b.farm || b.forest) continue;                                  // champs & forêts franchissables
+    if (b.gate) { if (b.faction === u.faction) continue; }                          // portail ami : ouvert
+    else if (b.wall && b.faction === u.faction && !gateFlag[u.faction]) continue;    // mur ami : solide seulement une fois un portail posé
+    if ((u.state === "build" || u.state === "attack") && u.target === b) continue;  // laisser toucher sa cible
+    const ex = b.hw + r - 2, ey = b.hh + r - 2;
+    const dx = u.x - b.x, dy = u.y - b.y;
+    if (Math.abs(dx) < ex && Math.abs(dy) < ey) {
+      const px = ex - Math.abs(dx), py = ey - Math.abs(dy);            // plus petite pénétration
+      if (px < py) u.x = b.x + (dx < 0 ? -ex : ex);
+      else u.y = b.y + (dy < 0 ? -ey : ey);
+    }
+  }
+  for (const L of lakes) {                                              // repousser hors de l'eau
+    const dx = u.x - L.x, dy = u.y - L.y;
+    if ((dx * dx) / (L.rw * L.rw) + (dy * dy) / (L.rh * L.rh) < 1) { const a = Math.atan2(dy, dx); u.x = L.x + Math.cos(a) * (L.rw + 5); u.y = L.y + Math.sin(a) * (L.rh + 5); }
+  }
+}
+
+/* ===== ANIMAUX SAUVAGES (gibier) ========================================= */
+function makeAnimal(x, y) { return { id: nextId++, kind: "animal", type: "gazelle", x, y, hp: CFG.ANIMAL.hp, maxHp: CFG.ANIMAL.hp, facing: 1, bob: rand(0, TAU), wt: 0, wtx: x, wty: y, fleeT: 0, flash: 0 }; }
+function updateAnimal(a, dt) {
+  if (a.hp <= 0) return;
+  if (a.flash) a.flash = Math.max(0, a.flash - dt);
+  const A = CFG.ANIMAL;
+  if (a.fleeT > 0) {                                       // fuite : court à l'opposé de l'unité la plus proche
+    a.fleeT -= dt;
+    const th = nearestUnitTo(a.x, a.y, 240);
+    if (th) { const dx = a.x - th.x, dy = a.y - th.y, d = Math.hypot(dx, dy) || 1; a.facing = dx < 0 ? -1 : 1; a.x += dx / d * A.fleeSpeed * dt; a.y += dy / d * A.fleeSpeed * dt; a.bob += dt * 18; }
+    else a.fleeT = 0;
+  } else {                                                 // errance tranquille
+    a.wt -= dt;
+    if (a.wt <= 0) { a.wt = rand(2.5, 6); a.wtx = clamp(a.x + rand(-130, 130), 20, worldW() - 20); a.wty = clamp(a.y + rand(-130, 130), 20, worldH() - 20); }
+    const d = dist(a.x, a.y, a.wtx, a.wty);
+    if (d > 3) { const vx = (a.wtx - a.x) / d, vy = (a.wty - a.y) / d; a.facing = vx < 0 ? -1 : 1; a.x += vx * A.speed * dt; a.y += vy * A.speed * dt; a.bob += dt * 7; }
+    else a.wt = 0;
+    if (nearestUnitTo(a.x, a.y, A.fleeRange)) a.fleeT = 1.6;   // une unité s'approche → on détale
+  }
+  a.x = clamp(a.x, 12, worldW() - 12); a.y = clamp(a.y, 12, worldH() - 12);
+}
+function animalAt(x, y) { let best = null, bd = Infinity; for (const a of animals) { if (a.hp <= 0) continue; const rr = CFG.ANIMAL.r + 6; const dd = dist2(x, y, a.x, a.y); if (dd < rr * rr && dd < bd) { bd = dd; best = a; } } return best; }
+function drawAnimal(a) {
+  const x = sx(a.x), y = sy(a.y); if (x < -30 || x > CSSW + 30 || y < -30 || y > CSSH + 30) return;
+  const r = CFG.ANIMAL.r, moving = a.fleeT > 0 || dist(a.x, a.y, a.wtx, a.wty) > 4;
+  const bob = moving ? Math.abs(Math.sin(a.bob)) * 1.6 : 0;
+  ctx.fillStyle = "#0002"; ctx.beginPath(); ctx.ellipse(x, y + r * 0.6, r * 0.95, r * 0.35, 0, 0, TAU); ctx.fill();
+  ctx.save(); ctx.translate(x, y - bob); ctx.scale(a.facing, 1);
+  const sw = moving ? Math.sin(a.bob) * 2.6 : 0; ctx.strokeStyle = "#6a4a28"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-5, r * 0.3); ctx.lineTo(-5 + sw, r * 0.35 + 6); ctx.moveTo(5, r * 0.3); ctx.lineTo(5 - sw, r * 0.35 + 6); ctx.stroke();
+  ctx.fillStyle = a.flash ? "#fff" : "#c79a63"; ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.62, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = a.flash ? "#fff" : "#b98c54"; ctx.beginPath(); ctx.moveTo(r * 0.7, -1); ctx.lineTo(r * 1.05, -r * 0.85); ctx.lineTo(r * 1.45, -r * 0.7); ctx.lineTo(r * 1.05, r * 0.1); ctx.fill();
+  ctx.strokeStyle = "#4a3420"; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(r * 1.28, -r * 0.85); ctx.lineTo(r * 1.36, -r * 1.4); ctx.stroke();
+  ctx.restore();
+  if (a.hp < a.maxHp) barAt(x, y - r - 6, r * 2, a.hp / a.maxHp, "#7a9a3a");
+}
+
+/* ===== MISE À JOUR DES UNITÉS ============================================= */
+function updateUnit(u, dt) {
+  if (u.hp <= 0) return;
+  u.cd = Math.max(0, u.cd - dt);
+  u.lunge = Math.max(0, u.lunge - dt * 4);
+  const U = CFG.UNIT[u.type];
+
+  // auto-défense des villageois : ripostent si un soldat ennemi est au contact
+  if (u.type === "villager" && u.state !== "flee") { const foe = nearestEnemyUnit(u.x, u.y, u.faction, CFG.THREAT, u.type); if (foe && isMil(foe)) { u.state = "flee"; u.target = null; u.gNode = null; } }   // menace → le villageois fuit (l'escorte défend)
+  // féticheur : convertit lentement un ennemi qui l'approche
+  if (u.type === "feticheur") { u.cd2 = Math.max(0, (u.cd2 || 0) - dt); u.cd3 = Math.max(0, (u.cd3 || 0) - dt); if (u.cd2 <= 0) { const foe = nearestEnemyUnit(u.x, u.y, u.faction, CFG.CONVERT.range); if (foe && !foe.commander && foe.type !== "feticheur" && foe.type !== "sorcier") { convertUnit(foe, u.faction); u.cd2 = CFG.CONVERT.cd; } } }
+
+  switch (u.state) {
+    case "idle":
+      u.swing = 0;
+      if (u.commander) {                                  // commandant : défend de près ; rentre au village SAUF s'il mène une escorte
+        const e = nearestEnemyWithin(u, CFG.AGGRO);
+        if (e) commandAttack(u, e);
+        else if (!units.some(x => x.follow === u.id && x.hp > 0)) { const c = playerCite(); if (c && dist(u.x, u.y, c.x, c.y) > c.hw + 80) commandMove(u, c.x, c.y + c.hh + 30); }
+      } else if (u.type === "feticheur") { /* support : tient sa position ; la conversion est gérée plus haut */ }
+      else if (u.type === "caravane") { setupTrade(u, u.faction); if (u.tradeDest) u.state = "trade"; }   // reprend le commerce dès qu'un 2e pôle existe
+      else if (u.type === "eclaireur") {                  // éclaireur : explore automatiquement le brouillard (joueur)
+        if (u.faction === "player" && fogOn && !u.order) { u.scoutCd = (u.scoutCd || 0) - dt; if (u.scoutCd <= 0) { const t = scoutTarget(u.x, u.y); if (t) { commandMove(u, t.x, t.y); u.scoutCd = 3; } else u.scoutCd = 4; } }
+      }
+      else if (isMil(u)) {
+        if (!u.post) u.post = { x: u.x, y: u.y };
+        if (u.faction === "player" && armyStance !== "free" && !u.order) { u.state = "guard"; break; }
+        const e = nearestEnemyWithin(u, u.order === "agro" ? CFG.VISION : CFG.AGGRO);   // agressif = scrute large
+        if (e) commandAttack(u, e);
+      }
+      else if (autoEmploy && u.faction === "player") { u.idleT += dt; if (u.idleT > 1.1) { const n = balancedNode(u); if (n) commandGather(u, n); u.idleT = 0; } }
+      break;
+    case "move": if (stepTo(u, u.tx, u.ty, dt)) u.state = "idle"; break;
+
+    case "gather": {
+      if (u.type !== "villager") { u.state = "idle"; break; }
+      let n = u.gNode;
+      if (n && n.farm && n.amount <= 0) {                  // champ épuisé → le villageois le RESSÈME (coûte du bois)
+        if (dist(u.x, u.y, n.x, n.y) > n.r + U.r + 3) { const [gx, gy] = ringPos(u.id, n.x, n.y, n.r + U.r); stepTo(u, gx, gy, dt); u.swing = 0; u.work = 0; }
+        else {
+          u.swing += dt * 9; u.work += dt;
+          if (u.work >= CFG.RESEED_TIME) {
+            u.work = 0;
+            if (canAfford(u.faction, CFG.RESEED_COST)) { pay(u.faction, CFG.RESEED_COST); n.amount = n.maxAmount; spawnDust(n.x, n.y, 8, "#3f8f5a"); if (u.faction === "player") floats.push({ x: n.x, y: n.y - 12, text: "🌱 ressemé", color: "#2e7d32", t: 0, vy: -22 }); }
+            else { u.gNode = null; u.state = "idle"; if (u.faction === "player") tip("⚠ Pas assez de bois pour ressemer le champ"); }
+          }
+        }
+        break;
+      }
+      if (!n || n.amount <= 0) { n = nearestNode(u.lastNodeType, u.x, u.y) || nearestNode(null, u.x, u.y); u.gNode = n; if (!n) { u.state = "idle"; break; } }
+      if (dist(u.x, u.y, n.x, n.y) > n.r + U.r + 3) { const [gx, gy] = ringPos(u.id, n.x, n.y, n.r + U.r); stepTo(u, gx, gy, dt); u.swing = 0; }
+      else {
+        u.swing += dt * 10;
+        if (u.carry.type && u.carry.type !== n.type) depositToDrop(u);
+        u.carry.type = n.type;
+        const g = Math.min(gatherRate(u) * dt, n.amount, CFG.CARRY_CAP - u.carry.amount);
+        u.carry.amount += g; n.amount -= g;
+        if (u.carry.amount >= CFG.CARRY_CAP - 0.01 || n.amount <= 0) u.state = "return";
+      }
+      break;
+    }
+    case "return": {
+      const drop = nearestDropoff(u.faction, u.x, u.y);
+      if (!drop) { u.state = "idle"; break; }
+      const rr = Math.max(drop.hw, drop.hh) + U.r + 2;
+      if (dist(u.x, u.y, drop.x, drop.y) > rr + 6) { const [dx, dy] = ringPos(u.id, drop.x, drop.y, rr + 4); stepTo(u, dx, dy, dt); }
+      else {
+        if (u.carry.amount > 0) {
+          res[u.faction][u.carry.type] += Math.round(u.carry.amount);
+          if (u.faction === "player") floats.push({ x: drop.x, y: drop.y - drop.hh, text: "+" + Math.round(u.carry.amount) + RES_ICON[u.carry.type], color: "#2e7d32", t: 0, vy: -26 });
+        }
+        u.carry.amount = 0;
+        const keep = u.gNode && (u.gNode.amount > 0 || u.gNode.farm);   // garder un champ même épuisé (pour le ressemer)
+        const n = keep ? u.gNode : nearestNode(u.lastNodeType, u.x, u.y) || nearestNode(null, u.x, u.y);
+        if (n) commandGather(u, n); else u.state = "idle";
+      }
+      break;
+    }
+    case "build": {
+      const b = u.target;
+      if (!b || b.hp <= 0 || b.progress >= 1) {                       // tâche finie → enchaîner TOUS les chantiers en attente, puis récolter
+        const next = nearestUnfinished(u.faction, u.x, u.y);
+        if (next) { commandBuild(u, next); break; }
+        if (u.faction === "player" && autoEmploy) { const n = nearestNode(u.lastNodeType, u.x, u.y) || balancedNode(u); if (n) { commandGather(u, n); break; } }
+        u.state = "idle"; break;
+      }
+      if (dist(u.x, u.y, b.x, b.y) > b.hw + b.hh + U.r + 6) { stepTo(u, b.x, b.y, dt); u.swing = 0; }
+      else {
+        u.swing += dt * 9; b.progress = Math.min(1, b.progress + dt / CFG.BUILD_WORK[b.type]);
+        b.hp = Math.max(b.hp, b.maxHp * (0.15 + 0.85 * b.progress));
+        if (b.progress >= 1) { b.hp = b.maxHp; spawnDust(b.x, b.y, 14, "#d9c08a"); if (b.farm) completeFarm(b); if (b.forest) b.matureT = CFG.BLD.foret.mature; if (b.type === "baie") { spawnPirogue(b); spawnPirogue(b); } if (b.type === "merveille") { b.wonderT = CFG.WONDER_TIME; tip((b.faction === "player" ? "🕌 Ta Grande Mosquée" : "⚠ La Merveille rivale") + " s'élève — victoire dans " + CFG.WONDER_TIME + " s si elle tient !"); } if (u.faction === "player") tip("✅ " + (b.forest ? "Forêt plantée — patiente qu'elle mûrisse" : bldName(b.type) + " achevé")); }
+      }
+      break;
+    }
+    case "attack": {
+      const t = u.target;
+      if (!t || t.hp <= 0) {                                          // cible morte → enchaîner selon l'ordre
+        u.target = null;
+        if (u.order === "towers") { const tw = nearestEnemyTower(u); if (tw) { commandAttack(u, tw); break; } u.order = null; }   // toutes les tours rasées → on revient
+        if (u.order === "agro") { const e = nearestEnemyWithin(u, CFG.VISION); if (e) commandAttack(u, e); else u.state = "idle"; break; }  // enchaîne dans le champ de vision, jusqu'au rappel
+        if (u.follow && units.some(x => x.id === u.follow && x.hp > 0)) { u.state = "escort"; break; }   // soldat d'escorte → revient près de son protégé
+        if (u.faction === "player" && isMil(u) && !u.commander && u.type !== "feticheur" && armyStance !== "free") { u.state = "guard"; break; }
+        if (isMil(u) && u.post && dist(u.x, u.y, u.post.x, u.post.y) > 40) { u.state = "move"; u.tx = u.post.x; u.ty = u.post.y; }
+        else u.state = "idle";
+        break;
+      }
+      if (u.type === "villager" && dist(u.x, u.y, t.x, t.y) > 110) { u.target = null; u.state = "idle"; break; }   // un villageois ne poursuit pas loin
+      if (t.flying && !canHit(u.type, t)) { u.target = null; u.state = "idle"; break; }   // melee/cavalerie ne peut pas atteindre un volant
+      const tr = t.kind === "building" ? Math.max(t.hw, t.hh) : (t.kind === "animal" ? t.r : CFG.UNIT[t.type].r);
+      const reach = U.range + tr;
+      if (dist(u.x, u.y, t.x, t.y) > reach) { stepTo(u, t.x, t.y, dt); u.swing = 0; }
+      else {
+        u.swing += dt * 12;
+        if (u.cd <= 0) {
+          u.cd = U.cd;
+          if (U.ranged) spawnArrow(u.x, u.y - 12, t, u.faction, effAtk(u), u.type);
+          else { dealDamage(u, t); u.lunge = 1; }
+        }
+      }
+      break;
+    }
+    case "guard": {                                       // posture du commandant : garde / patrouille autour de la Cité
+      if (u.faction !== "player" || armyStance === "free" || u.commander || u.type === "feticheur" || u.order) { u.state = "idle"; break; }
+      const e = nearestEnemyWithin(u, CFG.AGGRO);
+      if (e) { commandAttack(u, e); break; }               // défend les abords, puis revient à l'anneau
+      const p = stancePos(u);
+      if (p) { u.post = p; if (dist(u.x, u.y, p.x, p.y) > (armyStance === "patrol" ? 6 : 11)) stepTo(u, p.x, p.y, dt); else u.swing = 0; }
+      break;
+    }
+    case "escort": {                                      // soldat d'escorte : se groupe autour de son protégé (commandant OU villageois) et combat
+      const host = units.find(x => x.id === u.follow && x.hp > 0);
+      if (!host) { u.follow = null; u.state = "idle"; break; }
+      const e = nearestEnemyWithin(u, CFG.AGGRO);
+      if (e) { commandAttack(u, e); break; }
+      const s2 = escortSlot(u, host);
+      if (dist(u.x, u.y, s2.x, s2.y) > 14) stepTo(u, s2.x, s2.y, dt); else u.swing = 0;
+      break;
+    }
+    case "flee": {                                        // villageois qui FUIT vers la Cité tant qu'une menace militaire rôde
+      const foe = nearestEnemyUnit(u.x, u.y, u.faction, CFG.THREAT + 45, u.type);
+      if (!foe || !isMil(foe)) { u.state = "idle"; break; }   // plus de menace → reprend le travail
+      const c = buildings.find(b => b.faction === u.faction && b.type === "cite");
+      let tx, ty;
+      if (c && dist(u.x, u.y, c.x, c.y) > c.hw + 70) { tx = c.x; ty = c.y; }   // courir s'abriter à la Cité
+      else { tx = u.x + (u.x - foe.x); ty = u.y + (u.y - foe.y); }             // déjà à l'abri : s'écarter de l'ennemi
+      stepTo(u, tx, ty, dt); u.swing = 0;
+      break;
+    }
+    case "trade": {                                       // caravane : navette commerciale entre deux pôles → or selon la distance
+      if (!u.tradeDest || u.tradeDest.hp <= 0 || !u.tradeHome || u.tradeHome.hp <= 0) { setupTrade(u, u.faction); if (!u.tradeDest) { u.state = "idle"; break; } }
+      const dd = u.tradeDest;
+      if (dist(u.x, u.y, dd.x, dd.y) < Math.max(dd.hw, dd.hh) + U.r + 8) {
+        const gain = Math.round(dist(u.tradeHome.x, u.tradeHome.y, dd.x, dd.y) * CFG.TRADE_RATE * upgMult(u.faction, "comptoir"));
+        res[u.faction].gold += gain;
+        if (u.faction === "player") floats.push({ x: dd.x, y: dd.y - dd.hh - 6, text: "+" + gain + "✦", color: "#f0c64a", t: 0, vy: -24 });
+        const tmp = u.tradeHome; u.tradeHome = u.tradeDest; u.tradeDest = tmp;   // repart vers l'autre pôle
+      } else stepTo(u, dd.x, dd.y, dt);
+      break;
+    }
+  }
+  separate(u); collideBuildings(u);
+}
+
+// qui peut frapper quoi : une unité volante n'est atteignable que par archer / sorcier / tour / esprit
+function canHit(atkType, t) { return !t.flying || atkType === "archer" || atkType === "sorcier" || atkType === "tour" || atkType === "spirit"; }
+function nearestEnemyWithin(u, range) {
+  let best = null, bd = range * range;
+  for (const o of units) { if (o.hp <= 0 || o.faction === u.faction || !canHit(u.type, o)) continue; const d = dist2(u.x, u.y, o.x, o.y); if (d < bd) { bd = d; best = o; } }
+  for (const b of buildings) { if (b.hp <= 0 || b.faction === u.faction) continue; const d = dist2(u.x, u.y, b.x, b.y); if (d < bd) { bd = d; best = b; } }
+  return best;
+}
+function nearestEnemy(x, y, f, range, atkType) {
+  let best = null, bd = range * range;
+  for (const o of units) { if (o.hp <= 0 || o.faction === f || (atkType && !canHit(atkType, o))) continue; const d = dist2(x, y, o.x, o.y); if (d < bd) { bd = d; best = o; } }
+  for (const b of buildings) { if (b.hp <= 0 || b.faction === f) continue; const d = dist2(x, y, b.x, b.y); if (d < bd) { bd = d; best = b; } }
+  return best;
+}
+function nearestEnemyUnit(x, y, f, range, atkType) {
+  let best = null, bd = range * range;
+  for (const o of units) { if (o.hp <= 0 || o.faction === f || (atkType && !canHit(atkType, o))) continue; const d = dist2(x, y, o.x, o.y); if (d < bd) { bd = d; best = o; } }
+  return best;
+}
+function depositToDrop(u) {
+  const drop = nearestDropoff(u.faction, u.x, u.y);
+  if (drop && u.carry.amount > 0) res[u.faction][u.carry.type] += Math.round(u.carry.amount);
+  u.carry.amount = 0;
+}
+
+/* ===== COMBAT ============================================================= */
+function counterMul(attType, target) { if (target.kind !== "unit") return 1; const c = CFG.COUNTER[attType]; return (c && c[target.type]) || 1; }
+function applyDamage(t, dmg, faction, attType) {
+  if (!t || t.hp <= 0) return;
+  const m = counterMul(attType, t);
+  t.hp -= dmg * m;
+  if (t.kind === "unit" || t.kind === "animal") t.flash = 0.12;
+  if (t.kind === "animal") t.fleeT = 2.5;                 // touché → l'animal détale
+  spawnDust(t.x + rand(-6, 6), t.y + rand(-6, 6), m > 1 ? 6 : 4, t.kind === "building" ? "#caa86a" : "#b1432f");
+  if (m > 1 && t.faction === "player") floats.push({ x: t.x, y: t.y - 22, text: "×" + m, color: "#b1432f", t: 0, vy: -22 });
+  else if (m > 1 && faction === "player") floats.push({ x: t.x, y: t.y - 22, text: "×" + m + " !", color: "#c8941f", t: 0, vy: -22 });
+  if (t.hp <= 0) onDeath(t, faction);
+}
+function dealDamage(att, t) { applyDamage(t, effAtk(att), att.faction, att.type); SND.play("melee"); }
+function spawnArrow(x, y, target, faction, dmg, attType) {
+  const d = Math.max(1, dist(x, y, target.x, target.y));
+  projectiles.push({ sx: x, sy: y, x, y, target, tx: target.x, ty: target.y, faction, dmg, attType, t: 0, dur: clamp(d / CFG.PROJ_SPEED, 0.12, 0.9), ang: 0 });
+  SND.play("arrow");
+}
+function onDeath(t, byFaction) {
+  if (t.kind === "unit") { corpses.push({ x: t.x, y: t.y, type: t.type, faction: t.faction, facing: t.facing || 1, t: 0, max: 1.7 }); spawnDust(t.x, t.y, 9, "#9a8048"); SND.play("death"); if (byFaction && byFaction !== t.faction && stats[byFaction]) stats[byFaction].kills++; }
+  else if (t.kind === "animal") {                         // gibier abattu → carcasse = gisement de vivres
+    const n = makeNode("food", t.x, t.y, CFG.ANIMAL.food); n.r = 13; n.carcass = true; nodes.push(n);
+    spawnDust(t.x, t.y, 9, "#9a7a4a");
+    floats.push({ x: t.x, y: t.y - 12, text: "🍖 " + CFG.ANIMAL.food, color: "#a8631f", t: 0, vy: -18 });
+  }
+  else {
+    rubble.push({ x: t.x, y: t.y, hw: t.hw, hh: t.hh, faction: t.faction, t: 0, max: 6 });
+    spawnDust(t.x, t.y, 24, "#caa86a"); for (let i = 0; i < 7; i++) spawnSmoke(t.x + rand(-t.hw, t.hw), t.y, 1);
+    if (t.type === "cite") endGame(t.faction !== "player");
+  }
+}
+function spawnDust(x, y, n, color) { for (let i = 0; i < n; i++) parts.push({ x, y, vx: rand(-40, 40), vy: rand(-50, 10), life: 0, max: rand(0.3, 0.7), r: rand(1.5, 3.5), color }); }
+function spawnSmoke(x, y, n) { for (let i = 0; i < n; i++) parts.push({ smoke: true, x, y, vx: rand(-9, 9), vy: rand(-24, -10), life: 0, max: rand(1.1, 2), r: rand(4, 8), color: "#6b5b45" }); }
+
+/* ===== FÉTICHEUR (conversion) & ESPRITS (tam-tam) ======================== */
+function convertUnit(t, faction) {                      // un ennemi rallié au camp du féticheur, mais affaibli (perf ÷2)
+  t.faction = faction; t.converted = true; t.order = null; t.follow = null; t.target = null; t.gNode = null; t.state = "idle"; t.post = null;
+  for (let i = 0; i < 14; i++) parts.push({ x: t.x, y: t.y, vx: rand(-32, 32), vy: rand(-62, -10), life: 0, max: rand(0.5, 1), r: rand(2, 4), color: "#b07ad0" });
+  if (faction === "player") { floats.push({ x: t.x, y: t.y - 20, text: "✨ converti", color: "#b07ad0", t: 0, vy: -22 }); SND.play("convert"); }
+}
+function chantSpirits(b) {                               // tam-tam : appelle CHANT.per esprits par soldat
+  if (b.cd > 0) { if (b.faction === "player") tip("🥁 Le tam-tam reprend son souffle…"); return; }
+  b.cd = CFG.CHANT.cd; let count = 0;
+  for (const u of units) if (u.faction === b.faction && (u.type === "lancier" || u.type === "archer" || u.type === "cavalier")) {
+    for (let k = 0; k < CFG.CHANT.per; k++) spirits.push({ host: u, faction: b.faction, x: u.x, y: u.y, ang: k / CFG.CHANT.per * TAU + rand(0, 1), life: 0, max: CFG.CHANT.duration, cd: rand(0, 1) });
+    count++;
+  }
+  if (b.faction === "player") { tip(count ? "🥁 Chant des esprits ! " + count * CFG.CHANT.per + " esprits gardiens invoqués" : "Aucun soldat à protéger"); if (count) SND.play("chant"); }
+}
+function updateSpirit(s, dt) {
+  s.life += dt; s.cd = Math.max(0, s.cd - dt);
+  const h = s.host;
+  if (!h || h.hp <= 0) { s.life = Math.max(s.life, s.max - 0.3); return; }   // hôte mort → l'esprit s'éteint
+  s.ang += dt * 2.4;
+  s.x = h.x + Math.cos(s.ang) * CFG.SPIRIT.orbitR;
+  s.y = h.y - 6 + Math.sin(s.ang) * CFG.SPIRIT.orbitR * 0.6;
+  if (s.cd <= 0) {                                       // attaque en priorité ceux qui frappent l'hôte
+    let foe = units.find(o => o.hp > 0 && o.faction !== s.faction && o.target === h && dist(s.x, s.y, o.x, o.y) < CFG.SPIRIT.range * 1.7) || nearestEnemy(s.x, s.y, s.faction, CFG.SPIRIT.range);
+    if (foe) { s.cd = CFG.SPIRIT.cd; applyDamage(foe, CFG.SPIRIT.atk, s.faction, "spirit"); spawnDust(foe.x, foe.y, 3, "#d8b0f0"); }
+  }
+}
+function drawSpirit(s) {
+  const x = sx(s.x), y = sy(s.y); if (x < -20 || x > CSSW + 20 || y < -20 || y > CSSH + 20) return;
+  const a = clamp(1 - s.life / s.max, 0, 1) * 0.85, pulse = 2 + Math.sin(s.life * 8 + s.ang) * 1.2;
+  ctx.save(); ctx.globalAlpha = a;
+  ctx.fillStyle = "#c79cf0"; ctx.beginPath(); ctx.arc(x, y, 4 + pulse, 0, TAU); ctx.fill();
+  ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(x, y, 2, 0, TAU); ctx.fill();
+  ctx.restore(); ctx.globalAlpha = 1;
+}
+const onLake = (x, y) => lakes.some(L => { const dx = (x - L.x) / L.rw, dy = (y - L.y) / L.rh; return dx * dx + dy * dy < 1; });
+const nearLake = (x, y) => lakes.some(L => { const dx = (x - L.x) / (L.rw + 38), dy = (y - L.y) / (L.rh + 38); return dx * dx + dy * dy < 1; });
+function nearestLake(x, y) { let best = null, bd = Infinity; for (const L of lakes) { const d = dist2(x, y, L.x, L.y); if (d < bd) { bd = d; best = L; } } return best; }
+
+/* ===== POISSONS (bancs animés) & PIROGUES (pêche) ======================== */
+function makeFish(L) { return { L: L, ang: rand(0, TAU), rad: rand(0.25, 0.82), spd: rand(0.3, 0.7) * (Math.random() < .5 ? 1 : -1), ph: rand(0, TAU) }; }
+function updateFish(z, dt) { z.ang += z.spd * dt; z.ph += dt * 4; }
+function drawFish(z) {
+  const L = z.L, fx = L.x + Math.cos(z.ang) * L.rw * z.rad, fy = L.y + Math.sin(z.ang) * L.rh * z.rad;
+  const x = sx(fx), y = sy(fy); if (x < -10 || x > CSSW + 10 || y < -10 || y > CSSH + 10) return;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(z.ang + Math.PI / 2 + Math.sin(z.ph) * 0.18 + (z.spd < 0 ? Math.PI : 0));
+  ctx.fillStyle = "#33454f"; ctx.beginPath(); ctx.ellipse(0, 0, 4.5, 2, 0, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(-7, -2.5); ctx.lineTo(-7, 2.5); ctx.fill();
+  ctx.restore();
+}
+function spawnPirogue(baie) { const L = nearestLake(baie.x, baie.y); if (!L) return; pirogues.push({ L: L, x: L.x + rand(-L.rw * 0.4, L.rw * 0.4), y: L.y + rand(-L.rh * 0.4, L.rh * 0.4), tx: L.x, ty: L.y, t: 0, facing: 1, bob: rand(0, TAU) }); }
+function updatePirogue(p, dt) {
+  const L = p.L; p.t -= dt; p.bob += dt * 3;
+  if (p.t <= 0) { p.t = rand(2.5, 5); const a = rand(0, TAU), rr = Math.sqrt(Math.random()) * 0.72; p.tx = L.x + Math.cos(a) * L.rw * rr; p.ty = L.y + Math.sin(a) * L.rh * rr; }
+  const dx = p.tx - p.x, dy = p.ty - p.y, d = Math.hypot(dx, dy);
+  if (d > 2) { p.facing = dx < 0 ? -1 : 1; p.x += dx / d * 24 * dt; p.y += dy / d * 24 * dt; }
+}
+function drawPirogue(p) {
+  const x = sx(p.x), y = sy(p.y) + Math.sin(p.bob) * 1.3; if (x < -20 || x > CSSW + 20 || y < -20 || y > CSSH + 20) return;
+  ctx.save(); ctx.translate(x, y); ctx.scale(p.facing, 1);
+  ctx.fillStyle = "#0003"; ctx.beginPath(); ctx.ellipse(0, 3, 12, 3, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = "#6a4a28"; ctx.beginPath(); ctx.ellipse(0, 0, 11, 4, 0, 0, TAU); ctx.fill();        // coque
+  ctx.fillStyle = "#8a6a3a"; ctx.beginPath(); ctx.ellipse(0, -1, 8, 2, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = "#caa46a"; ctx.beginPath(); ctx.arc(2, -4, 2.6, 0, TAU); ctx.fill();                 // pêcheur
+  ctx.strokeStyle = "#5a3d1f"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(4, -5); ctx.lineTo(11, 3); ctx.stroke();   // ligne
+  ctx.restore();
+}
+function upgradeWall(f) {                               // faire évoluer la résistance des clôtures
+  if (clotureLevel[f] >= CFG.WALL_UP.max) { if (f === "player") tip("🧱 Clôture déjà au niveau maximal"); return; }
+  if (!canAfford(f, CFG.WALL_UP.cost)) { if (f === "player") tip("⚠ Ressources insuffisantes pour renforcer"); return; }
+  pay(f, CFG.WALL_UP.cost); clotureLevel[f]++;
+  const nm = Math.round(CFG.BLD.cloture.hp * (1 + clotureLevel[f] * CFG.WALL_UP.mult));
+  for (const b of buildings) if (b.faction === f && b.wall) { b.hp = b.hp / b.maxHp * nm; b.maxHp = nm; }
+  if (f === "player") { tip("🧱 Clôture renforcée — niveau " + clotureLevel[f] + " (" + nm + " PV)"); refreshCmd(); }
+}
+function upgradeWallSel() { upgradeWall("player"); }
+function demolishSel() {                            // détruire un bâtiment (sauf la Cité), rembourse 40 %
+  const b = selBld; if (!b || b.faction !== "player" || b.type === "cite") return;
+  const cost = CFG.COST[b.type] || {}; for (const k in cost) res.player[k] += Math.round(cost[k] * 0.4);
+  b.hp = 0; selBld = null; tip("💥 " + bldName(b.type) + " détruit (40 % rendu)"); refreshCmd();
+}
+
+/* ===== ENTRAÎNEMENT, FILES, RALLIEMENT ==================================== */
+function trainAt(b, type) {
+  const cost = CFG.COST[type];
+  if (b.progress < 1) return false;
+  if (!unlocked(b.faction, type)) { if (b.faction === "player") tip("⚠ " + CFG.AGE[CFG.UNLOCK[type]].name + " requis"); return false; }
+  if (type === "commandant" && units.some(u => u.faction === b.faction && u.commander)) { if (b.faction === "player") tip("⚠ Un seul commandant à la fois"); return false; }
+  if (!canAfford(b.faction, cost)) return false;
+  if (popUsed(b.faction) + b.queue.length >= popCap(b.faction)) { if (b.faction === "player") tip("⚠ Population pleine — construis une maison"); return false; }
+  pay(b.faction, cost); b.queue.push(type); if (b.faction === "player") refreshCmd(); return true;
+}
+function isDefaultRally(b) { return Math.abs(b.rally.x - b.x) < 2 && Math.abs(b.rally.y - (b.y + b.hh + 28)) < 2; }
+function setupTrade(u, f) {                 // commerce : navette entre les deux pôles (marché/Cité) les plus éloignés
+  const hubs = buildings.filter(b => b.faction === f && b.progress >= 1 && (b.type === "marche" || b.type === "cite"));
+  if (hubs.length < 2) { u.tradeHome = null; u.tradeDest = null; return; }
+  hubs.sort((a, b) => dist2(u.x, u.y, a.x, a.y) - dist2(u.x, u.y, b.x, b.y));
+  u.tradeHome = hubs[0]; let far = hubs[1], fd = -1;
+  for (const h of hubs) { const dd = dist2(hubs[0].x, hubs[0].y, h.x, h.y); if (dd > fd) { fd = dd; far = h; } }
+  u.tradeDest = far;
+}
+function deployUnit(u, b) {                 // affecte automatiquement l'unité produite selon le ralliement
+  if (u.type === "caravane") { setupTrade(u, b.faction); u.state = u.tradeDest ? "trade" : "idle"; return; }
+  const node = nodeAtPoint(b.rally.x, b.rally.y, 26);
+  const enemy = enemyAtPoint(b.rally.x, b.rally.y, 30, b.faction);
+  if (u.type === "villager") {
+    if (node) return commandGather(u, node);
+    if (isDefaultRally(b) && (autoEmploy || b.faction === "enemy")) { const n = balancedNode(u); if (n) return commandGather(u, n); }  // auto-emploi direct
+    return commandMove(u, b.rally.x, b.rally.y);
+  }
+  if (enemy) return commandAttack(u, enemy);
+  commandMove(u, b.rally.x, b.rally.y);
+}
+function updateBuilding(b, dt) {
+  if (b.progress >= 1) {
+    if (b.type === "marche") res[b.faction].gold += CFG.BLD.marche.gold * dt * upgMult(b.faction, "comptoir");
+    if (b.type === "baie") res[b.faction].food += CFG.BLD.baie.food * dt;     // pêche aux pirogues
+    if (b.forest && !b.matured) { b.matureT -= dt; if (b.matureT <= 0) { b.matured = true; const n = makeNode("wood", b.x, b.y, CFG.BLD.foret.wood); n.r = 16; n.fromForest = b; b.woodNode = n; nodes.push(n); spawnDust(b.x, b.y, 12, "#3f8f5a"); } }   // forêt mûre → bois récoltable
+    if (b.gate) b.open = units.some(u => u.faction === b.faction && u.hp > 0 && dist(u.x, u.y, b.x, b.y) < CFG.GATE_OPEN);   // portail : s'ouvre à l'approche d'un habitant
+    if (b.type === "merveille" && b.wonderT > 0) { b.wonderT -= dt; if (b.wonderT <= 0) endGame(b.faction === "player"); }   // décompte de victoire
+    if (b.type === "tamtam" && b.cd > 0) b.cd = Math.max(0, b.cd - dt);        // récupération du chant
+    if (b.type === "tour") {
+      b.cd = Math.max(0, b.cd - dt);
+      if (b.cd <= 0) { const e = nearestEnemyUnit(b.x, b.y, b.faction, CFG.BLD.tour.range); if (e) { b.cd = CFG.BLD.tour.cd; spawnArrow(b.x, b.y - b.hh, e, b.faction, CFG.BLD.tour.atk * ageOf(b.faction).atk * upgMult(b.faction, "meurtrieres"), "tour"); } }
+    }
+    if (b.hp < b.maxHp * 0.4) { b.smokeT -= dt; if (b.smokeT <= 0) { b.smokeT = 0.35; spawnSmoke(b.x + rand(-b.hw * 0.6, b.hw * 0.6), b.y - b.hh * 0.3, 1); } }
+  }
+  if (b.queue.length === 0) { b.trainT = 0; return; }
+  b.trainT += dt;
+  const type = b.queue[0];
+  if (b.trainT >= CFG.TRAIN_TIME[type]) {
+    b.trainT = 0; b.queue.shift();
+    const u = makeUnit(b.faction, type, b.x + rand(-6, 6), b.y + b.hh + 14);
+    units.push(u); deployUnit(u, b);
+    if (b.faction === "player") { refreshCmd(); SND.play("train"); }
+  }
+}
+
+/* ===== PLACEMENT DE BÂTIMENT ============================================== */
+function buildFootprintOK(type, x, y) {
+  const b = CFG.BLD[type];
+  if (x - b.hw < 4 || x + b.hw > worldW() - 4 || y - b.hh < 4 || y + b.hh > worldH() - 4) return false;
+  if (onLake(x, y)) return false;                                                  // pas de construction sur l'eau
+  for (const o of buildings) { if (Math.abs(x - o.x) < b.hw + o.hw + 6 && Math.abs(y - o.y) < b.hh + o.hh + 6) return false; }
+  for (const n of nodes) { if (dist(x, y, n.x, n.y) < b.hw + b.hh) return false; }
+  return true;
+}
+function placeBuilding(type, x, y) {
+  if (!unlocked("player", type)) { tip("⚠ " + CFG.AGE[CFG.UNLOCK[type]].name + " requis"); return false; }
+  if (type === "portail") {   // un portail se pose EN REMPLACEMENT d'une clôture → ouverture dans le mur
+    const w = buildings.find(b => b.faction === "player" && b.type === "cloture" && b.hp > 0 && Math.abs(x - b.x) < b.hw + 14 && Math.abs(y - b.y) < b.hh + 14);
+    if (w) { x = w.x; y = w.y; buildings = buildings.filter(b => b !== w); }
+  }
+  if (type === "baie") {
+    if (!buildings.some(b => b.faction === "player" && b.type === "atelier" && b.progress >= 1)) { tip("⚠ Construis d'abord un atelier de bois"); return false; }
+    if (!nearLake(x, y)) { tip("⚠ La baie doit être au bord d'un lac"); return false; }
+  }
+  if (!buildFootprintOK(type, x, y) || !canAfford("player", CFG.COST[type])) return false;
+  pay("player", CFG.COST[type]);
+  const b = makeBuilding("player", type, x, y, false); buildings.push(b);
+  let assigned = 0;
+  for (const id of sel) { const u = unitById(id); if (u && u.type === "villager") { commandBuild(u, b); assigned++; } }
+  if (assigned === 0) { const v = units.find(u => u.faction === "player" && u.type === "villager"); if (v) commandBuild(v, b); }
+  SND.play("build"); refreshCmd(); return b;
+}
+function placeChain(type, x1, y1, x2, y2) {        // pose une chaîne de segments du point de départ au point d'arrivée
+  const b = CFG.BLD[type], step = Math.max(20, b.hw * 2 + 2);
+  const n = Math.max(1, Math.round(dist(x1, y1, x2, y2) / step));
+  for (let i = 0; i <= n; i++) {
+    if (!canAfford("player", CFG.COST[type])) break;
+    const t = n ? i / n : 0, gx = Math.round((x1 + (x2 - x1) * t) / 20) * 20, gy = Math.round((y1 + (y2 - y1) * t) / 20) * 20;
+    placeBuilding(type, gx, gy);
+  }
+}
+const unitById = id => units.find(u => u.id === id);
+
+/* ===== IA (faction-agnostique — même code pour les deux camps) ============ */
+const AI_STATE = {};   // état tactique persistant par camp, réinitialisé au startGame
+function getAI(f) { if (!AI_STATE[f]) AI_STATE[f] = { waveT: 0, retreating: false, peakArmy: 0, waves: 0 }; return AI_STATE[f]; }
+
+function aiUpdate(f) {
+  const foeF = f === "player" ? "enemy" : "player";
+  const st = getAI(f);
+  st.waveT = Math.max(0, st.waveT - 1);   // le timer se décompte en secondes (appelé toutes les 1s)
+
+  const myUnits = units.filter(u => u.faction === f && u.hp > 0);
+  const vills   = myUnits.filter(u => u.type === "villager");
+  const armyCls = ["lancier","archer","cavalier","sorcier","commandant"];
+  const fightLines = myUnits.filter(u => isMil(u) && u.type !== "feticheur");   // forces de combat (commandant incl., féticheur excl.)
+  const soldats   = myUnits.filter(u => armyCls.includes(u.type));               // soldats actifs
+  const foes      = units.filter(u => u.faction === foeF && u.hp > 0);
+  const myCite    = buildings.find(b => b.faction === f && b.type === "cite");
+  const foeCite   = buildings.find(b => b.faction === foeF && b.type === "cite");
+  if (!myCite) return;
+
+  // ── Compteurs ──────────────────────────────────────────────────────────────
+  const myBld     = t => buildings.filter(b => b.faction === f && b.type === t);
+  const hasBld    = (t, built) => buildings.some(b => b.faction === f && b.type === t && (!built || b.progress >= 1));
+  const hasCaserne = hasBld("caserne", true);
+  const hasTamtam  = hasBld("tamtam",  true);
+  const hasAtelier = hasBld("atelier", true);
+  const hasFet     = myUnits.some(u => u.type === "feticheur");
+  const hasCmd     = myUnits.some(u => u.commander);
+  const foeSorcN   = foes.filter(u => u.type === "sorcier").length;
+  const myArchN    = soldats.filter(u => u.type === "archer").length;
+  const myTourN    = myBld("tour").filter(b => b.progress >= 1).length;
+  const sites      = buildings.filter(b => b.faction === f && b.progress < 1);
+  const chantier   = sites.length > 0;
+  const popFull    = popUsed(f) + 1 >= popCap(f);
+  const popCurrent = popCap(f);
+
+  // 1) bâtisseur sur chaque chantier inachevé
+  for (const b of sites)
+    if (!units.some(u => u.faction === f && u.state === "build" && u.target === b)) {
+      const v = vills.find(u => u.state !== "build"); if (v) commandBuild(v, b);
+    }
+
+  // 2) caravaniers oisifs → récolte équilibrée
+  const want = ["food","wood","gold"]; let wi = 0;
+  for (const v of vills) if (v.state === "idle") { const n = nearestNode(want[wi%3], v.x, v.y) || nearestNode(null, v.x, v.y); if (n) commandGather(v, n); wi++; }
+
+  // 3) avancer d'Âge dès que les conditions sont remplies (sans attendre)
+  if (!advancing[f]) { const c = canAdvance(f); if (c.ok) startAdvance(f); }
+  if (DIFFICULTY.tech) aiResearch(f);                // se technologise (forge/cuirasses/comptoir/outils/meurtrières)
+
+  // 4) CONSTRUCTION — un seul chantier à la fois, par PRIORITÉ : chemin militaire/âge d'abord, éco de confort ensuite
+  if (!chantier) {
+    if (popFull && canAfford(f, CFG.COST.maison)) aiBuild(f, "maison", myCite);                                          // débloquer la population
+    else if (!hasBld("caserne") && vills.length >= 5 && canAfford(f, CFG.COST.caserne)) aiBuild(f, "caserne", myCite);   // armée
+    else if (!hasBld("marche")  && hasCaserne && canAfford(f, CFG.COST.marche)) aiBuild(f, "marche", myCite);            // → permet le Mali
+    else if (DIFFICULTY.tech && age[f] >= 1 && !hasTamtam && hasCaserne && canAfford(f, CFG.COST.tamtam)) aiBuild(f, "tamtam", myCite, 40, 90);
+    else if (DIFFICULTY.tech && age[f] >= 2 && !hasBld("merveille") && canAfford(f, CFG.COST.merveille)) aiBuild(f, "merveille", myCite, 60, 115);   // course à la Merveille (victoire alternative)
+    else if (age[f] >= 1 && myTourN < 3 && canAfford(f, CFG.COST.tour)) aiBuild(f, "tour", myCite, 55, 105);
+    else if (vills.length >= 8  && myBld("champ").length < 2 && canAfford(f, CFG.COST.champ)) aiBuild(f, "champ", myCite, 30, 85);
+    else if (vills.length >= 10 && !hasAtelier && canAfford(f, CFG.COST.atelier)) aiBuild(f, "atelier", myCite, 50, 110);
+    else if (hasAtelier && !hasBld("baie") && canAfford(f, CFG.COST.baie)) {
+      for (const L of lakes) {
+        const bx = clamp(L.x + rand(-20,20), 80, worldW()-80), by = clamp(L.y + L.rh + 18, 80, worldH()-80);
+        if (buildFootprintOK("baie", bx, by)) { pay(f, CFG.COST.baie); const nb = makeBuilding(f,"baie",bx,by,false); buildings.push(nb); const v = (units.find(u => u.faction===f && u.type==="villager" && u.state!=="build")) || vills[0]; if (v) commandBuild(v, nb); break; }
+      }
+    }
+  }
+  // file de la Cité : caravaniers, en cédant la place à un féticheur/commandant dès qu'on peut se l'offrir
+  const prefSpecial = DIFFICULTY.tech && age[f] >= 1 && vills.length >= 8 &&
+    ((!hasFet && canAfford(f, CFG.COST.feticheur)) || (!hasCmd && canAfford(f, CFG.COST.commandant)));
+  if (!popFull && myCite.queue.length === 0 && vills.length < DIFFICULTY.vills && !prefSpecial && canAfford(f, CFG.COST.villager)) trainAt(myCite, "villager");
+
+  // 6) armée — composition adaptée (contre-pick vs sorciers ennemis)
+  const caserne = buildings.find(b => b.faction===f && b.type==="caserne" && b.progress>=1);
+  if (caserne && caserne.queue.length === 0 && soldats.filter(u=>u.type!=="commandant").length < DIFFICULTY.soldiers) {
+    const roll = Math.random();
+    if (foeSorcN >= 2 && myArchN < foeSorcN + 2 && canAfford(f, CFG.COST.archer)) trainAt(caserne, "archer");  // anti-vol
+    else if (age[f] >= 2 && roll < 0.28 && canAfford(f, CFG.COST.cavalier)) trainAt(caserne, "cavalier");
+    else if (age[f] >= 1 && roll < 0.58 && canAfford(f, CFG.COST.archer))   trainAt(caserne, "archer");
+    else if (canAfford(f, CFG.COST.lancier)) trainAt(caserne, "lancier");
+  }
+
+  // 7) unités spéciales (féticheur, commandant, sorciers)
+  if (DIFFICULTY.tech && myCite.queue.length === 0) {
+    if (age[f] >= 1 && !hasFet && canAfford(f, CFG.COST.feticheur)) trainAt(myCite, "feticheur");
+    else if (!hasCmd && vills.length >= 8 && canAfford(f, CFG.COST.commandant)) trainAt(myCite, "commandant");
+  }
+  const fet = myUnits.find(u => u.type === "feticheur");
+  if (fet && (fet.cd3||0) <= 0 && myUnits.filter(u=>u.type==="sorcier").length < DIFFICULTY.sorc && canAfford(f, CFG.COST.sorcier)) summonSorcier(fet);
+
+  // 8) tam-tam : chanter dès qu'une armée se forme
+  const tam = buildings.find(b => b.faction===f && b.type==="tamtam" && b.progress>=1);
+  if (tam && (tam.cd||0) <= 0 && fightLines.length >= 8) chantSpirits(tam);
+
+  // ── PHASE TACTIQUE ─────────────────────────────────────────────────────────
+  st.peakArmy = Math.max(st.peakArmy, fightLines.length);
+
+  // RETRAITE si < 40% du pic d'armée (regroupement avant prochaine vague)
+  const ratio = st.peakArmy > 3 ? fightLines.length / st.peakArmy : 1;
+  if (!st.retreating && ratio < 0.18 && fightLines.length > 0) {   // on ne se replie qu'à la quasi-déroute → assauts décisifs
+    st.retreating = true; st.waveT = 30;
+    for (const u of fightLines) { u.state="move"; u.tx=myCite.x+rand(-55,55); u.ty=myCite.y+rand(-55,55); u.target=null; u.order=null; u.follow=null; }
+  }
+  if (st.retreating && ratio > 0.5) { st.retreating = false; st.peakArmy = fightLines.length; }
+
+  // ASSAUT : ≥ 10 combattants, timer à 0, pas en retraite, ≥ 60 s de jeu
+  if (!st.retreating && foeCite && fightLines.length >= DIFFICULTY.army && st.waveT <= 0 && gameT > DIFFICULTY.firstWave) {
+    st.waveT = DIFFICULTY.waveGap; st.waves++;
+    // Chant des esprits avant chaque vague
+    if (tam && (tam.cd||0) <= 0) chantSpirits(tam);
+    // Commandant mène la retinue
+    const cmd = myUnits.find(u => u.commander);
+    if (cmd) callRetinue(cmd);
+    // Féticheur gardé à l'abri près de la Cité : son buff ×2 est GLOBAL, inutile de l'exposer
+    if (fet) commandMove(fet, myCite.x + rand(-50, 50), myCite.y + rand(-50, 50));
+    // Toutes les forces à l'assaut en mode agressif (enchaînent les cibles en vue)
+    for (const u of fightLines) {
+      if (u.state === "escort") continue;   // l'escorte suit le commandant
+      if (u.type === "sorcier") { commandAttack(u, foeCite); u.order = null; }   // les volants harcèlent la Cité par-dessus l'armée
+      else { commandAttack(u, nearestEnemy(u.x, u.y, f, 1e9, u.type) || foeCite); u.order = "agro"; }   // commandant + infanterie : bataille rangée (enchaînent les cibles)
+    }
+  }
+}
+function aiBuild(f, type, cite, rmin, rmax) {
+  rmin = rmin || 70; rmax = rmax || 190;
+  for (let tries = 0; tries < 24; tries++) {
+    const a = rand(0, TAU), r = rand(rmin, rmax);
+    const x = clamp(cite.x + Math.cos(a) * r, 60, worldW() - 60), y = clamp(cite.y + Math.sin(a) * r, 60, worldH() - 60);
+    if (buildFootprintOK(type, x, y)) {
+      pay(f, CFG.COST[type]); const nb = makeBuilding(f, type, x, y, false); buildings.push(nb);
+      const v = units.find(u => u.faction === f && u.type === "villager" && u.state !== "build") || units.find(u => u.faction === f && u.type === "villager");
+      if (v) commandBuild(v, nb);
+      return nb;
+    }
+  }
+  return null;
+}
+
+/* ===== BOUCLE DE SIMULATION =============================================== */
+function update(dt) {
+  gameT += dt;
+  const pan = 460 * dt;
+  if (keys["arrowleft"] || keys["q"] || keys["a"]) cam.x -= pan;
+  if (keys["arrowright"] || keys["d"]) cam.x += pan;
+  if (keys["arrowup"] || keys["z"] || keys["w"]) cam.y -= pan;
+  if (keys["arrowdown"] || keys["s"]) cam.y += pan;
+  clampCam();
+
+  for (const fa of ["player", "enemy"]) { const a = advancing[fa]; if (a) { a.t += dt; if (a.t >= a.time) { advancing[fa] = null; age[fa]++; onAgeUp(fa); } } }
+
+  for (const b of buildings) if (b.hp > 0) updateBuilding(b, dt);
+  gateFlag.player = buildings.some(b => b.faction === "player" && b.gate && b.progress >= 1);
+  gateFlag.enemy = buildings.some(b => b.faction === "enemy" && b.gate && b.progress >= 1);
+  navTimer -= dt; if (navTimer <= 0 || !nav) { navTimer = 0.6; markNav(); } pathBudget = 8;   // grille de nav + budget de chemins/frame
+  for (const u of units) { if (u.flash) u.flash = Math.max(0, u.flash - dt); updateUnit(u, dt); }
+  for (const a of animals) updateAnimal(a, dt);
+  for (const s of spirits) updateSpirit(s, dt);
+  for (const z of fish) updateFish(z, dt);
+  for (const p of pirogues) updatePirogue(p, dt);
+  if (!over) { aiTimer -= dt; if (aiTimer <= 0) { aiTimer = 1.0;
+    if (spectator) { if (aiFlip) { aiUpdate("player"); aiUpdate("enemy"); } else { aiUpdate("enemy"); aiUpdate("player"); } aiFlip = !aiFlip; }   // ordre alterné = équité
+    else aiUpdate("enemy");
+  } }
+  if (!over && !spectator) { escortTimer -= dt; if (escortTimer <= 0) { escortTimer = 1.5; assignVillagerEscorts("player"); } }   // escorte auto des villageois éloignés
+
+  // projectiles (flèches) — vol en arc + impact
+  for (const p of projectiles) {
+    const a = (p.target && p.target.hp > 0) ? p.target : null;
+    const txp = a ? a.x : p.tx, typ = a ? a.y : p.ty;
+    p.t += dt; const k = clamp(p.t / p.dur, 0, 1);
+    const nx = lerp(p.sx, txp, k), ny = lerp(p.sy, typ, k) - Math.sin(k * Math.PI) * Math.min(42, p.dur * 60);
+    p.ang = Math.atan2(ny - p.y, nx - p.x); p.x = nx; p.y = ny;
+    if (k >= 1) { p.done = true; if (a) applyDamage(a, p.dmg, p.faction, p.attType); spawnDust(txp, typ, 4, "#b1432f"); }
+  }
+  projectiles = projectiles.filter(p => !p.done);
+
+  // nettoyage des morts (dépouilles / ruines déjà générées par onDeath dans applyDamage)
+  for (const b of buildings) if (b.forest && b.matured && b.woodNode && b.woodNode.amount <= 0.01) b.hp = 0;   // forêt épuisée → disparaît
+  units = units.filter(u => u.hp > 0);
+  buildings = buildings.filter(b => b.hp > 0);
+  animals = animals.filter(a => a.hp > 0);
+  spirits = spirits.filter(s => s.life < s.max);
+  nodes = nodes.filter(n => n.farm ? n.farm.hp > 0 : n.amount > 0.01);   // les champs ne repoussent plus seuls (un villageois ressème) ; subsistent tant que le bâtiment vit
+  for (const id of [...sel]) if (!unitById(id)) sel.delete(id);
+  if (selBld && selBld.hp <= 0) selBld = null;
+
+  // particules, projectiles morts, dépouilles, ruines, oiseaux, textes
+  for (const p of parts) { p.life += dt; p.x += p.vx * dt; p.y += p.vy * dt; if (p.smoke) p.r += 12 * dt; else p.vy += 120 * dt; }
+  parts = parts.filter(p => p.life < p.max);
+  for (const c of corpses) c.t += dt; corpses = corpses.filter(c => c.t < c.max);
+  for (const r of rubble) r.t += dt; rubble = rubble.filter(r => r.t < r.max);
+  for (const ft of floats) { ft.t += dt; ft.y += ft.vy * dt; } floats = floats.filter(ft => ft.t < 1.1);
+  for (const bd of birds) { bd.x += bd.vx * dt; bd.phase += dt * 9; if (bd.x > worldW() + 40) bd.x = -40; if (bd.x < -40) bd.x = worldW() + 40; }
+
+  stats.player.peakPop = Math.max(stats.player.peakPop, popUsed("player")); stats.enemy.peakPop = Math.max(stats.enemy.peakPop, popUsed("enemy"));
+  if (fogOn) { visTimer -= dt; if (visTimer <= 0) { visTimer = 0.15; computeVision(); } }
+  tipTimer -= dt; if (tipTimer <= 0) { tipTimer = 26; tip("📖 " + CODEX[randInt(0, CODEX.length - 1)][0]); }
+
+  if (!over) {
+    const pc = buildings.some(b => b.faction === "player" && b.type === "cite");
+    const ec = buildings.some(b => b.faction === "enemy" && b.type === "cite");
+    if (!pc) endGame(false); else if (!ec) endGame(true);
+  }
+  syncTop();
+}
+
+/* ===== CAMÉRA ============================================================= */
+function clampCam() { cam.x = clamp(cam.x, 0, Math.max(0, worldW() - CSSW)); cam.y = clamp(cam.y, 0, Math.max(0, worldH() - CSSH)); if (pixelMode) { cam.x = Math.round(cam.x); cam.y = Math.round(cam.y); } }   // caméra entière en mode pixel (réduit le scintillement)
+const sx = wx => wx - cam.x, sy = wy => wy - cam.y;
+const wx = s => s + cam.x, wy = s => s + cam.y;
+
+/* ===== RENDU ============================================================== */
+function buildTerrain() {
+  terrain = document.createElement("canvas"); terrain.width = worldW(); terrain.height = worldH();
+  const t = terrain.getContext("2d");
+  t.fillStyle = "#e7d3a6"; t.fillRect(0, 0, terrain.width, terrain.height);
+  let s = 1234.567;
+  const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+  for (let i = 0; i < 150; i++) { t.fillStyle = rnd() > .5 ? "#decba0" : "#d8c08a"; t.globalAlpha = .5;
+    const ex = rnd() * terrain.width, ey = rnd() * terrain.height, rw = 50 + rnd() * 150, rh = 30 + rnd() * 80;
+    t.beginPath(); t.ellipse(ex, ey, rw, rh, rnd() * 3, 0, TAU); t.fill(); }
+  t.globalAlpha = 1;
+  t.strokeStyle = "#cdb88c55"; t.lineWidth = 1;
+  for (let gx = 0; gx <= CFG.MW; gx++) { t.beginPath(); t.moveTo(gx * CFG.TS, 0); t.lineTo(gx * CFG.TS, terrain.height); t.stroke(); }
+  for (let gy = 0; gy <= CFG.MH; gy++) { t.beginPath(); t.moveTo(0, gy * CFG.TS); t.lineTo(terrain.width, gy * CFG.TS); t.stroke(); }
+  t.strokeStyle = "#6bb0c422"; t.lineWidth = 46; t.lineCap = "round"; t.beginPath();
+  t.moveTo(0, terrain.height * .62);
+  for (let x = 0; x <= terrain.width; x += 120) t.lineTo(x, terrain.height * .62 + Math.sin(x / 200) * 70);
+  t.stroke();
+  t.lineCap = "butt";
+  // forêts denses (bosquets) — zones de végétation touffue
+  for (let zone = 0; zone < 8; zone++) {
+    const cx = rnd() * terrain.width, cy = rnd() * terrain.height, kn = 18 + rnd() * 16;
+    for (let k = 0; k < kn; k++) {
+      const tx = cx + (rnd() - .5) * 170, ty = cy + (rnd() - .5) * 140;
+      t.strokeStyle = "#6a4a28"; t.lineWidth = 2; t.beginPath(); t.moveTo(tx, ty); t.lineTo(tx, ty - 12); t.stroke();
+      t.fillStyle = rnd() > .5 ? "#3f8f5a" : "#4f9a55"; t.beginPath(); t.ellipse(tx, ty - 15, 9 + rnd() * 4, 6 + rnd() * 3, 0, 0, TAU); t.fill();
+    }
+  }
+  // herbe & buissons épars
+  for (let i = 0; i < 220; i++) {
+    const vx = rnd() * terrain.width, vy = rnd() * terrain.height;
+    if (rnd() < 0.55) { t.strokeStyle = "#7a9a4a"; t.lineWidth = 1.5; for (let g = -2; g <= 2; g++) { t.beginPath(); t.moveTo(vx + g * 2, vy); t.lineTo(vx + g * 2 + (rnd() - .5) * 3, vy - 5 - rnd() * 4); t.stroke(); } }
+    else { t.fillStyle = "#5f8a46"; t.beginPath(); t.arc(vx, vy, 4 + rnd() * 4, 0, TAU); t.fill(); }
+  }
+  // hameaux (civilisation) : petites cases de banco au toit de chaume
+  for (let h = 0; h < 7; h++) {
+    const hx = 220 + rnd() * (terrain.width - 440), hy = 220 + rnd() * (terrain.height - 440), kn = 3 + rnd() * 4;
+    for (let k = 0; k < kn; k++) {
+      const cxh = hx + (rnd() - .5) * 80, cyh = hy + (rnd() - .5) * 70, s2 = 8 + rnd() * 5;
+      t.fillStyle = "#0001"; t.beginPath(); t.ellipse(cxh, cyh + s2 * 0.6, s2, s2 * 0.4, 0, 0, TAU); t.fill();
+      t.fillStyle = "#c8a878"; t.fillRect(cxh - s2, cyh - s2 * 0.5, s2 * 2, s2 * 1.1);
+      t.strokeStyle = "#8a6a3a"; t.lineWidth = 1.5; t.strokeRect(cxh - s2, cyh - s2 * 0.5, s2 * 2, s2 * 1.1);
+      t.fillStyle = "#9a7a4a"; t.beginPath(); t.moveTo(cxh - s2 - 2, cyh - s2 * 0.5); t.lineTo(cxh, cyh - s2 * 1.3); t.lineTo(cxh + s2 + 2, cyh - s2 * 0.5); t.fill();
+    }
+  }
+  // lacs plus grands, hors de l'axe de passage (poissons animés au runtime)
+  lakes.length = 0;
+  for (const [fx, fy] of [[0.30, 0.24], [0.70, 0.30], [0.5, 0.78]]) {
+    const lx = fx * terrain.width, ly = fy * terrain.height, rw = 135 + rnd() * 80, rh = 95 + rnd() * 55;
+    lakes.push({ x: lx, y: ly, rw, rh });
+    const lg = t.createRadialGradient(lx, ly, 10, lx, ly, rw); lg.addColorStop(0, "#5b97b8"); lg.addColorStop(1, "#83b6cb");
+    t.fillStyle = lg; t.beginPath(); t.ellipse(lx, ly, rw, rh, 0, 0, TAU); t.fill();
+    t.strokeStyle = "#4a7d96"; t.lineWidth = 2; t.stroke();
+    t.strokeStyle = "#d5edf544"; t.lineWidth = 2;
+    for (let i = 0; i < 4; i++) { t.beginPath(); t.moveTo(lx - rw * .45, ly - rh * .3 + i * 11); t.lineTo(lx + rw * .35, ly - rh * .3 + i * 11); t.stroke(); }
+    t.strokeStyle = "#4f7a3a"; t.lineWidth = 2;
+    for (let i = 0; i < 26; i++) { const a = rnd() * TAU, ex = lx + Math.cos(a) * rw, ey = ly + Math.sin(a) * rh; t.beginPath(); t.moveTo(ex, ey); t.lineTo(ex + (rnd() - .5) * 3, ey - 6 - rnd() * 7); t.stroke(); }
+  }
+}
+
+/* ===== BROUILLARD DE GUERRE =============================================== */
+const visionR = u => (u.type === "eclaireur" ? 9 : u.type === "cavalier" || u.type === "sorcier" || u.commander ? 7 : u.type === "villager" || u.type === "caravane" ? 4 : 5) * CFG.TS;
+function buildingVisionR(b) { return (b.type === "tour" ? 8 : b.type === "cite" ? 7 : b.type === "merveille" ? 6 : 4) * CFG.TS; }
+function computeVision() {
+  if (!fogOn || !visGrid) return;
+  const W = CFG.MW, H = CFG.MH;
+  for (let i = 0; i < visGrid.length; i++) if (visGrid[i] === 2) visGrid[i] = 1;   // ce qui était visible repasse en mémoire
+  const reveal = (wx, wy, r) => {
+    const cx = (wx / CFG.TS) | 0, cy = (wy / CFG.TS) | 0, rc = Math.ceil(r / CFG.TS);
+    for (let gy = Math.max(0, cy - rc); gy <= Math.min(H - 1, cy + rc); gy++)
+      for (let gx = Math.max(0, cx - rc); gx <= Math.min(W - 1, cx + rc); gx++) { const dx = gx - cx, dy = gy - cy; if (dx * dx + dy * dy <= rc * rc) visGrid[gy * W + gx] = 2; }
+  };
+  for (const u of units) if (u.faction === "player" && u.hp > 0) reveal(u.x, u.y, visionR(u));
+  for (const b of buildings) if (b.faction === "player" && b.hp > 0) reveal(b.x, b.y, buildingVisionR(b));
+}
+const cellState = (wx, wy) => { if (!fogOn || !visGrid) return 2; const gx = (wx / CFG.TS) | 0, gy = (wy / CFG.TS) | 0; if (gx < 0 || gy < 0 || gx >= CFG.MW || gy >= CFG.MH) return 0; return visGrid[gy * CFG.MW + gx]; };
+const cellVisible = (wx, wy) => cellState(wx, wy) === 2;
+const cellExplored = (wx, wy) => cellState(wx, wy) >= 1;
+function scoutTarget(x, y) {   // cellule inexplorée la plus proche parmi un échantillon aléatoire (robuste, pas de blocage)
+  if (!visGrid) return null; let best = null, bd = Infinity;
+  for (let i = 0; i < 48; i++) { const gx = (Math.random() * CFG.MW) | 0, gy = (Math.random() * CFG.MH) | 0; if (visGrid[gy * CFG.MW + gx] !== 0) continue; const wxp = (gx + .5) * CFG.TS, wyp = (gy + .5) * CFG.TS; const d = dist2(x, y, wxp, wyp); if (d < bd) { bd = d; best = { x: wxp, y: wyp }; } }
+  return best;
+}
+
+function draw() {
+  ctx.fillStyle = "#cdb88c"; ctx.fillRect(0, 0, CSSW, CSSH);
+  if (terrain) ctx.drawImage(terrain, cam.x, cam.y, CSSW, CSSH, 0, 0, CSSW, CSSH);
+  for (const z of fish) drawFish(z);
+  for (const p of pirogues) drawPirogue(p);
+
+  for (const r of rubble) drawRubble(r);
+  for (const n of nodes) drawNode(n);
+  for (const c of corpses) drawCorpse(c);
+  const drawables = [...buildings, ...units, ...animals].filter(e => !(fogOn && e.kind === "unit" && e.faction === "enemy" && !cellVisible(e.x, e.y))).sort((a, b) => (a.y) - (b.y));   // ennemis cachés hors champ de vision
+  if (pixelMode && outlineOn && entCtx) {            // contour noir pixel art : rendu des sprites sur un calque, composité avec un liseré décalé
+    const Wb = cv.width, Hb = cv.height, main = ctx;
+    entCtx.setTransform(1, 0, 0, 1, 0, 0); entCtx.clearRect(0, 0, Wb, Hb);
+    entCtx.setTransform(Wb / CSSW, 0, 0, Hb / CSSH, 0, 0); entCtx.imageSmoothingEnabled = false;
+    ctx = entCtx;                                    // les fonctions de dessin écrivent maintenant sur le calque
+    for (const e of drawables) e.kind === "building" ? drawBuilding(e) : e.kind === "animal" ? drawAnimal(e) : drawUnit(e);
+    ctx = main;
+    silCtx.setTransform(1, 0, 0, 1, 0, 0); silCtx.clearRect(0, 0, Wb, Hb);
+    silCtx.globalCompositeOperation = "source-over"; silCtx.drawImage(entLayer, 0, 0);
+    silCtx.globalCompositeOperation = "source-in"; silCtx.fillStyle = "#181009"; silCtx.fillRect(0, 0, Wb, Hb);   // silhouette sombre
+    silCtx.globalCompositeOperation = "source-over";
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(silLayer, -1, 0); ctx.drawImage(silLayer, 1, 0); ctx.drawImage(silLayer, 0, -1); ctx.drawImage(silLayer, 0, 1);   // contour 4 directions (1 px backing)
+    ctx.drawImage(entLayer, 0, 0);                   // sprites couleur par-dessus
+    ctx.restore();
+  } else {
+    for (const e of drawables) e.kind === "building" ? drawBuilding(e) : e.kind === "animal" ? drawAnimal(e) : drawUnit(e);
+  }
+  for (const s of spirits) drawSpirit(s);
+  for (const p of projectiles) drawArrow(p);
+  for (const p of parts) { ctx.globalAlpha = (p.smoke ? 0.5 : 1) * (1 - p.life / p.max); ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(sx(p.x), sy(p.y), p.r, 0, TAU); ctx.fill(); }
+  ctx.globalAlpha = 1;
+  for (const bd of birds) drawBird(bd);
+  for (const ft of floats) { ctx.globalAlpha = clamp(1.1 - ft.t, 0, 1); ctx.fillStyle = ft.color; ctx.font = "700 13px system-ui"; ctx.textAlign = "center"; ctx.fillText(ft.text, sx(ft.x), sy(ft.y)); }
+  ctx.globalAlpha = 1; ctx.textAlign = "left";
+
+  if (fogOn && visGrid) {                                  // calque de brouillard (limité au viewport, peu coûteux)
+    const gx0 = Math.max(0, (cam.x / CFG.TS) | 0), gy0 = Math.max(0, (cam.y / CFG.TS) | 0);
+    const gx1 = Math.min(CFG.MW - 1, ((cam.x + CSSW) / CFG.TS | 0)), gy1 = Math.min(CFG.MH - 1, ((cam.y + CSSH) / CFG.TS | 0));
+    for (let gy = gy0; gy <= gy1; gy++) for (let gx = gx0; gx <= gx1; gx++) {
+      const v = visGrid[gy * CFG.MW + gx]; if (v === 2) continue;
+      ctx.fillStyle = v === 0 ? "#0c0b08" : "rgba(12,11,8,0.46)";
+      ctx.fillRect(sx(gx * CFG.TS), sy(gy * CFG.TS), CFG.TS + 1, CFG.TS + 1);
+    }
+  }
+  if (buildMode) drawGhost();
+  if (mouse.dragging && mouse.dragStart && !buildMode) drawSelBox();
+  drawMinimap();
+}
+
+function drawNode(n) {
+  if (n.farm || n.fromForest) return;       // champ/forêt : dessinés par leur bâtiment
+  const x = sx(n.x), y = sy(n.y); if (x < -30 || x > CSSW + 30 || y < -30 || y > CSSH + 30) return;
+  const frac = n.amount / n.maxAmount;
+  if (n.carcass) {                          // carcasse de gibier (viande)
+    ctx.fillStyle = "#7a4a32"; ctx.beginPath(); ctx.ellipse(x, y, 12, 8, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = "#9a5a3a"; ctx.beginPath(); ctx.ellipse(x - 3, y - 2, 5, 4, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = "#4a3420"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + 7, y + 3); ctx.lineTo(x + 12, y + 6); ctx.stroke();
+  } else if (n.type === "food") {
+    ctx.fillStyle = "#cdb05a"; ctx.beginPath(); ctx.ellipse(x, y, 17, 12, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = "#a8841f"; ctx.lineWidth = 2;
+    for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(x + i * 5, y + 5); ctx.lineTo(x + i * 5, y - 6 - (i === 0 ? 3 : 0)); ctx.stroke(); }
+  } else if (n.type === "wood") {
+    ctx.fillStyle = "#8a6a3a"; ctx.fillRect(x - 2, y - 2, 4, 14);
+    ctx.fillStyle = "#3f8f5a"; for (let a = 0; a < 5; a++) { const an = -Math.PI / 2 + (a - 2) * 0.5; ctx.beginPath(); ctx.ellipse(x + Math.cos(an) * 10, y - 4 + Math.sin(an) * 8, 9, 4, an, 0, TAU); ctx.fill(); }
+  } else {
+    ctx.fillStyle = "#a98c4a"; ctx.beginPath(); ctx.ellipse(x, y, 15, 11, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = "#f0c64a"; for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.arc(x - 8 + (i % 3) * 8, y - 4 + Math.floor(i / 3) * 7, 2.4, 0, TAU); ctx.fill(); }
+  }
+  ctx.fillStyle = "#0003"; ctx.fillRect(x - 14, y + 14, 28, 3);
+  ctx.fillStyle = "#7a5"; ctx.fillRect(x - 14, y + 14, 28 * frac, 3);
+}
+
+function drawForest(b, x, y) {                     // forêt : pousses (immature) → arbres (mûre), densité selon la réserve
+  const planting = b.progress < 1;
+  const grow = b.matured ? 1 : clamp(1 - (b.matureT / CFG.BLD.foret.mature), 0, 1);
+  const frac = (b.matured && b.woodNode) ? clamp(b.woodNode.amount / CFG.BLD.foret.wood, 0, 1) : 1;
+  ctx.save(); if (planting) ctx.globalAlpha = 0.55;
+  ctx.fillStyle = "#8a6a40"; ctx.beginPath(); ctx.ellipse(x, y + b.hh * 0.45, b.hw * 0.95, b.hh * 0.5, 0, 0, TAU); ctx.fill();
+  const trees = [[-b.hw * 0.55, 2], [b.hw * 0.45, 4], [0, -b.hh * 0.4], [-b.hw * 0.12, b.hh * 0.45], [b.hw * 0.2, -b.hh * 0.1]];
+  for (let i = 0; i < trees.length; i++) {
+    if (b.matured && (i / trees.length) > frac) continue;             // arbres abattus à mesure qu'on récolte
+    const tx = x + trees[i][0], ty = y + trees[i][1], h = (7 + (i % 3) * 2) * (0.35 + 0.65 * grow);
+    ctx.strokeStyle = "#7a5a30"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(tx, ty - h); ctx.stroke();
+    ctx.fillStyle = grow < 0.5 ? "#7fae5a" : "#3f8f5a"; ctx.beginPath(); ctx.arc(tx, ty - h - 2 * grow, 3 + 4 * grow, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+  if (planting) barAt(x, y + b.hh + 6, b.hw * 2, b.progress, "#3a7bd5");
+  else if (!b.matured) barAt(x, y + b.hh + 6, b.hw * 2, grow, "#5f8a46");      // jauge de maturation
+}
+function drawWall(b, x, y) {                       // clôture : maillon banco ; connecteurs vers les voisins = clôture continue
+  const c = COL[b.faction];
+  ctx.strokeStyle = "#8a6a3a"; ctx.lineWidth = 5;   // poutres reliant les segments voisins du même camp
+  for (const o of buildings) {
+    if (o === b || !o.wall || o.faction !== b.faction || o.hp <= 0) continue;
+    const dd = dist(b.x, b.y, o.x, o.y);
+    if (dd > 1 && dd < (b.hw + o.hw) * 1.7) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(sx(o.x), sy(o.y)); ctx.stroke(); }
+  }
+  if (b.gate) { drawGate(b, x, y); return; }
+  ctx.fillStyle = "#0002"; ctx.beginPath(); ctx.ellipse(x, y + b.hh - 1, b.hw, b.hh * 0.4, 0, 0, TAU); ctx.fill();
+  const grd = ctx.createLinearGradient(0, y - b.hh, 0, y + b.hh); grd.addColorStop(0, "#c8a878"); grd.addColorStop(1, "#9e784a");
+  ctx.fillStyle = grd; rrect(x - b.hw, y - b.hh, b.hw * 2, b.hh * 2, 3); ctx.fill();
+  ctx.strokeStyle = "#6a4a28"; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = "#7a5a30"; for (let i = -1; i <= 1; i++) ctx.fillRect(x + i * (b.hw * 0.7) - 2, y - b.hh - 3, 4, 5);
+  ctx.fillStyle = c; for (let i = 0; i <= (clotureLevel[b.faction] || 0); i++) ctx.fillRect(x - b.hw + 2 + i * 5, y + b.hh - 3, 3, 2);
+}
+function drawGate(b, x, y) {                       // portail : battants ouverts (à l'approche d'un ami) ou fermés
+  const c = COL[b.faction];
+  ctx.fillStyle = "#0002"; ctx.beginPath(); ctx.ellipse(x, y + b.hh - 1, b.hw, b.hh * 0.4, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = "#7a5a30"; ctx.fillRect(x - b.hw, y - b.hh - 5, 5, b.hh * 2 + 5); ctx.fillRect(x + b.hw - 5, y - b.hh - 5, 5, b.hh * 2 + 5);   // montants
+  ctx.fillStyle = "#8a6a3a"; ctx.fillRect(x - b.hw, y - b.hh - 7, b.hw * 2, 5);                                                                 // linteau
+  ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(x, y - b.hh - 7); ctx.lineTo(x + 9, y - b.hh - 4); ctx.lineTo(x, y - b.hh - 1); ctx.fill();    // fanion
+  ctx.strokeStyle = "#6a4a28"; ctx.lineWidth = 1.5;
+  if (b.open) { ctx.fillStyle = "#9e784a"; ctx.fillRect(x - b.hw + 5, y - b.hh, 5, b.hh * 1.5); ctx.fillRect(x + b.hw - 10, y - b.hh, 5, b.hh * 1.5); }   // battants repliés (ouvert)
+  else { const grd = ctx.createLinearGradient(0, y - b.hh, 0, y + b.hh); grd.addColorStop(0, "#b89868"); grd.addColorStop(1, "#8a6a3a"); ctx.fillStyle = grd; rrect(x - b.hw + 5, y - b.hh, b.hw * 2 - 10, b.hh * 2, 2); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x, y - b.hh); ctx.lineTo(x, y + b.hh); ctx.stroke(); }   // battants fermés
+}
+function drawBuilding(b) {
+  const x = sx(b.x), y = sy(b.y); if (x < -80 || x > CSSW + 80 || y < -80 || y > CSSH + 80) return;
+  if (b.farm) {
+    drawFarm(b, x, y);
+    if (selBld === b) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); rrect(x - b.hw - 4, y - b.hh - 4, b.hw * 2 + 8, b.hh * 2 + 8, 6); ctx.stroke(); ctx.setLineDash([]); }
+    if (b.progress >= 1 && b.hp < b.maxHp) barAt(x, y + b.hh + 6, b.hw * 2, b.hp / b.maxHp, "#2e7d32");
+    return;
+  }
+  if (b.forest) {
+    drawForest(b, x, y);
+    if (selBld === b) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); rrect(x - b.hw - 4, y - b.hh - 4, b.hw * 2 + 8, b.hh * 2 + 8, 6); ctx.stroke(); ctx.setLineDash([]); }
+    return;
+  }
+  if (b.wall) {
+    drawWall(b, x, y);
+    if (selBld === b) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); rrect(x - b.hw - 4, y - b.hh - 4, b.hw * 2 + 8, b.hh * 2 + 8, 6); ctx.stroke(); ctx.setLineDash([]); }
+    if (b.hp < b.maxHp) barAt(x, y + b.hh + 6, b.hw * 2, b.hp / b.maxHp, "#2e7d32");
+    return;
+  }
+  const c = COL[b.faction], tint = ageOf(b.faction).tint;
+  ctx.fillStyle = "#0002"; ctx.beginPath(); ctx.ellipse(x, y + b.hh - 2, b.hw, b.hh * 0.4, 0, 0, TAU); ctx.fill();
+  ctx.save();
+  if (b.progress < 1) {                          // ── chantier : échafaudage + montée depuis le sol ──
+    ctx.fillStyle = "#c9a07a"; ctx.globalAlpha = .5;
+    rrect(x - b.hw, y + b.hh - 6, b.hw * 2, 6, 2); ctx.fill(); ctx.globalAlpha = 1;
+    const rise = b.hh * 2 * b.progress;
+    ctx.save(); ctx.beginPath(); ctx.rect(x - b.hw - 4, y + b.hh - rise, b.hw * 2 + 8, rise); ctx.clip();
+    drawBuildingBody(b, x, y, c, tint); ctx.restore();
+    ctx.strokeStyle = "#7a5a3088"; ctx.lineWidth = 2;       // poteaux d'échafaudage
+    for (const px of [x - b.hw - 3, x + b.hw + 3]) { ctx.beginPath(); ctx.moveTo(px, y - b.hh - 4); ctx.lineTo(px, y + b.hh); ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(x - b.hw - 6, y - b.hh * 0.3); ctx.lineTo(x + b.hw + 6, y - b.hh * 0.3); ctx.stroke();
+    ctx.restore();
+    barAt(x, y + b.hh + 6, b.hw * 2, b.progress, "#3a7bd5");
+    drawBanner(b, x, y, c); return;
+  }
+  drawBuildingBody(b, x, y, c, tint);
+  ctx.restore();
+  drawBanner(b, x, y, c);
+
+  if (selBld === b) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); rrect(x - b.hw - 4, y - b.hh - 4, b.hw * 2 + 8, b.hh * 2 + 8, 6); ctx.stroke(); ctx.setLineDash([]); }
+  if (b.hp < b.maxHp) barAt(x, y + b.hh + 6, b.hw * 2, b.hp / b.maxHp, "#2e7d32");
+  if (b.queue.length) { const type = b.queue[0]; barAt(x, y + b.hh + 12, b.hw * 2, b.trainT / CFG.TRAIN_TIME[type], c); }
+  if (b.type === "cite" && advancing[b.faction]) barAt(x, y + b.hh + (b.hp < b.maxHp ? 12 : 6), b.hw * 2, advancing[b.faction].t / advancing[b.faction].time, "#c8941f");
+}
+function drawBuildingBody(b, x, y, c, tint) {
+  const grd = ctx.createLinearGradient(0, y - b.hh, 0, y + b.hh);
+  grd.addColorStop(0, "#d7b780"); grd.addColorStop(1, "#bf9a5e");
+  ctx.fillStyle = grd; rrect(x - b.hw, y - b.hh, b.hw * 2, b.hh * 2, 5); ctx.fill();
+  ctx.strokeStyle = "#8a6a3a"; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = "#7a5a30";
+  for (let i = -1; i <= 1; i++) { ctx.fillRect(x - b.hw - 3, y - b.hh * 0.4 + i * b.hh * 0.5, 5, 3); ctx.fillRect(x + b.hw - 2, y - b.hh * 0.4 + i * b.hh * 0.5, 5, 3); }
+  ctx.fillStyle = "#6a4a28";
+  if (b.type === "cite") {
+    ctx.fillRect(x - 6, y - 4, 12, b.hh);
+    ctx.fillStyle = tint;
+    for (let i = -2; i <= 2; i++) ctx.fillRect(x + i * (b.hw / 3) - 2, y - b.hh - 5, 4, 7);
+  } else if (b.type === "caserne") { ctx.fillRect(x - 4, y - 2, 8, b.hh * 0.8); drawIcon(x, y - b.hh - 10, "⚔️"); }
+  else if (b.type === "marche") { ctx.fillStyle = "#a8631f"; ctx.fillRect(x - b.hw, y - b.hh - 6, b.hw * 2, 6); drawIcon(x, y - b.hh - 12, "⚖️"); }
+  else if (b.type === "maison") { ctx.fillRect(x - 3, y, 6, b.hh); }
+  else if (b.type === "tour") {                  // tour de guet : créneaux + meurtrière
+    ctx.fillStyle = tint; for (let i = -1; i <= 1; i++) ctx.fillRect(x + i * 9 - 2, y - b.hh - 5, 4, 6);
+    ctx.fillStyle = "#3a2e1f"; ctx.fillRect(x - 2, y - b.hh * 0.4, 4, 10);
+  }
+  else if (b.type === "atelier") { ctx.fillStyle = "#7a5a30"; for (let i = 0; i < 3; i++) ctx.fillRect(x - b.hw * 0.6 + i * b.hw * 0.5, y + 1, b.hw * 0.42, 5); drawIcon(x, y - b.hh - 9, "🪵"); }
+  else if (b.type === "baie") { ctx.fillStyle = "#7a5a30"; ctx.fillRect(x - b.hw, y + b.hh - 2, b.hw * 2, 4); ctx.fillStyle = "#6a4a28"; ctx.fillRect(x + b.hw * 0.3, y + 1, 16, 6); drawIcon(x, y - b.hh - 9, "🛶"); }
+  else if (b.type === "tamtam") { ctx.fillStyle = "#6a4a28"; ctx.beginPath(); ctx.ellipse(x, y, b.hw * 0.55, b.hh * 0.45, 0, 0, TAU); ctx.fill(); ctx.fillStyle = "#caa86a"; ctx.beginPath(); ctx.ellipse(x, y - b.hh * 0.35, b.hw * 0.5, b.hh * 0.2, 0, 0, TAU); ctx.fill(); drawIcon(x, y - b.hh - 9, "🥁"); }
+  else if (b.type === "merveille") {
+    ctx.fillStyle = "#b07a3e"; ctx.fillRect(x - b.hw, y - b.hh * 0.4, b.hw * 2, b.hh * 1.4);
+    ctx.fillStyle = "#9a6634";
+    for (let i = -2; i <= 2; i++) { const mx = x + i * (b.hw * 0.46); ctx.fillRect(mx - 4, y - b.hh - 10, 8, b.hh * 0.6 + 10); ctx.beginPath(); ctx.moveTo(mx - 5, y - b.hh - 10); ctx.lineTo(mx, y - b.hh - 22); ctx.lineTo(mx + 5, y - b.hh - 10); ctx.closePath(); ctx.fill(); }
+    ctx.fillStyle = "#5e3d1e"; for (let i = -3; i <= 3; i++) ctx.fillRect(x + i * (b.hw * 0.27) - 1.5, y - b.hh * 0.3, 3, b.hh * 1.25);
+    drawIcon(x, y - b.hh - 28, "🕌");
+  }
+}
+function drawBanner(b, x, y, c) {
+  ctx.strokeStyle = "#6a4a28"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + b.hw - 6, y - b.hh); ctx.lineTo(x + b.hw - 6, y - b.hh - 16); ctx.stroke();
+  ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(x + b.hw - 6, y - b.hh - 16); ctx.lineTo(x + b.hw + 6, y - b.hh - 13); ctx.lineTo(x + b.hw - 6, y - b.hh - 10); ctx.fill();
+  ctx.fillStyle = ageOf(b.faction).tint;          // pastilles d'Âge (empire) sous la hampe
+  for (let i = 0; i <= age[b.faction]; i++) { ctx.beginPath(); ctx.arc(x + b.hw - 6, y - b.hh - 8 + i * 4, 1.5, 0, TAU); ctx.fill(); }
+}
+function drawFarm(b, x, y) {                       // champ : sol labouré + pousses (selon la réserve de vivres)
+  const built = b.progress >= 1;
+  const frac = b.foodNode ? clamp(b.foodNode.amount / b.foodNode.maxAmount, 0, 1) : 1;
+  ctx.save();
+  if (!built) ctx.globalAlpha = 0.4 + 0.6 * b.progress;
+  ctx.fillStyle = "#9c7b46"; rrect(x - b.hw, y - b.hh, b.hw * 2, b.hh * 2, 4); ctx.fill();
+  ctx.strokeStyle = "#7a5a30"; ctx.lineWidth = 1.5; ctx.stroke();
+  const rows = 4;
+  for (let r = 0; r < rows; r++) {
+    const yy = y - b.hh + (b.hh * 2) * (r + 0.5) / rows;
+    if (built && frac > 0.04) {
+      ctx.strokeStyle = "#3f8f5a"; ctx.lineWidth = 2;
+      const cols = Math.max(1, Math.round((b.hw * 2 - 10) / 7));
+      for (let cN = 0; cN < cols; cN++) {
+        if (cN / cols >= frac) break;             // pousses proportionnelles à la réserve
+        const xx = x - b.hw + 6 + cN * 7;
+        ctx.beginPath(); ctx.moveTo(xx, yy + 2); ctx.lineTo(xx, yy - 3); ctx.stroke();
+      }
+    } else {
+      ctx.strokeStyle = "#7a5a3066"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(x - b.hw + 4, yy); ctx.lineTo(x + b.hw - 4, yy); ctx.stroke();
+    }
+  }
+  ctx.restore();
+  ctx.fillStyle = COL[b.faction]; ctx.fillRect(x - b.hw, y - b.hh - 5, 3, 7);   // piquet de faction
+  if (!built) barAt(x, y + b.hh + 6, b.hw * 2, b.progress, "#3a7bd5");
+}
+
+function drawCaravane(u, x, y) {                   // chameau bâté (commerce)
+  const r = CFG.UNIT.caravane.r, moving = u.state === "trade", bob = moving ? Math.abs(Math.sin(u.bob)) * 1.5 : 0;
+  ctx.fillStyle = "#0002"; ctx.beginPath(); ctx.ellipse(x, y + r * 0.7, r, r * 0.4, 0, 0, TAU); ctx.fill();
+  if (sel.has(u.id)) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x, y + r * 0.7, r + 3, r * 0.5 + 2, 0, 0, TAU); ctx.stroke(); }
+  ctx.save(); ctx.translate(x, y - bob); ctx.scale(u.facing, 1);
+  const sw = moving ? Math.sin(u.bob) * 2 : 0; ctx.strokeStyle = "#8a6a3a"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-5, 3); ctx.lineTo(-5 + sw, 11); ctx.moveTo(5, 3); ctx.lineTo(5 - sw, 11); ctx.stroke();
+  ctx.fillStyle = u.flash ? "#fff" : "#c79a5a"; ctx.beginPath(); ctx.ellipse(0, -1, r, r * 0.55, 0, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(-2, -r * 0.65, r * 0.42, Math.PI, TAU); ctx.fill();
+  ctx.fillStyle = u.flash ? "#fff" : "#b88a4a"; ctx.fillRect(r * 0.7, -r * 1.15, 3, r * 0.9); ctx.beginPath(); ctx.arc(r * 0.9, -r * 1.15, 3, 0, TAU); ctx.fill();
+  ctx.fillStyle = "#a8631f"; ctx.fillRect(-r * 0.55, -r * 0.95, r * 0.55, r * 0.45);
+  ctx.restore();
+  if (u.hp < u.maxHp) barAt(x, y - r - 8, r * 2, u.hp / u.maxHp, u.faction === "player" ? "#2e7d32" : "#b1432f");
+}
+function drawUnit(u) {
+  const x = sx(u.x), y = sy(u.y); if (x < -30 || x > CSSW + 30 || y < -30 || y > CSSH + 30) return;
+  if (u.type === "caravane") { drawCaravane(u, x, y); return; }
+  const c = COL[u.faction], U = CFG.UNIT[u.type];
+  const moving = (u.state === "move" || u.state === "return" || (u.state === "gather" && u.gNode && dist(u.x, u.y, u.gNode.x, u.gNode.y) > u.gNode.r + U.r + 4) || (u.state === "attack" && u.target && dist(u.x, u.y, u.target.x, u.target.y) > U.range + 20));
+  const bob = moving ? Math.abs(Math.sin(u.bob)) * 2.2 : Math.sin(gameT * 2 + u.id) * 0.6;
+  ctx.fillStyle = "#0002"; ctx.beginPath(); ctx.ellipse(x, y + U.r * 0.7, U.r * (u.flying ? 0.55 : 0.9), U.r * (u.flying ? 0.22 : 0.4), 0, 0, TAU); ctx.fill();
+  if (sel.has(u.id)) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x, y + U.r * 0.7, U.r + 3, U.r * 0.5 + 2, 0, 0, TAU); ctx.stroke(); }
+
+  const fly = u.flying ? 20 + Math.sin(gameT * 2 + u.id) * 2 : 0;     // hauteur de vol (natte)
+  ctx.save(); ctx.translate(x + u.facing * u.lunge * 4, y - bob - fly); ctx.scale(u.facing, 1);
+  if (u.type === "cavalier" || u.type === "eclaireur") {
+    ctx.fillStyle = "#8a6a3a"; rrect(-12, -2, 22, 9, 4); ctx.fill();
+    ctx.fillStyle = "#6a4a28"; ctx.fillRect(-11, 6, 3, 7); ctx.fillRect(7, 6, 3, 7); ctx.fillRect(8, -6, 4, 6);
+  } else if (u.flying) {                          // natte volante (tapis tressé)
+    ctx.fillStyle = "#8a3a4a"; rrect(-U.r * 0.95, U.r * 0.45, U.r * 1.9, 4, 2); ctx.fill();
+    ctx.fillStyle = "#e0b84a"; ctx.fillRect(-U.r * 0.95, U.r * 0.45 + 1, U.r * 1.9, 1.5);
+    ctx.strokeStyle = "#8a3a4a"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-U.r * 0.95, U.r * 0.45 + 4); ctx.lineTo(-U.r * 0.95 - 2, U.r * 0.45 + 7); ctx.moveTo(U.r * 0.95, U.r * 0.45 + 4); ctx.lineTo(U.r * 0.95 + 2, U.r * 0.45 + 7); ctx.stroke();
+  } else {
+    const sw = moving ? Math.sin(u.bob) * 3 : 0; ctx.strokeStyle = "#7a5a30"; ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.moveTo(-2, U.r * 0.5); ctx.lineTo(-2 + sw, U.r * 0.5 + 6); ctx.moveTo(2, U.r * 0.5); ctx.lineTo(2 - sw, U.r * 0.5 + 6); ctx.stroke();
+  }
+  const yy = (u.type === "cavalier" || u.type === "eclaireur") ? -8 : 0;
+  ctx.fillStyle = u.flash ? "#fff" : "#e9dcb6"; rrect(-U.r * 0.7, yy - U.r * 0.5, U.r * 1.4, U.r, 3); ctx.fill();
+  ctx.fillStyle = c; ctx.fillRect(-U.r * 0.7, yy - U.r * 0.1, U.r * 1.4, 3);
+  ctx.fillStyle = "#caa46a"; ctx.beginPath(); ctx.arc(0, yy - U.r * 0.7, U.r * 0.45, 0, TAU); ctx.fill();
+  ctx.fillStyle = c; ctx.beginPath(); ctx.arc(0, yy - U.r * 0.85, U.r * 0.42, Math.PI, TAU); ctx.fill();
+  if (u.commander) {                                  // étendard de commandement + plume dorée
+    ctx.strokeStyle = "#6a4a28"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-U.r * 0.55, yy - U.r * 0.3); ctx.lineTo(-U.r * 0.55, yy - U.r * 2.3); ctx.stroke();
+    ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(-U.r * 0.55, yy - U.r * 2.3); ctx.lineTo(-U.r * 0.55 + 13, yy - U.r * 2.05); ctx.lineTo(-U.r * 0.55, yy - U.r * 1.75); ctx.fill();
+    ctx.fillStyle = "#f0c64a"; ctx.beginPath(); ctx.arc(0, yy - U.r * 1.15, 2.6, 0, TAU); ctx.fill();
+  }
+  const sw = Math.sin(u.swing) * 0.6;
+  if (u.type === "villager") {
+    if (u.state === "gather" || u.state === "build") { ctx.strokeStyle = "#6a4a28"; ctx.lineWidth = 2; ctx.save(); ctx.translate(U.r * 0.5, yy - U.r * 0.2); ctx.rotate(-0.5 + sw); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -10); ctx.stroke(); ctx.fillStyle = "#9a9a9a"; ctx.fillRect(-2, -12, 6, 3); ctx.restore(); }
+    if (u.carry.amount > 0) { ctx.fillStyle = u.carry.type === "food" ? "#cdb05a" : u.carry.type === "wood" ? "#3f8f5a" : "#f0c64a"; ctx.beginPath(); ctx.arc(0, yy - U.r * 1.2, 3, 0, TAU); ctx.fill(); }
+  } else if (u.type === "archer") {              // arc + corde qui se tend
+    const pull = u.state === "attack" ? clamp(1 - u.cd / U.cd, 0, 1) : 0;
+    ctx.strokeStyle = "#6a4a28"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(U.r * 0.6, yy - U.r * 0.3, 9, -1.15, 1.15); ctx.stroke();
+    ctx.strokeStyle = "#d8d2c0"; ctx.lineWidth = 1; ctx.beginPath();
+    ctx.moveTo(U.r * 0.6 + 9 * Math.cos(-1.15), yy - U.r * 0.3 + 9 * Math.sin(-1.15));
+    ctx.lineTo(U.r * 0.6 - pull * 5, yy - U.r * 0.3);
+    ctx.lineTo(U.r * 0.6 + 9 * Math.cos(1.15), yy - U.r * 0.3 + 9 * Math.sin(1.15)); ctx.stroke();
+  } else if (u.type === "feticheur" || u.type === "sorcier") {   // bâton à calebasse + esprit violet
+    ctx.strokeStyle = "#6a4a28"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(U.r * 0.6, yy + 5); ctx.lineTo(U.r * 0.6, yy - 16); ctx.stroke();
+    ctx.fillStyle = "#e8d8a0"; ctx.fillRect(U.r * 0.6 - 3, yy - 12, 6, 4);
+    ctx.fillStyle = "#b07ad0"; ctx.beginPath(); ctx.arc(U.r * 0.6, yy - 18, 3.6, 0, TAU); ctx.fill();
+  } else {                                       // lance (lancier, cavalier, commandant)
+    ctx.strokeStyle = "#6a4a28"; ctx.lineWidth = 2; ctx.save(); ctx.translate(U.r * 0.6, yy - U.r * 0.3); ctx.rotate(-0.8 + (u.state === "attack" ? sw : 0)); ctx.beginPath(); ctx.moveTo(0, 4); ctx.lineTo(0, -14); ctx.stroke(); ctx.fillStyle = "#cfcfcf"; ctx.beginPath(); ctx.moveTo(-2, -14); ctx.lineTo(2, -14); ctx.lineTo(0, -19); ctx.fill(); ctx.restore();
+  }
+  ctx.restore();
+  if (u.hp < u.maxHp) barAt(x, y - U.r - 8 - (u.flying ? 22 : 0), U.r * 2.2, u.hp / u.maxHp, u.faction === "player" ? "#2e7d32" : "#b1432f");
+  if (u.converted) { ctx.fillStyle = "#b07ad0"; ctx.beginPath(); ctx.arc(x + U.r * 0.8, y - U.r - 8 - (u.flying ? 22 : 0), 2.6, 0, TAU); ctx.fill(); }   // marque « converti »
+}
+
+function drawCorpse(cp) {                         // dépouille : bascule au sol + s'efface
+  const x = sx(cp.x), y = sy(cp.y); if (x < -20 || x > CSSW + 20 || y < -20 || y > CSSH + 20) return;
+  const U = CFG.UNIT[cp.type], k = clamp(cp.t / cp.max, 0, 1);
+  ctx.save(); ctx.globalAlpha = 1 - k; ctx.translate(x, y); ctx.rotate(cp.facing * 1.3); ctx.scale(cp.facing, 1);
+  ctx.fillStyle = "#cdb88c"; rrect(-U.r * 0.7, -U.r * 0.5, U.r * 1.4, U.r, 3); ctx.fill();
+  ctx.fillStyle = COL[cp.faction]; ctx.fillRect(-U.r * 0.7, -U.r * 0.1, U.r * 1.4, 3);
+  ctx.fillStyle = "#b09668"; ctx.beginPath(); ctx.arc(0, -U.r * 0.7, U.r * 0.42, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+function drawRubble(r) {                          // ruine : tas de banco qui s'efface
+  const x = sx(r.x), y = sy(r.y); if (x < -80 || x > CSSW + 80 || y < -80 || y > CSSH + 80) return;
+  ctx.save(); ctx.globalAlpha = clamp(1 - r.t / r.max, 0, 1) * 0.9;
+  ctx.fillStyle = "#9a7a4a"; ctx.beginPath(); ctx.ellipse(x, y + r.hh * 0.4, r.hw * 0.9, r.hh * 0.55, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = "#7a5a30"; for (let i = 0; i < 5; i++) { const a = i * 1.7; ctx.fillRect(x + Math.cos(a) * r.hw * 0.5 - 3, y + Math.sin(a) * r.hh * 0.3 - 3, 6, 5); }
+  ctx.restore();
+}
+function drawArrow(p) {
+  const x = sx(p.x), y = sy(p.y); if (x < -20 || x > CSSW + 20 || y < -20 || y > CSSH + 20) return;
+  if (p.attType === "sorcier") { ctx.fillStyle = "#c79cf0"; ctx.beginPath(); ctx.arc(x, y, 4, 0, TAU); ctx.fill(); ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(x, y, 1.6, 0, TAU); ctx.fill(); return; }
+  ctx.save(); ctx.translate(x, y); ctx.rotate(p.ang);
+  ctx.strokeStyle = "#5a3d1f"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-7, 0); ctx.lineTo(4, 0); ctx.stroke();
+  ctx.fillStyle = "#3a2e1f"; ctx.beginPath(); ctx.moveTo(7, 0); ctx.lineTo(2, -2.5); ctx.lineTo(2, 2.5); ctx.fill();
+  ctx.restore();
+}
+function drawBird(bd) {
+  const x = sx(bd.x), y = sy(bd.y); if (x < -20 || x > CSSW + 20 || y < -20 || y > CSSH + 20) return;
+  const w = Math.sin(bd.phase) * 3 + 4;
+  ctx.strokeStyle = "#5a4a3a99"; ctx.lineWidth = 1.4; ctx.beginPath();
+  ctx.moveTo(x - 5, y); ctx.lineTo(x, y - w); ctx.lineTo(x + 5, y); ctx.stroke();
+}
+
+function drawIcon(x, y, ic) { ctx.font = "14px system-ui"; ctx.textAlign = "center"; ctx.fillText(ic, x, y); ctx.textAlign = "left"; }
+function barAt(cx, y, w, frac, color) { ctx.fillStyle = "#0006"; ctx.fillRect(cx - w / 2, y, w, 4); ctx.fillStyle = color; ctx.fillRect(cx - w / 2, y, w * clamp(frac, 0, 1), 4); }
+function rrect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+
+function drawGhost() {
+  const b = CFG.BLD[buildMode];
+  const drawOne = (gx, gy) => { const ok = buildFootprintOK(buildMode, gx, gy); ctx.fillStyle = ok ? "#3a7bd5" : "#b1432f"; rrect(sx(gx) - b.hw, sy(gy) - b.hh, b.hw * 2, b.hh * 2, 5); ctx.fill(); };
+  ctx.globalAlpha = .55;
+  if (mouse.dragging && mouse.dragStart) {          // aperçu de la chaîne pendant le glissé
+    const x1 = mouse.dragStart.x, y1 = mouse.dragStart.y, x2 = wx(mouse.x), y2 = wy(mouse.y), step = Math.max(20, b.hw * 2 + 2);
+    const n = Math.max(1, Math.round(dist(x1, y1, x2, y2) / step));
+    for (let i = 0; i <= n; i++) { const t = n ? i / n : 0; drawOne(Math.round((x1 + (x2 - x1) * t) / 20) * 20, Math.round((y1 + (y2 - y1) * t) / 20) * 20); }
+  } else drawOne(Math.round(wx(mouse.x) / 20) * 20, Math.round(wy(mouse.y) / 20) * 20);
+  ctx.globalAlpha = 1;
+}
+function drawSelBox() { const a = mouse.dragStart, bx = sx(a.x), by = sy(a.y);
+  ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]); ctx.strokeRect(bx, by, mouse.x - bx, mouse.y - by); ctx.setLineDash([]);
+  ctx.fillStyle = "#ffffff22"; ctx.fillRect(bx, by, mouse.x - bx, mouse.y - by); }
+
+/* minicarte */
+const MM = { w: 168, h: 168 * (CFG.MH / CFG.MW), pad: 8 };
+function mmRect() { return { x: CSSW - MM.w - MM.pad, y: TOP + MM.pad, w: MM.w, h: MM.h }; }
+function drawMinimap() {
+  const r = mmRect(); ctx.fillStyle = "#e7d3a6ee"; rrect(r.x, r.y, r.w, r.h, 6); ctx.fill();
+  ctx.strokeStyle = "#8a6a3a"; ctx.lineWidth = 1; ctx.stroke();
+  const fx = r.w / worldW(), fy = r.h / worldH();
+  for (const L of lakes) { ctx.fillStyle = "#83b6cb"; ctx.beginPath(); ctx.ellipse(r.x + L.x * fx, r.y + L.y * fy, L.rw * fx, L.rh * fy, 0, 0, TAU); ctx.fill(); }
+  for (const n of nodes) { ctx.fillStyle = n.type === "food" ? "#cdb05a" : n.type === "wood" ? "#3f8f5a" : "#f0c64a"; ctx.fillRect(r.x + n.x * fx - 1, r.y + n.y * fy - 1, 2, 2); }
+  for (const b of buildings) { if (fogOn && b.faction === "enemy" && !cellExplored(b.x, b.y)) continue; ctx.fillStyle = COL[b.faction]; ctx.fillRect(r.x + b.x * fx - 2, r.y + b.y * fy - 2, 4, 4); }
+  for (const u of units) { if (fogOn && u.faction === "enemy" && !cellVisible(u.x, u.y)) continue; ctx.fillStyle = COL[u.faction]; ctx.fillRect(r.x + u.x * fx - 1, r.y + u.y * fy - 1, 2, 2); }
+  for (const a of animals) { ctx.fillStyle = "#8a6a3a"; ctx.fillRect(r.x + a.x * fx - 1, r.y + a.y * fy - 1, 2, 2); }
+  ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.strokeRect(r.x + cam.x * fx, r.y + cam.y * fy, CSSW * fx, CSSH * fy);
+}
+
+/* ===== ENTRÉES SOURIS ===================================================== */
+function evWorld(e) { const rc = cv.getBoundingClientRect(); mouse.x = e.clientX - rc.left; mouse.y = e.clientY - rc.top; }
+function inMinimap(x, y) { const r = mmRect(); return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h; }
+function minimapPan(x, y) { const r = mmRect(); cam.x = (x - r.x) / r.w * worldW() - CSSW / 2; cam.y = (y - r.y) / r.h * worldH() - CSSH / 2; clampCam(); }
+
+cv.addEventListener("mousemove", e => { evWorld(e); if (mouse.down && mouse.dragStart) { if (dist(sx(mouse.dragStart.x), sy(mouse.dragStart.y), mouse.x, mouse.y) > 6) mouse.dragging = true; } });
+cv.addEventListener("mousedown", e => {
+  if (!running || over) return; evWorld(e);
+  if (e.button === 2) return;
+  if (mouse.y < TOP || mouse.y > CSSH - BOT) return;
+  if (inMinimap(mouse.x, mouse.y)) { minimapPan(mouse.x, mouse.y); return; }
+  mouse.down = true; mouse.dragStart = { x: wx(mouse.x), y: wy(mouse.y) }; mouse.dragging = false;
+});
+window.addEventListener("mouseup", e => {
+  if (!running || over) { mouse.down = false; return; }
+  if (e.button === 2) { rightClick(); mouse.down = false; return; }
+  if (!mouse.down) return; mouse.down = false; evWorld(e);
+  if (buildMode) {                                  // construction : chaîne si glissé, segment unique sinon
+    const g = v => Math.round(v / 20) * 20;
+    if (mouse.dragging && mouse.dragStart) placeChain(buildMode, mouse.dragStart.x, mouse.dragStart.y, wx(mouse.x), wy(mouse.y));
+    else placeBuilding(buildMode, g(wx(mouse.x)), g(wy(mouse.y)));
+    mouse.dragStart = null; mouse.dragging = false;
+    if (!e.shiftKey) { buildMode = null; refreshCmd(); }   // Maj maintenue = continuer à bâtir
+    return;
+  }
+  if (mouse.dragging) {
+    const a = mouse.dragStart, x1 = Math.min(a.x, wx(mouse.x)), x2 = Math.max(a.x, wx(mouse.x)), y1 = Math.min(a.y, wy(mouse.y)), y2 = Math.max(a.y, wy(mouse.y));
+    if (!e.shiftKey) { sel.clear(); selBld = null; }
+    for (const u of units) if (u.faction === "player" && u.x >= x1 && u.x <= x2 && u.y >= y1 && u.y <= y2) sel.add(u.id);
+  } else {
+    const u = unitAt(wx(mouse.x), wy(mouse.y));
+    const b = buildingAt(wx(mouse.x), wy(mouse.y));
+    const now = performance.now() / 1000;
+    const dbl = u && now - mouse.lastClick.t < 0.35 && Math.abs(mouse.x - mouse.lastClick.x) < 18 && Math.abs(mouse.y - mouse.lastClick.y) < 18;
+    if (u && u.faction === "player") {
+      if (!e.shiftKey) { sel.clear(); selBld = null; }
+      if (dbl) { for (const o of units) if (o.faction === "player" && o.type === u.type && onScreen(o)) sel.add(o.id); }   // double-clic = tout le type visible
+      else sel.add(u.id);
+    }
+    else if (b && b.faction === "player") { sel.clear(); selBld = b; }
+    else if (!e.shiftKey) { sel.clear(); selBld = null; }
+    if (sel.size || selBld) SND.play("select");
+    mouse.lastClick = { t: now, x: mouse.x, y: mouse.y };
+  }
+  mouse.dragStart = null; mouse.dragging = false; refreshCmd();
+});
+cv.addEventListener("contextmenu", e => { e.preventDefault(); if (running && !over) { evWorld(e); rightClick(); } });
+function onScreen(o) { const x = sx(o.x), y = sy(o.y); return x >= 0 && x <= CSSW && y >= TOP && y <= CSSH - BOT; }
+
+function rightClick() {
+  if (spectator) return;                 // observation : aucune commande
+  if (buildMode) { buildMode = null; refreshCmd(); return; }
+  const wxp = wx(mouse.x), wyp = wy(mouse.y);
+  if (selBld) { selBld.rally = { x: wxp, y: wyp }; floats.push({ x: wxp, y: wyp, text: "⚑", color: COL.player, t: 0, vy: -10 }); return; }
+  if (sel.size === 0) return;
+  SND.play("command");
+  const eU = unitAt(wxp, wyp), eB = buildingAt(wxp, wyp), node = nodeAt(wxp, wyp), animal = animalAt(wxp, wyp);
+  const selUnits = [...sel].map(unitById).filter(Boolean);
+  const enemyT = (eU && eU.faction !== "player") ? eU : (eB && eB.faction !== "player") ? eB : null;
+  const order = enemyT ? ((enemyT.kind === "building" && enemyT.type === "tour") ? "towers" : "agro") : null;  // sur une tour → toutes les tours ; sinon → enchaîne en vue
+  let i = 0;
+  for (const u of selUnits) {
+    u.follow = null;
+    if (enemyT) { if (u.type === "villager") commandMove(u, wxp + rand(-12, 12), wyp + rand(-12, 12)); else { commandAttack(u, enemyT); u.order = order; } }
+    else if (animal) commandAttack(u, animal);             // chasse (sans enchaînement)
+    else if (node && u.type === "villager") commandGather(u, node);
+    else if (eB && eB.faction === "player" && eB.progress < 1 && u.type === "villager") commandBuild(u, eB);
+    else { const cols = Math.max(1, Math.ceil(Math.sqrt(selUnits.length))), sp = 26, rr = Math.floor(i / cols), cc = i % cols; commandMove(u, wxp + (cc - (cols - 1) / 2) * sp, wyp + (rr - (Math.ceil(selUnits.length / cols) - 1) / 2) * sp); }   // arrivée en FORMATION (anti-empilement)
+    i++;
+  }
+  floats.push({ x: wxp, y: wyp, text: enemyT ? (order === "towers" ? "🗼✖" : "⚔") : animal ? "🏹" : node ? "⛏" : "▸", color: "#fff", t: 0, vy: -14 });
+}
+
+function unitAt(x, y) { let best = null, bd = Infinity; for (const u of units) { const r = CFG.UNIT[u.type].r + 4; const d = dist2(x, y, u.x, u.y); if (d < r * r && d < bd) { bd = d; best = u; } } return best; }
+function buildingAt(x, y) { for (const b of buildings) if (x >= b.x - b.hw && x <= b.x + b.hw && y >= b.y - b.hh && y <= b.y + b.hh) return b; return null; }
+function nodeAt(x, y) { let best = null, bd = Infinity; for (const n of nodes) { const r = n.r + 6; const d = dist2(x, y, n.x, n.y); if (d < r * r && d < bd) { bd = d; best = n; } } return best; }
+
+/* ===== BARRE DE COMMANDE (DOM) =========================================== */
+const bldName = t => ({ cite: "Cité", maison: "Maison", caserne: "Caserne", marche: "Marché", tour: "Tour de guet", champ: "Champ", atelier: "Atelier de bois", baie: "Baie aux pirogues", tamtam: "Tam-tam parleur", foret: "Forêt plantée", cloture: "Clôture", portail: "Portail", merveille: "Grande Mosquée" }[t] || t);
+const unitName = t => ({ villager: "Caravanier", lancier: "Lancier", archer: "Archer", cavalier: "Cavalier", commandant: "Commandant", feticheur: "Féticheur", sorcier: "Sorcier volant", caravane: "Caravane", eclaireur: "Éclaireur" }[t] || t);
+function costStr(c) { return Object.keys(c).map(k => RES_ICON[k] + c[k]).join(" "); }
+function actBtn(label, cost, onclick, enabled, cls) {
+  return `<button class="act ${cls || ""}" ${enabled ? "" : "disabled"} onclick="${onclick}">${label}<span class="c">${cost}</span></button>`;
+}
+function trainBtn(label, type) {
+  if (!unlocked("player", type)) return actBtn(label, CFG.AGE[CFG.UNLOCK[type]].name + " requis", "", false);
+  return actBtn(label, costStr(CFG.COST[type]), `trainSel('${type}')`, canAfford("player", CFG.COST[type]));
+}
+function buildBtn(label, type) {
+  if (!unlocked("player", type)) return actBtn(label, CFG.AGE[CFG.UNLOCK[type]].name + " requis", "", false);
+  return actBtn(label, costStr(CFG.COST[type]), `startBuild('${type}')`, canAfford("player", CFG.COST[type]));
+}
+function refreshCmd() {
+  const info = document.getElementById("selInfo"), act = document.getElementById("actions");
+  if (spectator) { info.innerHTML = '<span class="mini">👁️ Observation — IA contre IA. Déplace la vue (Z Q S D / flèches / clic minicarte).</span>'; act.innerHTML = ""; return; }
+  let html = "", info2 = "";
+  if (buildMode) { info2 = `<b>Construire ${bldName(buildMode)}</b><br><span class="mini">Clique pour poser · <b>glisse</b> pour une chaîne (clôtures) · <b>Maj</b> = enchaîner · clic droit = annuler.</span>`; act.innerHTML = `<button class="act" onclick="cancelBuild()">✖ Annuler</button>`; info.innerHTML = info2; return; }
+  if (selBld) {
+    const b = selBld;
+    info2 = `<b>${bldName(b.type)}</b> <span class="mini">(${b.faction === "player" ? "à toi" : "rival"})</span><br><span class="mini">PV ${Math.round(b.hp)}/${b.maxHp}${b.progress < 1 ? " · chantier " + Math.round(b.progress * 100) + "%" : ""}${b.queue.length ? " · file: " + b.queue.length : ""}${b.farm && b.foodNode ? " · vivres " + Math.round(b.foodNode.amount) + "/" + b.foodNode.maxAmount : ""}${b.forest ? (b.matured ? " · bois " + Math.round(b.woodNode ? b.woodNode.amount : 0) : " · maturation " + Math.round((1 - b.matureT / CFG.BLD.foret.mature) * 100) + "%") : ""}${b.wall ? " · clôture niv " + (clotureLevel[b.faction] || 0) : ""}</span>`;
+    if (b.faction === "player" && b.progress >= 1) {
+      if (b.type === "cite") {
+        html += trainBtn("➕ Caravanier", "villager");
+        html += trainBtn("🐎 Éclaireur", "eclaireur");
+        if (!units.some(u => u.faction === "player" && u.commander)) html += trainBtn("🎖️ Commandant", "commandant");
+        html += trainBtn("🔮 Féticheur", "feticheur");
+        const next = CFG.AGE[age.player + 1];
+        if (next) { const c = canAdvance("player"); html += actBtn("▲ Empire : " + next.name, c.ok ? costStr(next.cost) : c.reason, "advanceSel()", c.ok, "adv"); }
+        const wl = clotureLevel.player; html += actBtn("🧱 Clôture +résist." + (wl ? " (niv " + wl + ")" : ""), wl >= CFG.WALL_UP.max ? "max" : costStr(CFG.WALL_UP.cost), "upgradeWallSel()", wl < CFG.WALL_UP.max && canAfford("player", CFG.WALL_UP.cost), "adv");
+      }
+      if (b.type === "caserne") { html += trainBtn("🗡️ Lancier", "lancier"); html += trainBtn("🏹 Archer", "archer"); html += trainBtn("🐎 Cavalier", "cavalier"); }
+      if (b.type === "marche") { html += trainBtn("🐪 Caravane", "caravane"); html += `<span class="mini" style="align-self:center">la caravane fait l'or-sel entre 2 marchés/Cité — protège-la des razzias</span>`; }
+      if (b.type === "tamtam") html += actBtn("🥁 Chant des esprits", b.cd > 0 ? "⏳ " + Math.ceil(b.cd) + "s" : CFG.CHANT.per + " esprits / soldat", "chantSel()", b.cd <= 0, "adv");
+      html += upgButtons(b.type);                  // arbre d'améliorations (forge/cuirasses, comptoir, outils, meurtrières)
+      html += `<span class="mini" style="align-self:center">Clic droit = ralliement ⚑ (sur ressource = récolte auto, sur ennemi = attaque)</span>`;
+    }
+    if (b.faction === "player" && b.type !== "cite") html += actBtn("💥 Détruire", "+40 % rendu", "demolishSel()", true);
+  } else if (sel.size > 0) {
+    const us = [...sel].map(unitById).filter(Boolean);
+    const vills = us.filter(u => u.type === "villager").length;
+    const counts = {}; us.forEach(u => counts[u.type] = (counts[u.type] || 0) + 1);
+    info2 = `<b>${us.length} unité${us.length > 1 ? "s" : ""}</b><br><span class="mini">${Object.keys(counts).map(t => counts[t] + " " + unitName(t)).join(", ")}</span>`;
+    if (vills > 0) { html += buildBtn("🏠 Maison", "maison"); html += buildBtn("🌾 Champ", "champ"); html += buildBtn("🌳 Forêt", "foret"); html += buildBtn("🧱 Clôture", "cloture"); html += buildBtn("🚪 Portail", "portail"); html += buildBtn("🏛️ Caserne", "caserne"); html += buildBtn("⚖️ Marché", "marche"); html += buildBtn("🗼 Tour", "tour"); html += buildBtn("🪵 Atelier", "atelier"); html += buildBtn("🛶 Baie", "baie"); html += buildBtn("🥁 Tam-tam", "tamtam"); if (age["player"] >= 2) html += buildBtn("🕌 Merveille", "merveille"); }
+    if (us.some(u => u.commander)) {
+      html += `<button class="act ${armyStance === 'guard' ? 'adv' : ''}" onclick="setStance('guard')">🛡️ Garder<span class="c">encercler le village</span></button>`;
+      html += `<button class="act ${armyStance === 'patrol' ? 'adv' : ''}" onclick="setStance('patrol')">🥾 Patrouille<span class="c">tourner autour</span></button>`;
+      html += `<button class="act ${armyStance === 'free' ? 'adv' : ''}" onclick="setStance('free')">🏳️ Repos<span class="c">libre</span></button>`;
+      html += `<button class="act adv" onclick="callRetinueSel()">📯 Escorte<span class="c">rallier ${CFG.RETINUE} soldats</span></button>`;
+    }
+    if (us.some(u => u.type === "feticheur")) html += actBtn("🧞 Sorcier volant", costStr(CFG.COST.sorcier), "summonSel()", canAfford("player", CFG.COST.sorcier), "adv");
+    html += `<button class="act" onclick="stopSel()">⏹ Stop</button>`;
+  } else { info2 = `<span class="mini">Rien de sélectionné. Clique une unité ou un bâtiment.<br>Astuce : sélectionne ta <b>Cité</b> pour former des caravaniers et <b>avancer d'Âge</b>.</span>`; }
+  info.innerHTML = info2; act.innerHTML = html;
+}
+function trainSel(type) { if (selBld) trainAt(selBld, type); }
+function upgButtons(at) {                            // boutons d'amélioration disponibles à ce type de bâtiment
+  let h = "";
+  for (const id in CFG.UPGRADES) { const U = CFG.UPGRADES[id]; if (U.at !== at) continue;
+    if (hasUpg("player", id)) h += actBtn(U.icon + " " + U.name, "✓ acquis", "", false, "adv");
+    else if (age.player < U.age) h += actBtn(U.icon + " " + U.name, CFG.AGE[U.age].name + " requis", "", false);
+    else h += actBtn(U.icon + " " + U.name, costStr(U.cost) + " · " + U.desc, "researchSel('" + id + "')", canAfford("player", U.cost), "adv");
+  }
+  return h;
+}
+function research(f, id) {                           // achète une amélioration pour le camp f
+  const U = CFG.UPGRADES[id]; if (!U || hasUpg(f, id) || age[f] < U.age || !canAfford(f, U.cost)) return false;
+  if (!buildings.some(b => b.faction === f && b.type === U.at && b.progress >= 1)) return false;
+  pay(f, U.cost); upg[f][id] = true;
+  if (id === "cuirasse") for (const x of units) if (x.faction === f && isMil(x) && x.hp > 0) { x.maxHp = Math.round(x.maxHp * U.mult); x.hp = Math.round(x.hp * U.mult); }   // PV rétroactif
+  if (f === "player") { SND.play("done"); tip("🔧 " + U.name + " — " + U.desc); refreshCmd(); }
+  return true;
+}
+function researchSel(id) { research("player", id); }
+function aiResearch(f) {                             // l'IA se technologise (égalité des deux IA)
+  for (const id in CFG.UPGRADES) { const U = CFG.UPGRADES[id];
+    if (hasUpg(f, id) || age[f] < U.age || !canAfford(f, U.cost)) continue;
+    if (!buildings.some(b => b.faction === f && b.type === U.at && b.progress >= 1)) continue;
+    if (res[f].gold - (U.cost.gold || 0) < 50) continue;   // garde une réserve d'or pour l'armée
+    research(f, id); return;                                 // une amélioration par passe
+  }
+}
+function advanceSel() { startAdvance("player"); }
+function startBuild(type) { if (!unlocked("player", type)) { tip("⚠ " + CFG.AGE[CFG.UNLOCK[type]].name + " requis"); return; } if (!canAfford("player", CFG.COST[type])) { tip("⚠ Pas assez de ressources"); return; } buildMode = type; refreshCmd(); }
+function cancelBuild() { buildMode = null; refreshCmd(); }
+function stopSel() { for (const id of sel) { const u = unitById(id); if (u) { u.state = "idle"; u.target = null; u.gNode = null; u.order = null; u.follow = null; if (isMil(u)) u.post = { x: u.x, y: u.y }; } } }
+
+/* ===== AUTOMATISATION : oisifs, auto-emploi, groupes ====================== */
+function idleVillagers() { return units.filter(u => u.faction === "player" && u.type === "villager" && u.state === "idle"); }
+function cycleIdle() {
+  const list = idleVillagers(); if (!list.length) { tip("Aucun villageois oisif"); return; }
+  idleCursor = (idleCursor + 1) % list.length; const u = list[idleCursor];
+  sel.clear(); selBld = null; sel.add(u.id); cam.x = u.x - CSSW / 2; cam.y = u.y - CSSH / 2; clampCam(); refreshCmd();
+}
+// sélectionne et centre le commandant (bouton 🎖️ / touche C)
+function selectCommander() {
+  const cmd = units.find(u => u.faction === "player" && u.commander && u.hp > 0);
+  if (!cmd) { tip("Aucun commandant — forme-le à la Cité"); return; }
+  sel.clear(); selBld = null; sel.add(cmd.id); cam.x = cmd.x - CSSW / 2; cam.y = cmd.y - CSSH / 2; clampCam(); refreshCmd();
+}
+function callRetinueSel() { callRetinue([...sel].map(unitById).find(u => u && u.commander)); }
+function chantSel() { if (selBld && selBld.type === "tamtam" && selBld.progress >= 1) chantSpirits(selBld); }
+function summonSorcier(fet) {                            // le féticheur invoque un sorcier volant
+  if (!fet || fet.hp <= 0) return;
+  if ((fet.cd3 || 0) > 0) { if (fet.faction === "player") tip("🧞 Le féticheur récupère…"); return; }
+  if (!canAfford(fet.faction, CFG.COST.sorcier)) { if (fet.faction === "player") tip("⚠ Pas assez de ressources"); return; }
+  if (popUsed(fet.faction) >= popCap(fet.faction)) { if (fet.faction === "player") tip("⚠ Population pleine — construis une maison"); return; }
+  pay(fet.faction, CFG.COST.sorcier); fet.cd3 = CFG.SORCIER_CD;
+  const s = makeUnit(fet.faction, "sorcier", fet.x + rand(-10, 10), fet.y - 12); units.push(s);
+  for (let i = 0; i < 12; i++) parts.push({ x: s.x, y: s.y, vx: rand(-30, 30), vy: rand(-55, -10), life: 0, max: rand(0.5, 1), r: rand(2, 4), color: "#b07ad0" });
+  if (fet.faction === "player") { tip("🧞 Un sorcier volant s'élève sur sa natte !"); refreshCmd(); }
+}
+function summonSel() { summonSorcier([...sel].map(unitById).find(u => u && u.type === "feticheur")); }
+function toggleAuto() { autoEmploy = !autoEmploy; const b = document.getElementById("autoBtn"); b.classList.toggle("on", autoEmploy); tip(autoEmploy ? "⚙ Auto-emploi activé" : "⚙ Auto-emploi désactivé"); }
+function toggleSound() { const m = SND.toggleMute(); const b = document.getElementById("sndBtn"); if (b) { b.textContent = m ? "🔇" : "🔊"; b.classList.toggle("on", !m); } }
+function togglePixel() { pixelMode = !pixelMode; const b = document.getElementById("pxBtn"); if (b) b.classList.toggle("on", pixelMode); resize(); tip(pixelMode ? "▦ Pixel art activé (finesse " + PXS + " · touches [ et ])" : "Pixel art désactivé (rendu net)"); }
+function setPixelSize(p) { PXS = clamp(p, 1, 6); if (pixelMode) { resize(); tip("▦ Taille des pixels : " + PXS + (PXS <= 1 ? " (très net)" : PXS === 2 ? " (net)" : PXS >= 5 ? " (gros)" : "")); } }
+
+/* ===== HUD ================================================================ */
+function syncTop() {
+  document.getElementById("rFood").textContent = Math.floor(res.player.food);
+  document.getElementById("rWood").textContent = Math.floor(res.player.wood);
+  document.getElementById("rGold").textContent = Math.floor(res.player.gold);
+  document.getElementById("rPop").textContent = popUsed("player") + "/" + popCap("player");
+  document.getElementById("ageName").textContent = ageOf("player").name;
+  document.getElementById("ageProg").textContent = advancing.player ? "  ⏳" + Math.round(advancing.player.t / advancing.player.time * 100) + "%" : "";
+  const m = Math.floor(gameT / 60), s = Math.floor(gameT % 60);
+  const wb = buildings.find(b => b.type === "merveille" && b.wonderT > 0);   // Merveille en décompte (n'importe quel camp)
+  document.getElementById("clock").textContent = m + ":" + (s < 10 ? "0" : "") + s + (wb ? "  🕌" + (wb.faction === "player" ? "" : "⚠") + Math.ceil(wb.wonderT) + "s" : "");
+  document.getElementById("idleBtn").textContent = "💤 " + idleVillagers().length;
+}
+function tip(text) { floats.push({ x: wx(CSSW / 2), y: wy(CSSH - BOT - 30), text, color: "#a8631f", t: 0, vy: -18 }); }
+
+/* ===== CODEX ============================================================== */
+let codexOpen = false;
+function toggleCodex() {
+  codexOpen = !codexOpen;
+  const el = document.getElementById("codex");
+  if (codexOpen) { document.getElementById("codexBody").innerHTML = CODEX.map(c => `<div class="codexcard"><h3>${c[0]}</h3><p>${c[1]}</p></div>`).join(""); el.classList.remove("hidden"); }
+  else el.classList.add("hidden");
+}
+
+/* ===== CARTE & PARTIE ===================================================== */
+function scatterNodes(cx, cy, type, n, spread, amount) {
+  for (let i = 0; i < n; i++) {
+    const a = rand(0, TAU), r = rand(40, spread);
+    const x = clamp(cx + Math.cos(a) * r, 30, worldW() - 30), y = clamp(cy + Math.sin(a) * r, 30, worldH() - 30);
+    if (onLake(x, y)) continue;                          // pas de ressource sur l'eau (inatteignable)
+    nodes.push(makeNode(type, x, y, amount));
+  }
+}
+function startGame(diff, spec) {
+  SND.init();   // démarre l'audio (geste utilisateur = clic du bouton)
+  units = []; buildings = []; nodes = []; floats = []; parts = []; projectiles = []; corpses = []; rubble = []; birds = []; animals = []; spirits = []; fish = []; pirogues = []; sel = new Set(); selBld = null; buildMode = null; armyStance = "free";
+  clotureLevel = { player: 0, enemy: 0 };
+  for (const k in AI_STATE) delete AI_STATE[k];   // réinitialise l'état tactique des deux IA
+  for (const k in groups) delete groups[k];
+  res = { player: { ...CFG.START }, enemy: { ...CFG.START } };
+  age = { player: 0, enemy: 0 }; advancing = { player: null, enemy: null };
+  running = true; over = false; won = false; gameT = 0; nextId = 1; aiTimer = 0.5; tipTimer = 14; codexOpen = false; spectator = !!spec;
+  stats = { player: { kills: 0, peakPop: 0 }, enemy: { kills: 0, peakPop: 0 } };
+  visGrid = new Uint8Array(CFG.MW * CFG.MH); fogOn = !spectator; visTimer = 0;   // brouillard actif sauf en mode observation (IA vs IA : tout visible)
+  upg = { player: {}, enemy: {} };
+  DIFFICULTY = CFG.DIFF[diff] || CFG.DIFF[lastDiff] || CFG.DIFF.normal; if (CFG.DIFF[diff]) lastDiff = diff;   // niveau choisi (en observation, les 2 IA partagent ce réglage)
+  if (!terrain) buildTerrain();
+  fish = []; for (const L of lakes) for (let i = 0; i < 7; i++) fish.push(makeFish(L));   // bancs de poissons animés
+
+  const W = worldW(), H = worldH();
+  const pCite = makeBuilding("player", "cite", W * 0.16, H * 0.5, true); buildings.push(pCite);
+  for (let i = 0; i < 3; i++) units.push(makeUnit("player", "villager", pCite.x + rand(-30, 30), pCite.y + 40 + rand(0, 20)));
+  scatterNodes(W * 0.16, H * 0.5, "food", 4, 150, 300); scatterNodes(W * 0.22, H * 0.36, "wood", 3, 120, 260); scatterNodes(W * 0.10, H * 0.66, "gold", 2, 110, 220);
+  const eCite = makeBuilding("enemy", "cite", W * 0.84, H * 0.5, true); buildings.push(eCite);
+  for (let i = 0; i < 3; i++) units.push(makeUnit("enemy", "villager", eCite.x + rand(-30, 30), eCite.y + 40 + rand(0, 20)));
+  scatterNodes(W * 0.84, H * 0.5, "food", 4, 150, 300); scatterNodes(W * 0.78, H * 0.36, "wood", 3, 120, 260); scatterNodes(W * 0.90, H * 0.66, "gold", 2, 110, 220);
+  scatterNodes(W * 0.5, H * 0.5, "food", 3, 160, 240); scatterNodes(W * 0.5, H * 0.3, "wood", 3, 150, 220); scatterNodes(W * 0.5, H * 0.72, "gold", 3, 150, 200);
+  for (let i = 0; i < 5; i++) birds.push({ x: rand(0, W), y: rand(40, H * 0.5), vx: rand(14, 26) * (Math.random() < .5 ? -1 : 1), phase: rand(0, TAU) });
+  for (let h = 0; h < 7; h++) { const hx = rand(W * 0.25, W * 0.75), hy = rand(H * 0.15, H * 0.85); for (let i = 0, k = randInt(3, 5); i < k; i++) animals.push(makeAnimal(clamp(hx + rand(-55, 55), 20, W - 20), clamp(hy + rand(-55, 55), 20, H - 20))); }
+
+  cam.x = pCite.x - CSSW / 2; cam.y = pCite.y - CSSH / 2; clampCam();
+  if (fogOn) computeVision();
+  document.getElementById("intro").classList.add("hidden");
+  document.getElementById("result").classList.add("hidden");
+  document.getElementById("codex").classList.add("hidden");
+  document.getElementById("autoBtn").classList.toggle("on", autoEmploy);
+  refreshCmd(); syncTop();
+  tip(spectator ? "👁️ Observation — deux IA s'affrontent" : "⚔️ Difficulté : " + DIFFICULTY.name);
+  lastT = performance.now(); requestAnimationFrame(frame);
+}
+
+function endGame(victory) {
+  if (over) return; over = true; won = victory; SND.play(victory ? "win" : "lose");
+  if (spectator) {
+    document.getElementById("resTitle").textContent = "🏁 Bataille terminée";
+    document.getElementById("resSub").textContent = victory ? "L'empire bleu (gauche) l'emporte." : "L'empire rouge (droite) l'emporte.";
+  } else {
+    document.getElementById("resTitle").textContent = victory ? "🏆 Victoire !" : "🏳️ Défaite";
+    document.getElementById("resSub").textContent = victory ? "La Cité rivale est tombée. Ton nom entrera dans les chants des griots." : "Ta Cité est tombée. Le désert reprend ses droits.";
+  }
+  const m = Math.floor(gameT / 60), s = Math.floor(gameT % 60);
+  const sc = Math.max(0, Math.round(stats.player.kills * 12 + stats.player.peakPop * 6 + age["player"] * 200 + (won ? 800 : 0) - gameT * 0.4));
+  document.getElementById("resStats").textContent = `Empire : ${ageOf("player").name} · Durée : ${m}:${s < 10 ? "0" : ""}${s} · ⚔️ ${stats.player.kills} vaincus · 👥 armée max ${stats.player.peakPop} · 🏅 Score ${sc}`;
+  try { localStorage.setItem("sables_best", Math.max(+localStorage.getItem("sables_best") || 0, sc)); } catch (e) {}   // meilleur score → Indice AwemA
+  document.getElementById("result").classList.remove("hidden");
+}
+
+/* ===== BOUCLE ============================================================= */
+function frame(t) {
+  if (!running) return;
+  if (CSSW !== window.innerWidth || CSSH !== window.innerHeight) resize();   // auto-guérison : page chargée dans un panneau replié, resize manqué…
+  let dt = (t - lastT) / 1000; lastT = t;
+  if (!(dt > 0)) dt = 0.016; dt = Math.min(dt, 0.05);
+  update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+
+/* ===== CLAVIER & RESIZE =================================================== */
+window.addEventListener("keydown", e => {
+  const k = e.key.toLowerCase(); keys[k] = true;
+  if (k === "escape") { if (buildMode) cancelBuild(); else if (codexOpen) toggleCodex(); else { sel.clear(); selBld = null; refreshCmd(); } }
+  if (!running || over) return;
+  if (k === "." || k === ",") { e.preventDefault(); cycleIdle(); }
+  if (k === "h") { const c = buildings.find(b => b.faction === "player" && b.type === "cite"); if (c) { sel.clear(); selBld = c; cam.x = c.x - CSSW / 2; cam.y = c.y - CSSH / 2; clampCam(); refreshCmd(); } }
+  if (k === "c" && !e.ctrlKey) selectCommander();
+  if (k === "m") toggleSound();
+  if (k === "p") togglePixel();
+  if (k === "]") setPixelSize(PXS + 1);
+  if (k === "[") setPixelSize(PXS - 1);
+  if (k >= "1" && k <= "9") {                       // groupes de contrôle
+    if (e.ctrlKey || e.metaKey) { e.preventDefault(); groups[k] = [...sel]; tip("Groupe " + k + " enregistré (" + sel.size + ")"); }
+    else { const g = (groups[k] || []).filter(id => unitById(id)); if (g.length) { sel = new Set(g); selBld = null; refreshCmd(); } }
+  }
+});
+window.addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
+window.addEventListener("blur", () => { for (const k in keys) keys[k] = false; mouse.down = false; });
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2); CSSW = window.innerWidth; CSSH = window.innerHeight;
+  cv.style.width = CSSW + "px"; cv.style.height = CSSH + "px";
+  if (pixelMode) {   // backing = résolution écran (CSS×DPR) ÷ PXS → net (upscale quasi entier) et bien plus détaillé qu'avant
+    const dw = Math.round(CSSW * DPR), dh = Math.round(CSSH * DPR);
+    cv.width = Math.max(1, Math.ceil(dw / PXS)); cv.height = Math.max(1, Math.ceil(dh / PXS));
+    cv.style.imageRendering = "pixelated"; if (cv.style.imageRendering !== "pixelated") cv.style.imageRendering = "crisp-edges";   // fallback Firefox
+    ctx.setTransform(cv.width / CSSW, 0, 0, cv.height / CSSH, 0, 0); ctx.imageSmoothingEnabled = false;
+    if (!entLayer) { entLayer = document.createElement("canvas"); entCtx = entLayer.getContext("2d"); silLayer = document.createElement("canvas"); silCtx = silLayer.getContext("2d"); }
+    entLayer.width = silLayer.width = cv.width; entLayer.height = silLayer.height = cv.height;   // calques à la résolution du backing store
+  } else {
+    cv.width = Math.round(CSSW * DPR); cv.height = Math.round(CSSH * DPR);
+    cv.style.imageRendering = "auto"; ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.imageSmoothingEnabled = true;
+  }
+  clampCam();
+}
+window.addEventListener("resize", resize); resize();
+</script>
+</body>
+</html>

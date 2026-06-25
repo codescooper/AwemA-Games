@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>La Place — salon AwemA</title>
+<style>
+  :root { color-scheme: dark; --gold:#f0c64a; --vio:#7c5cff; --grn:#13875a; }
+  * { box-sizing: border-box; }
+  body { font-family:system-ui,-apple-system,sans-serif; margin:0; min-height:100vh; color:#f3ece0;
+    background: radial-gradient(1100px 620px at 50% -8%, #20351f, #0c120c 64%); display:flex; flex-direction:column; align-items:center; padding:1rem .7rem 2rem; }
+  a { color:#bfe6c4; }
+  .top { width:100%; max-width:980px; display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
+  .top h1 { font-size:clamp(1.3rem,4.5vw,1.9rem); margin:.2rem 0; }
+  .top .sp { flex:1; }
+  .pill { font-size:.74rem; background:#ffffff14; border:1px solid #ffffff2e; border-radius:1rem; padding:.18rem .55rem; white-space:nowrap; }
+  .tbtn { font:inherit; color:#fff; background:#ffffff14; border:1px solid #ffffff2e; border-radius:.5rem; padding:.35rem .6rem; cursor:pointer; text-decoration:none; font-size:.85rem; }
+  .tbtn:hover { background:#ffffff24; }
+  .me { display:flex; align-items:center; gap:.45rem; }
+  .ava { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1rem; flex-shrink:0;
+    background:radial-gradient(circle at 35% 30%, #ffd98a, #c8941f); color:#2a1c04; }
+  .wrap { width:100%; max-width:980px; display:grid; grid-template-columns: 260px 1fr; grid-template-rows:auto auto; gap:.9rem; margin-top:.7rem; }
+  .card { background:#ffffff0c; border:1px solid #ffffff1c; border-radius:.9rem; padding:.8rem .9rem; }
+  .card h2 { font-size:.92rem; margin:.1rem 0 .6rem; opacity:.85; letter-spacing:.4px; }
+  #presenceCard { grid-row:1 / span 2; }
+  .who { display:flex; align-items:center; gap:.5rem; padding:.28rem .2rem; font-size:.9rem; border-radius:.4rem; }
+  .who.self { background:#7c5cff22; }
+  .who .nm { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .who .rk { font-size:.72rem; opacity:.7; }
+  .av2 { width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0; }
+  /* chat */
+  #chatlog { height:300px; overflow-y:auto; display:flex; flex-direction:column; gap:.32rem; padding-right:.2rem; }
+  .msg { font-size:.9rem; line-height:1.35; }
+  .msg .a { font-weight:700; }
+  .msg.sys { opacity:.6; font-style:italic; font-size:.82rem; }
+  .msg.self .a { color:var(--gold); }
+  .msg .a.b { color:#8fe0d4; }
+  .chatrow { display:flex; gap:.4rem; margin-top:.55rem; }
+  .chatrow input { flex:1; font:inherit; background:#0b0d10; color:#fff; border:1px solid #ffffff2e; border-radius:.5rem; padding:.5rem .6rem; }
+  .chatrow button { font:inherit; font-weight:700; background:var(--grn); color:#04231a; border:0; border-radius:.5rem; padding:.5rem .9rem; cursor:pointer; }
+  /* rooms */
+  .rooms { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:.5rem; }
+  .room { background:#ffffff0c; border:1px solid #ffffff1c; border-radius:.7rem; padding:.55rem; cursor:pointer; text-align:center; transition:transform .1s,border-color .1s; }
+  .room:hover { transform:translateY(-3px); border-color:var(--gold); }
+  .room .ic { font-size:1.5rem; } .room .nm { font-size:.8rem; margin-top:.15rem; }
+  .room .cnt { font-size:.72rem; opacity:.75; margin-top:.15rem; }
+  .room .dot { color:var(--grn); }
+  @media (max-width:680px){ .wrap { grid-template-columns:1fr; } #presenceCard { grid-row:auto; } #chatlog { height:240px; } }
+  /* overlay salle */
+  .ov { position:fixed; inset:0; z-index:8; display:none; align-items:center; justify-content:center; background:#0c120ce8; padding:1rem; }
+  .ov.show { display:flex; }
+  .ovbox { background:#16201a; border:1px solid #ffffff2e; border-radius:.9rem; padding:1.1rem; width:min(92vw,420px); text-align:center; }
+  .ovbox h3 { margin:.2rem 0 .5rem; }
+  .ovbox .members { display:flex; flex-wrap:wrap; gap:.35rem; justify-content:center; margin:.5rem 0 .9rem; }
+  .big { font:inherit; font-weight:800; font-size:1rem; padding:.6rem 1.2rem; border-radius:.6rem; border:0; cursor:pointer; background:var(--gold); color:#2a1c04; text-decoration:none; display:inline-block; }
+  .note { width:100%; max-width:980px; font-size:.8rem; opacity:.62; text-align:center; margin-top:1rem; line-height:1.5; }
+</style>
+  <script src="analytics.js"></script>
+</head>
+<body>
+  <div class="top">
+    <h1>🌳 La Place</h1>
+    <span class="sp"></span>
+    <span class="me"><span class="ava" id="meAva">🥾</span><b id="meName">Toi</b> <span class="pill" id="meRank">—</span></span>
+    <a class="tbtn" href="classements.html">🏆 Classement</a>
+    <a class="tbtn" href="index.html">≡ Menu</a>
+  </div>
+
+  <div class="wrap">
+    <div class="card" id="presenceCard">
+      <h2>👥 Au village (<span id="presCount">0</span>)</h2>
+      <div id="presence"></div>
+    </div>
+
+    <div class="card">
+      <h2>💬 L'arbre à palabres</h2>
+      <div id="chatlog"></div>
+      <div class="chatrow">
+        <input id="chatinput" maxlength="160" placeholder="Dis quelque chose au village…" autocomplete="off" />
+        <button onclick="sendMsg()">Envoyer</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🎮 Les salles de jeu</h2>
+      <div class="rooms" id="rooms"></div>
+    </div>
+  </div>
+
+  <div class="note" id="note"></div>
+
+  <div class="ov" id="roomOv"><div class="ovbox" id="roomBox"></div></div>
+
+<script>
+/* ============================================================================
+   LA PLACE — hub social (couche ② du multijoueur), PROTOTYPE SIMULÉ, 100% local.
+   Présence + chat + salles de jeu. Réutilise l'identité et l'Indice du Grand
+   Conseil. Les « autres joueurs » sont des bots qui arrivent/partent, palabrent
+   et entrent dans les salles → l'expérience sociale est jouable AVANT tout serveur.
+   ─ Couture réseau : remplacer Lobby.* (simulation) par un client temps réel
+     (PartyKit / Cloudflare Durable Objects) — présence, messages, salles : même
+     forme d'événements. ─
+   ========================================================================== */
+addEventListener("error", ev=>{ try{ let d=document.getElementById("errband");
+  if(!d){ d=document.createElement("div"); d.id="errband"; d._n=0;
+    d.style.cssText="position:fixed;left:8px;top:8px;right:8px;z-index:99;background:#5a1410;color:#ffd9d0;border:1px solid #ff6b6b;border-radius:8px;padding:8px 10px;font:13px/1.4 system-ui;white-space:pre-wrap";
+    document.body.appendChild(d); }
+  d._n++; d.textContent="⛔ Erreur"+(d._n>1?" ×"+d._n:"")+" : "+(ev.message||"inconnue"); }catch(e){} });
+
+const lsGet=k=>{ try{ return localStorage.getItem(k); }catch(e){ return null; } };
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+/* identité + Indice (mêmes clés que Le Grand Conseil) */
+const TARGETS={harmattan:180,tamtam:30000,awale:12,banco:21,echecs:8,voraces:400,sables:2500,lignees:200,atelier:310};
+function indiceOf(s){ let t=0; for(const k in TARGETS) t+=Math.round(Math.min(1,(s&&s[k]||0)/TARGETS[k])*1000); return t; }
+const TIERS=[[0,"Voyageur","🥾"],[900,"Marchand","🐪"],[2200,"Notable","🎽"],[4000,"Chef de village","🪘"],[6000,"Roi des routes","👑"],[8000,"Légende des griots","🌟"]];
+const tierOf=i=>{ let t=TIERS[0]; for(const x of TIERS) if(i>=x[0]) t=x; return t; };
+const myName=()=> lsGet("awema_player") || "Toi";
+function myScores(){ const o={}; const map={harmattan:"harmattan_best",tamtam:"tamtam_best",awale:"awale_royal_best",echecs:"echecs_best",voraces:"voraces_best",sables:"sables_best",lignees:"lignees_best"};
+  for(const k in map) o[k]=+lsGet(map[k])||0;
+  try{ const b=JSON.parse(lsGet("banco_save")); o.banco=(b&&b.stars||[]).reduce((a,x)=>a+(+x||0),0); }catch(e){ o.banco=0; }
+  try{ o.atelier=(JSON.parse(lsGet("awema_atelier_v1"))||{}).xp||0; }catch(e){ o.atelier=0; }
+  return o; }
+
+/* salles = les jeux */
+const GAMES=[
+  {id:"tamtam",name:"Tam-Tam",ic:"🥁",href:"tamtam.html"},
+  {id:"awale",name:"Awalé Royal",ic:"🐚",href:"awale-royal.html"},
+  {id:"echecs",name:"Échecs",ic:"♟️",href:"echecs.html"},
+  {id:"harmattan",name:"Harmattan",ic:"🌪️",href:"harmattan.html"},
+  {id:"banco",name:"Banco",ic:"🧱",href:"banco.html"},
+  {id:"sables",name:"L'Âge des Sables",ic:"🏜️",href:"sables.html"},
+  {id:"voraces",name:"Voraces",ic:"🦠",href:"voraces.html"},
+  {id:"lignees",name:"Lignées",ic:"👑",href:"conseil.html"},
+  {id:"atelier",name:"L'Atelier",ic:"🎓",href:"atelier.html"},
+];
+
+/* roster : profils du « cloud » (Le Grand Conseil) ; sinon défauts pour marcher seul */
+const DEFAULT_BOTS=[
+  {id:"bot0",name:"Awa la griotte",scores:{harmattan:172,tamtam:41000,awale:12,banco:21,echecs:7,voraces:520,sables:3200,lignees:240,atelier:310}},
+  {id:"bot1",name:"Kouamé",scores:{harmattan:120,tamtam:22000,awale:9,banco:15,echecs:4,voraces:300,sables:1800,lignees:150,atelier:120}},
+  {id:"bot2",name:"Aïssata",scores:{harmattan:95,tamtam:28000,awale:11,banco:12,echecs:5,voraces:380,sables:2200,lignees:190,atelier:240}},
+  {id:"bot3",name:"N'Dri",scores:{harmattan:64,tamtam:9000,awale:6,banco:9,echecs:2,voraces:160,sables:900,lignees:80,atelier:60}},
+  {id:"bot4",name:"Fatou",scores:{harmattan:140,tamtam:15000,awale:8,banco:18,echecs:6,voraces:440,sables:2600,lignees:210,atelier:175}},
+  {id:"bot5",name:"Kossi",scores:{harmattan:38,tamtam:5000,awale:4,banco:6,echecs:1,voraces:90,sables:500,lignees:40,atelier:30}},
+  {id:"bot6",name:"Mariam",scores:{harmattan:155,tamtam:33000,awale:10,banco:19,echecs:6,voraces:470,sables:2900,lignees:225,atelier:290}},
+  {id:"bot7",name:"Ibrahim",scores:{harmattan:80,tamtam:12000,awale:7,banco:11,echecs:3,voraces:220,sables:1400,lignees:120,atelier:95}},
+];
+function bots(){
+  let d=null; try{ d=JSON.parse(lsGet("awema_cloud_v1")); }catch(e){}
+  let list;
+  if(d&&d.players){ list=Object.entries(d.players).filter(([,p])=>p.bot).map(([id,p])=>({id,name:p.name,scores:p.scores})); }
+  if(!list||!list.length) list=DEFAULT_BOTS;
+  return list.map(b=>{ const idx=indiceOf(b.scores); const t=tierOf(idx); return {id:b.id,name:b.name,idx,ic:t[2],tier:t[1]}; });
+}
+
+/* ─── LOBBY SIMULÉ (à remplacer par PartyKit/Cloudflare le moment venu) ─── */
+const Lobby={
+  roster: bots(),
+  loc:{},        // botId -> 'square' | gameId | undefined(absent)
+  init(){ const r=this.roster; const n=Math.min(r.length, 4+Math.floor(Math.random()*2));
+    for(let i=0;i<n;i++) this.loc[r[i].id]="square"; },
+  present(){ return this.roster.filter(b=>this.loc[b.id]==="square"); },
+  inRoom(gid){ return this.roster.filter(b=>this.loc[b.id]===gid); },
+  countAll(){ return this.roster.filter(b=>this.loc[b.id]).length; },
+};
+
+/* paroles des bots (saveur ivoirienne) */
+const SAY={
+  hello:["Akwaba 👋","On est ensemble !","Bonsoir le village 🌙","Me revoilà 😄","Salutations à tous"],
+  bye:["Je file, à bientôt !","On se retrouve demain 🌙","Bonne nuit le village","Je rentre au champ"],
+  proverb:["« En restant ensemble, la pintade évite l'épervier. »","« Le savoir est un baobab : seul, on ne l'embrasse pas. »","« Petit à petit, l'oiseau fait son nid. »","« La pluie ne connaît pas le toit du paresseux. »","« Un seul doigt ne ramasse pas la farine. »"],
+  brag:["J'ai battu mon record à Harmattan 🌪️","Awa est intouchable au Tam-Tam…","Belle remontée au classement 📈","Trois étoiles à Banco 🧱✨","Mat en 12 coups ♟️"],
+  challenge:["Qui ose au Tam-Tam ? 🥁","Je cherche un adversaire à l'Awalé 🐚","Une partie d'Échecs ? ♟️","On se fait une course à Voraces ? 🦠"],
+  react:["Bien dit ! 👏","Haha 😄","Akwaba à toi !","On t'attendait 👀","Trop fort 🔥","C'est noté chef 🪘"],
+};
+
+let chat=[];
+function addMsg(a,text,cls){ chat.push({a,text,cls}); if(chat.length>60) chat.shift(); renderChat(); }
+function sys(text){ addMsg("",text,"sys"); }
+
+function tick(){
+  const r=Lobby.roster, present=Lobby.present(), total=Lobby.countAll();
+  // arrivées
+  if(total<8 && Math.random()<0.28){ const out=r.filter(b=>!Lobby.loc[b.id]); if(out.length){ const b=pick(out); Lobby.loc[b.id]="square"; sys(b.name+" arrive sous l'arbre."); } }
+  // départs
+  else if(present.length>2 && Math.random()<0.13){ const b=pick(present); delete Lobby.loc[b.id]; sys(b.name+" "+pick(SAY.bye).toLowerCase().replace(/^je /,"")+" — s'en va."); }
+  // entrer/sortir d'une salle
+  if(Math.random()<0.30){ if(present.length){ const b=pick(present); const g=pick(GAMES); Lobby.loc[b.id]=g.id; sys(b.name+" entre dans la salle "+g.ic+" "+g.name+"."); } }
+  else if(Math.random()<0.25){ const inrooms=r.filter(b=>Lobby.loc[b.id]&&Lobby.loc[b.id]!=="square"); if(inrooms.length){ const b=pick(inrooms); Lobby.loc[b.id]="square"; } }
+  // palabre
+  if(present.length && Math.random()<0.5){ const b=pick(present); const pool=pick([SAY.proverb,SAY.brag,SAY.challenge,SAY.hello]); botSay(b,pick(pool)); }
+  renderPresence(); renderRooms();
+}
+function botSay(b,text){ addMsg(b.name,text,"bot"); }
+
+function sendMsg(){
+  const inp=document.getElementById("chatinput"); const v=inp.value.trim(); if(!v) return;
+  addMsg(myName(),v,"self"); inp.value="";
+  // une réponse d'un présent (simulé)
+  const present=Lobby.present();
+  if(present.length && Math.random()<0.7){ const b=pick(present);
+    setTimeout(()=>{ const r=/\?$/.test(v)?pick(SAY.react.concat(["Bonne question !","Je dirais oui 👍"])):pick(SAY.react);
+      botSay(b, "@"+myName()+" "+r); }, 700+Math.random()*1500); }
+}
+document.getElementById("chatinput").addEventListener("keydown",e=>{ if(e.key==="Enter") sendMsg(); });
+
+/* salle : ouvrir, voir les membres, jouer */
+let curRoom=null;
+function openRoom(gid){
+  curRoom=gid; const g=GAMES.find(x=>x.id===gid);
+  Lobby.loc["__me"]=gid;   // (toi entres symboliquement)
+  const mem=Lobby.inRoom(gid);
+  const chips=[`<span class="av2" style="background:radial-gradient(circle at 35% 30%,#ffd98a,#c8941f);color:#2a1c04">${tierOf(indiceOf(myScores()))[2]}</span> <b>${esc(myName())}</b> (toi)`]
+    .concat(mem.map(b=>`<span class="av2" style="background:#2a2348">${b.ic}</span> ${esc(b.name)}`)).join("");
+  document.getElementById("roomBox").innerHTML=`
+    <h3>${g.ic} Salle de ${g.name}</h3>
+    <div style="opacity:.8;font-size:.88rem">Joueurs dans la salle :</div>
+    <div class="members">${chips}</div>
+    <a class="big" href="${g.href}">▶ Jouer</a>
+    <div style="margin-top:.7rem"><button class="tbtn" onclick="closeRoom()">← Quitter la salle</button></div>
+    <div style="margin-top:.6rem;font-size:.76rem;opacity:.6">Ton score sera comparé au village dans <b>Le Grand Conseil</b>. Le vrai duel en direct viendra avec le serveur.</div>`;
+  document.getElementById("roomOv").classList.add("show");
+  sys("Tu entres dans la salle "+g.ic+" "+g.name+".");
+}
+function closeRoom(){ delete Lobby.loc["__me"]; document.getElementById("roomOv").classList.remove("show"); curRoom=null; renderRooms(); }
+
+/* rendu */
+function avatar(ic,bg){ return `<span class="av2" style="background:${bg||'#2a2348'}">${ic}</span>`; }
+function renderMe(){ const t=tierOf(indiceOf(myScores())); document.getElementById("meAva").textContent=t[2];
+  document.getElementById("meName").textContent=myName(); document.getElementById("meRank").textContent=t[2]+" "+t[1]; }
+function renderPresence(){
+  const present=Lobby.present(); document.getElementById("presCount").textContent=present.length+1;
+  const meT=tierOf(indiceOf(myScores()));
+  let h=`<div class="who self">${avatar(meT[2],"radial-gradient(circle at 35% 30%,#ffd98a,#c8941f)")}<span class="nm">${esc(myName())} <span class="rk">(toi)</span></span></div>`;
+  h+=present.sort((a,b)=>b.idx-a.idx).map(b=>`<div class="who">${avatar(b.ic)}<span class="nm">${esc(b.name)}</span><span class="rk">${b.tier}</span></div>`).join("");
+  document.getElementById("presence").innerHTML=h;
+}
+function renderRooms(){
+  document.getElementById("rooms").innerHTML=GAMES.map(g=>{ const n=Lobby.inRoom(g.id).length+(Lobby.loc["__me"]===g.id?1:0);
+    return `<div class="room" onclick="openRoom('${g.id}')"><div class="ic">${g.ic}</div><div class="nm">${g.name}</div>
+      <div class="cnt">${n?`<span class="dot">●</span> ${n} joueur${n>1?"s":""}`:"vide"}</div></div>`; }).join("");
+}
+function renderChat(){
+  const log=document.getElementById("chatlog");
+  log.innerHTML=chat.map(m=>{ if(m.cls==="sys") return `<div class="msg sys">— ${esc(m.text)}</div>`;
+    return `<div class="msg ${m.cls==="self"?"self":""}"><span class="a ${m.cls==="bot"?"b":""}">${esc(m.a)} :</span> ${esc(m.text)}</div>`; }).join("");
+  log.scrollTop=log.scrollHeight;
+}
+
+/* init */
+Lobby.init();
+renderMe(); renderPresence(); renderRooms();
+sys("Bienvenue sous l'arbre à palabres. Salue le village !");
+Lobby.present().slice(0,2).forEach((b,i)=>setTimeout(()=>botSay(b,pick(SAY.hello)), 500+i*900));
+document.getElementById("note").innerHTML=`🔌 <span class="pill">réseau simulé</span> Présence, palabre et salles fonctionnent <b>comme en ligne</b> (les autres sont des bots qui vivent leur vie). Brancher de vraies présences/chat = remplacer <code>Lobby.*</code> par un client temps réel (PartyKit / Cloudflare), sans toucher l'écran.`;
+let timer=setInterval(tick,1400);
+document.addEventListener("visibilitychange",()=>{ clearInterval(timer); if(!document.hidden) timer=setInterval(tick,1400); });
+</script>
+</body>
+</html>

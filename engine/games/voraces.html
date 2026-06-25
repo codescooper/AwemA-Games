@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Voraces — Le Vivier</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #04181c;
+               font-family: system-ui, -apple-system, sans-serif; color: #eaf6f2; touch-action: none; }
+  #game { display: block; width: 100vw; height: 100vh; }
+
+  /* ---- liens / boutons coin ---- */
+  .corner { position: fixed; z-index: 6; }
+  #menuLink { top: .6rem; left: .6rem; color: #bfeede; text-decoration: none; background: #06303199;
+              border: 1px solid #2fd6a655; padding: .35rem .6rem; border-radius: .5rem; font-size: .82rem; backdrop-filter: blur(3px); }
+  #menuLink:hover { background: #084; }
+
+  /* ---- boutons tactiles ---- */
+  .touchbtn { position: fixed; z-index: 6; width: 78px; height: 78px; border-radius: 50%;
+              border: 2px solid #ffffff33; background: #ffffff14; color: #fff; font-size: 1.9rem;
+              display: flex; align-items: center; justify-content: center; user-select: none; backdrop-filter: blur(2px); }
+  .touchbtn:active { background: #ffffff2e; transform: scale(.94); }
+  #boostBtn { right: 1.1rem; bottom: 1.3rem; }
+  #allyBtn  { left: 1.1rem;  bottom: 1.3rem; }
+  #breakHint { left: 1.1rem; bottom: 6.4rem; font-size: .7rem; opacity: .8; width: 100px; text-align: center; }
+
+  /* ---- panneaux (intro / fin) ---- */
+  .overlay { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; padding: 1rem;
+             background: radial-gradient(900px 500px at 50% 30%, #0c3b3a, #03161a 70%); }
+  .panel { width: 100%; max-width: 540px; background: #07292bdd; border: 1px solid #2fd6a644; border-radius: 1rem;
+           padding: 1.4rem 1.5rem 1.6rem; box-shadow: 0 20px 60px #000a; }
+  .panel h1 { margin: .1rem 0 .2rem; font-size: 1.9rem; }
+  .panel h2 { margin: .2rem 0 .9rem; font-size: 1rem; font-weight: 500; color: #8fe9cd; }
+  .panel ul { padding-left: 1.1rem; line-height: 1.55; font-size: .92rem; }
+  .panel ul b { color: #aef3da; }
+  .panel .row { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: 1.1rem; align-items: center; }
+  .btn { flex: 1; min-width: 140px; padding: .85rem 1rem; font-size: 1.05rem; font-weight: 700; border: none; border-radius: .6rem; cursor: pointer; }
+  .btn.primary { background: #2fd6a6; color: #04231d; }
+  .btn.primary:active { transform: scale(.98); }
+  .btn.ghost { background: #ffffff14; color: #eaf6f2; border: 1px solid #ffffff2e; text-decoration: none; text-align: center; display: block; }
+  .panel .mini { opacity: .65; font-size: .8rem; margin-top: .9rem; }
+  .stat-big { font-size: 2.4rem; font-weight: 800; color: #ffe27a; }
+  .hidden { display: none !important; }
+  @media (hover:hover) and (pointer:fine) { .touchbtn { opacity: .35; } #breakHint { display:none; } }
+</style>
+  <script src="../shared/analytics.js"></script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<a id="menuLink" class="corner" href="../index.html">← Menu</a>
+<div id="boostBtn" class="touchbtn" aria-label="Turbo">⚡</div>
+<div id="allyBtn"  class="touchbtn" aria-label="Alliance">🤝</div>
+<div id="breakHint" class="corner">🤝 propose / rompt avec le plus proche</div>
+
+<!-- Écran d'accueil -->
+<div id="intro" class="overlay">
+  <div class="panel">
+    <h1>🦠 Voraces <small style="font-size:1rem;opacity:.6">— Le Vivier</small></h1>
+    <h2>Dévore, évolue, survis.</h2>
+    <ul>
+      <li>🎯 <b>But</b> : devenir la créature la plus <b>imposante</b> du vivier sans te faire dévorer.</li>
+      <li>🍓 <b>Gobe les fruits</b> (les rares valent gros) pour grandir.</li>
+      <li>🐍 <b>Dévore</b> une créature nettement plus petite que toi… mais fuis les plus grosses&nbsp;!</li>
+      <li>🐢 Plus tu es <b>imposant</b>, plus tu es <b>lent</b> et lourd à tourner.</li>
+      <li>🤝 <b>Alliances</b> : alliés = on ne se mange pas. Tu peux aussi <b>trahir</b> pour dévorer.</li>
+      <li>🤖 En solo, les rivaux sont des <b>IA</b>. 🌐 <b>Duel live</b> : affronte un autre joueur en temps réel (premier à dévorer l'autre gagne).</li>
+    </ul>
+    <div style="margin-top:1rem;font-size:.9rem;opacity:.85">
+      <b>Commandes</b> — 🖱️ Souris/doigt : diriger · ⚡ Clic/Espace : turbo (coûte de la masse) · 🤝 A / bouton : alliance.
+    </div>
+    <div class="row">
+      <button id="startBtn" class="btn primary">Plonger ▶ <small style="opacity:.7;font-weight:400">solo</small></button>
+      <button id="duelBtn" class="btn ghost">🌐 Duel live</button>
+    </div>
+    <div id="duelStatus" style="margin-top:.7rem;font-size:.92rem;color:#8fe9cd;min-height:1.2em"></div>
+  </div>
+</div>
+
+<!-- Écran de fin -->
+<div id="gameover" class="overlay hidden">
+  <div class="panel">
+    <h1 id="goTitle">Dévoré&nbsp;!</h1>
+    <h2 id="goSub"></h2>
+    <div style="text-align:center;margin:.6rem 0">
+      <div class="stat-big" id="goMass">0</div>
+      <div style="opacity:.7">masse maximale atteinte</div>
+      <div id="goRank" style="margin-top:.5rem;opacity:.85"></div>
+      <div id="goBest" style="margin-top:.3rem;opacity:.7;font-size:.9rem"></div>
+    </div>
+    <div class="row">
+      <button id="replayBtn" class="btn primary">Rejouer ▶</button>
+      <a href="../index.html" class="btn ghost">Menu</a>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ===========================================================================
+   VORACES — Le Vivier.  Jeu d'arcade temps réel, 100 % local & hors-ligne.
+   Une créature façon serpent : gobe des fruits, dévore les plus petits,
+   noue des alliances, fuis les géants. Plus gros = plus lent.
+   Adversaires : IA (multijoueur prévu plus tard).
+   =========================================================================== */
+
+/* ===== CONFIG (toute la balance est ici) =================================== */
+const CFG = {
+  WORLD: { w: 3400, h: 2400 },
+  TARGET_POP: 9,                 // nb de créatures visées (joueur inclus)
+  START_MASS_PLAYER: 12,
+  AI_START_MIN: 8, AI_START_MAX: 55,
+  FRUIT_TARGET: 150,             // densité de fruits maintenue
+  FRUIT_MAX: 420,                // plafond (avec les granulés de mort)
+  APEX_MASS: 1200,              // seuil "apex" (petite victoire, on peut continuer)
+
+  HEAD_R_BASE: 8, R_K: 1.7,      // rayon tête = base + sqrt(masse)*k
+  MASS_PER_SEG: 6, MIN_SEG: 6, MAX_SEG: 60,
+
+  BASE_SPEED: 205, SLOW_MIN: 0.40, SLOW_K: 0.010,   // vitesse décroît avec la masse
+  BASE_TURN: 4.6,  TURN_K: 0.0042,                  // agilité décroît avec la masse
+  BOOST_MULT: 1.85, BOOST_DRAIN: 14, BOOST_MIN: 16, // turbo : coûte de la masse
+
+  EAT_RATIO: 1.12,   // il faut être 12 % plus gros pour dévorer
+  ABSORB: 0.72,      // part de la masse de la victime récupérée (le reste = granulés)
+
+  SENSE: 720, FLEE_DIST: 340, HUNT_DIST: 640,       // perception IA
+  ALLY_RANGE: 520, ALLY_COOLDOWN: 1.2,              // alliances
+};
+
+/* paliers de fruits : [valeur, rayon, couleur, poids d'apparition, lueur] */
+const FRUIT_TIERS = [
+  { v: 1,  r: 5,  c: "#7ee08a", w: 62, glow: 0 },
+  { v: 3,  r: 7,  c: "#5cc8ff", w: 26, glow: 0 },
+  { v: 8,  r: 9,  c: "#c98bff", w: 9,  glow: 6 },
+  { v: 20, r: 12, c: "#ffd24d", w: 3,  glow: 12 },
+];
+
+const NAMES = ["Gloubi","Vorace","Mordax","Dendra","Glouton","Slither","Croquette","Bouffi",
+  "Nessie","Tako","Ondine","Pixel","Wasabi","Goliath","Têtard","Murène","Anguille","Gargouille",
+  "Bibendum","Sushi","Crampon","Zigzag","Boa","Python","Couleuvre","Lombric","Larva","Voracia"];
+const PALETTE = ["#ff8fb1","#ffd166","#9b8cff","#5cd1ff","#ff9f5c","#c0ff8c","#ff7b7b",
+  "#6be3c0","#e08cff","#8cc2ff","#ffb86b","#b0f06a"];
+const PLAYER_COLOR = "#2fd6a6";
+
+/* ===== UTILITAIRES ========================================================= */
+const TAU = Math.PI * 2;
+const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
+const lerp = (a, b, t) => a + (b - a) * t;
+const rand = (a, b) => a + Math.random() * (b - a);
+const randInt = (a, b) => Math.floor(rand(a, b + 1));
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+const dist2 = (ax, ay, bx, by) => { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; };
+const angleDiff = (a, b) => { let d = (b - a) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; };
+function turnToward(cur, target, maxStep) { const d = angleDiff(cur, target); return cur + clamp(d, -maxStep, maxStep); }
+
+/* ===== ÉTAT ================================================================ */
+const cv = document.getElementById("game");
+const ctx = cv.getContext("2d");
+let CSSW = 0, CSSH = 0, DPR = 1;
+let creatures = [], fruits = [], toasts = [];
+const cam = { x: CFG.WORLD.w / 2, y: CFG.WORLD.h / 2, zoom: 1 };
+const pointer = { x: 0, y: 0, has: false };
+const input = { boost: false };
+let running = false, gameOver = false, apexShown = false;
+let lastT = 0, nextId = 1;
+/* ── DUEL LIVE (multijoueur temps réel) : NET=null en solo, objet en duel ── */
+const VOR_API = "https://awema-games-production.up.railway.app";
+const myName = () => { try { return localStorage.getItem("awema_player") || "Toi"; } catch (e) { return "Toi"; } };
+let NET = null, oppBuf = [], netSendT = 0, lastOppT = 0, loopGen = 0;
+let netPendingEat = new Set();   // fruits réseau signalés au serveur, en attente du verdict (anti re-spam + anti-désync)
+const OPP_DELAY = 100;   // ms : on rend l'adversaire ~100 ms dans le passé (interpolation lisse)
+let bestMass = (() => { try { return +localStorage.getItem("voraces_best") || 0; } catch (e) { return 0; } })();
+
+const KEY_BEST = "voraces_best";
+function saveBest(m) { if (m > bestMass) { bestMass = Math.round(m); try { localStorage.setItem(KEY_BEST, bestMass); } catch (e) {} } }
+
+/* ===== DIMENSIONS DÉRIVÉES (selon la masse) ================================ */
+const headR  = c => CFG.HEAD_R_BASE + Math.sqrt(c.mass) * CFG.R_K;
+const bodyR  = c => headR(c) * 0.82;
+const linkD  = c => bodyR(c) * 0.86;
+const segGoal = c => clamp(CFG.MIN_SEG + Math.floor(c.mass / CFG.MASS_PER_SEG), CFG.MIN_SEG, CFG.MAX_SEG);
+const speedOf = c => CFG.BASE_SPEED * (CFG.SLOW_MIN + (1 - CFG.SLOW_MIN) / (1 + c.mass * CFG.SLOW_K)) * (c.boost ? CFG.BOOST_MULT : 1);
+const turnOf  = c => CFG.BASE_TURN / (1 + c.mass * CFG.TURN_K);
+
+/* ===== CRÉATURES =========================================================== */
+function makeCreature(opts) {
+  const x = opts.x, y = opts.y;
+  const c = {
+    id: nextId++, name: opts.name, isPlayer: !!opts.isPlayer, color: opts.color,
+    mass: opts.mass, maxMass: opts.mass, alive: true, boost: false,
+    heading: rand(0, TAU), segments: [], allies: new Set(),
+    tx: x, ty: y, retarget: 0, wander: rand(0, TAU), allyCd: 0, pelletAcc: 0,
+  };
+  const n = segGoal(c);
+  for (let i = 0; i < n; i++) c.segments.push({ x: x - Math.cos(c.heading) * i * linkD(c), y: y - Math.sin(c.heading) * i * linkD(c) });
+  return c;
+}
+const head = c => c.segments[0];
+
+function spawnPoint(margin) {
+  margin = margin || 120;
+  return { x: rand(margin, CFG.WORLD.w - margin), y: rand(margin, CFG.WORLD.h - margin) };
+}
+function spawnAI() {
+  const p = spawnPoint();
+  return makeCreature({ x: p.x, y: p.y, name: pick(NAMES), color: pick(PALETTE), mass: rand(CFG.AI_START_MIN, CFG.AI_START_MAX) });
+}
+
+/* ===== FRUITS ============================================================== */
+function pickTier() {
+  let total = 0; for (const t of FRUIT_TIERS) total += t.w;
+  let r = Math.random() * total;
+  for (const t of FRUIT_TIERS) { if ((r -= t.w) <= 0) return t; }
+  return FRUIT_TIERS[0];
+}
+function spawnFruit(at) {
+  if (fruits.length >= CFG.FRUIT_MAX) return;
+  const t = at && at.tier ? at.tier : pickTier();
+  const p = at || spawnPoint(40);
+  fruits.push({ x: p.x, y: p.y, r: t.r, v: t.v, c: t.c, glow: t.glow });
+}
+function dropPellets(c) {
+  // À la mort : la créature se disperse en granulés le long de son corps.
+  const drop = Math.max(2, Math.round(c.mass * (1 - CFG.ABSORB) / 2));
+  for (let i = 0; i < drop && i < c.segments.length; i++) {
+    const s = c.segments[Math.floor(i / drop * c.segments.length)] || head(c);
+    if (fruits.length >= CFG.FRUIT_MAX) break;
+    fruits.push({ x: s.x + rand(-8, 8), y: s.y + rand(-8, 8), r: 7, v: 3, c: c.color, glow: 3 });
+  }
+}
+
+/* ===== ALLIANCES =========================================================== */
+const areAllies = (a, b) => a.allies.has(b.id);
+function ally(a, b) { a.allies.add(b.id); b.allies.add(a.id); }
+function unally(a, b) { a.allies.delete(b.id); b.allies.delete(a.id); }
+function dropAllRefs(c) { for (const o of creatures) o.allies.delete(c.id); }
+
+function nearestOther(c, maxD, filter) {
+  let best = null, bd = maxD * maxD;
+  const h = head(c);
+  for (const o of creatures) {
+    if (o === c || !o.alive) continue;
+    if (filter && !filter(o)) continue;
+    const d = dist2(h.x, h.y, head(o).x, head(o).y);
+    if (d < bd) { bd = d; best = o; }
+  }
+  return best;
+}
+
+function toast(text) { toasts.push({ text, t: 0 }); if (toasts.length > 4) toasts.shift(); }
+
+function playerAllyAction() {
+  const me = creatures[0];
+  if (NET) { toast("Pas d'alliance en duel — c'est chacun pour soi !"); return; }
+  if (!me || !me.alive || me.allyCd > 0) return;
+  me.allyCd = CFG.ALLY_COOLDOWN;
+  const ally0 = nearestOther(me, CFG.ALLY_RANGE, o => true);
+  if (!ally0) { toast("Personne à portée pour une alliance"); return; }
+  if (areAllies(me, ally0)) { unally(me, ally0); toast("🔪 Tu romps l'alliance avec " + ally0.name); return; }
+  // L'IA décide : protégée par un plus gros → accepte volontiers.
+  let p = ally0.mass > me.mass ? 0.85 : 0.45;
+  if (Math.random() < p) { ally(me, ally0); toast("🤝 " + ally0.name + " accepte l'alliance"); }
+  else toast("✋ " + ally0.name + " refuse l'alliance");
+}
+
+/* ===== IA ================================================================== */
+function aiThink(c, dt) {
+  c.retarget -= dt;
+  if (c.retarget > 0) return;
+  c.retarget = rand(0.18, 0.34);
+  const h = head(c);
+  c.boost = false;
+
+  // menace la plus proche (peut me manger) / proie la plus proche (que je peux manger)
+  let threat = null, td = CFG.SENSE * CFG.SENSE;
+  let prey = null, pd = CFG.HUNT_DIST * CFG.HUNT_DIST;
+  for (const o of creatures) {
+    if (o === c || !o.alive || areAllies(c, o)) continue;
+    const d = dist2(h.x, h.y, head(o).x, head(o).y);
+    if (o.mass >= c.mass * CFG.EAT_RATIO && d < td) { td = d; threat = o; }
+    if (c.mass >= o.mass * CFG.EAT_RATIO && d < pd) { pd = d; prey = o; }
+  }
+
+  if (threat && td < CFG.FLEE_DIST * CFG.FLEE_DIST) {           // FUIR
+    const th = head(threat);
+    c.tx = h.x + (h.x - th.x); c.ty = h.y + (h.y - th.y);
+    if (c.mass > CFG.BOOST_MIN && td < (CFG.FLEE_DIST * 0.6) ** 2) c.boost = true;
+  } else if (prey) {                                            // CHASSER
+    const ph = head(prey);
+    c.tx = ph.x + Math.cos(prey.heading) * 40;
+    c.ty = ph.y + Math.sin(prey.heading) * 40;
+  } else {                                                      // BUTINER un fruit
+    let bf = null, bv = -1;
+    for (const f of fruits) {
+      const d = dist2(h.x, h.y, f.x, f.y);
+      if (d > CFG.SENSE * CFG.SENSE) continue;
+      const score = f.v / (Math.sqrt(d) + 40);
+      if (score > bv) { bv = score; bf = f; }
+    }
+    if (bf) { c.tx = bf.x; c.ty = bf.y; }
+    else { c.wander += rand(-0.6, 0.6); c.tx = h.x + Math.cos(c.wander) * 320; c.ty = h.y + Math.sin(c.wander) * 320; }
+  }
+
+  // éviter les murs : ramener la cible vers l'intérieur
+  const m = 160;
+  if (h.x < m || h.x > CFG.WORLD.w - m || h.y < m || h.y > CFG.WORLD.h - m) {
+    c.tx = lerp(c.tx, CFG.WORLD.w / 2, 0.5); c.ty = lerp(c.ty, CFG.WORLD.h / 2, 0.5);
+  }
+
+  // proposer une alliance, parfois, à un voisin de taille comparable
+  if (c.allyCd <= 0 && Math.random() < 0.04) {
+    const cand = nearestOther(c, CFG.ALLY_RANGE, o => !areAllies(c, o) && o.mass > c.mass * 0.6 && o.mass < c.mass * 1.7);
+    if (cand) { ally(c, cand); c.allyCd = 6; cand.allyCd = Math.max(cand.allyCd, 2);
+      if (cand.isPlayer || c.isPlayer) toast("🤝 " + c.name + " s'allie à " + cand.name); }
+  }
+}
+
+/* ===== MOUVEMENT =========================================================== */
+function moveCreature(c, dt) {
+  const h = head(c);
+  let desired;
+  if (c.isPlayer) {
+    if (pointer.has) desired = Math.atan2(pointer.y - CSSH / 2, pointer.x - CSSW / 2);
+    else desired = c.heading;
+  } else {
+    desired = Math.atan2(c.ty - h.y, c.tx - h.x);
+  }
+  c.heading = turnToward(c.heading, desired, turnOf(c) * dt);
+
+  // turbo : draine la masse et sème un granulé
+  if (c.boost && c.mass > CFG.BOOST_MIN) {
+    c.mass -= CFG.BOOST_DRAIN * dt;
+    c.pelletAcc += CFG.BOOST_DRAIN * dt;
+    if (c.pelletAcc > 4) { c.pelletAcc = 0; const tail = c.segments[c.segments.length - 1];
+      if (!NET && fruits.length < CFG.FRUIT_MAX) fruits.push({ x: tail.x, y: tail.y, r: 5, v: 2, c: c.color, glow: 2 }); }   // pas de granule local en duel (le serveur possède les fruits)
+  } else c.boost = false;
+
+  const v = speedOf(c) * dt;
+  h.x = clamp(h.x + Math.cos(c.heading) * v, headR(c), CFG.WORLD.w - headR(c));
+  h.y = clamp(h.y + Math.sin(c.heading) * v, headR(c), CFG.WORLD.h - headR(c));
+
+  // ajuster la longueur du corps à la masse
+  const goal = segGoal(c);
+  while (c.segments.length < goal) { const t = c.segments[c.segments.length - 1]; c.segments.push({ x: t.x, y: t.y }); }
+  while (c.segments.length > goal) c.segments.pop();
+
+  // chaîne : chaque segment suit le précédent à distance fixe
+  const L = linkD(c);
+  for (let i = 1; i < c.segments.length; i++) {
+    const p = c.segments[i - 1], s = c.segments[i];
+    const dx = p.x - s.x, dy = p.y - s.y, d = Math.hypot(dx, dy) || 1;
+    s.x = p.x - dx / d * L; s.y = p.y - dy / d * L;
+  }
+  if (c.mass > c.maxMass) c.maxMass = c.mass;
+}
+
+/* ===== INGESTION =========================================================== */
+function eatFruits(c) {
+  const h = head(c), reach = headR(c);
+  for (let i = fruits.length - 1; i >= 0; i--) {
+    const f = fruits[i];
+    const rr = reach + f.r;
+    if (dist2(h.x, h.y, f.x, f.y) < rr * rr) { c.mass += f.v; fruits.splice(i, 1); }
+  }
+}
+
+function eat(winner, loser) {
+  if (!loser.alive) return;
+  winner.mass += loser.mass * CFG.ABSORB;
+  loser.alive = false;
+  dropPellets(loser);
+  dropAllRefs(loser);
+  if (loser.isPlayer) { endGame(false); }
+  else toast("🍴 " + winner.name + " a dévoré " + loser.name);
+}
+
+function creatureCollisions() {
+  for (let i = 0; i < creatures.length; i++) {
+    const a = creatures[i]; if (!a.alive) continue;
+    const ha = head(a), ra = headR(a);
+    for (let j = 0; j < creatures.length; j++) {
+      if (i === j) continue;
+      const b = creatures[j];
+      if (!b.alive || !a.alive || areAllies(a, b)) continue;
+      // cull : si les têtes sont trop loin pour que le corps de b atteigne la tête de a
+      const reach = ra + headR(b) + b.segments.length * linkD(b);
+      if (dist2(ha.x, ha.y, head(b).x, head(b).y) > reach * reach) continue;
+      // la tête de a touche-t-elle un segment de b ?
+      const rb = bodyR(b), thr = (ra * 0.7 + rb * 0.8);
+      let hit = false;
+      for (let k = 0; k < b.segments.length; k++) { const s = b.segments[k]; if (dist2(ha.x, ha.y, s.x, s.y) < thr * thr) { hit = true; break; } }
+      if (!hit) continue;
+      // a est l'agresseur (sa tête mord) : s'il est plus gros il dévore, sinon il se fait dévorer
+      if (a.mass >= b.mass * CFG.EAT_RATIO) eat(a, b);
+      else if (b.mass >= a.mass * CFG.EAT_RATIO) eat(b, a);
+      // tailles proches → rien (face-à-face sans vainqueur)
+    }
+  }
+}
+
+/* ===== BOUCLE DE SIMULATION ================================================ */
+function update(dt) {
+  const me = creatures[0];
+  if (me && me.alive) { me.boost = input.boost; me.allyCd = Math.max(0, me.allyCd - dt); }
+  if (NET) { netUpdate(dt); return; }   // ── DUEL : seul "moi" est simulé localement, l'adversaire est interpolé ──
+
+  for (const c of creatures) { if (!c.alive) continue; if (!c.isPlayer) { c.allyCd = Math.max(0, c.allyCd - dt); aiThink(c, dt); } }
+  for (const c of creatures) { if (c.alive) moveCreature(c, dt); }
+  for (const c of creatures) { if (c.alive) eatFruits(c); }
+  creatureCollisions();
+
+  // retirer les IA mortes ; le joueur reste en index 0 (pour l'écran de fin)
+  creatures = creatures.filter(c => c.isPlayer || c.alive);
+
+  // repeupler le vivier
+  let aliveAI = 0; for (const c of creatures) if (!c.isPlayer && c.alive) aliveAI++;
+  if (me && me.alive && aliveAI < CFG.TARGET_POP - 1) creatures.push(spawnAI());
+
+  // maintenir la densité de fruits
+  let guard = 0;
+  while (fruits.length < CFG.FRUIT_TARGET && guard++ < 30) spawnFruit();
+
+  // apex (petite victoire, on continue)
+  if (me && me.alive && !apexShown && me.mass >= CFG.APEX_MASS) { apexShown = true; endGame(true); }
+
+  // caméra : suit la tête, dézoome avec la taille
+  if (me && me.alive) {
+    const h = head(me);
+    cam.x = lerp(cam.x, h.x, 0.12); cam.y = lerp(cam.y, h.y, 0.12);
+    const tz = clamp(1.25 / (1 + me.mass * 0.0016), 0.45, 1.25);
+    cam.zoom = lerp(cam.zoom, tz, 0.05);
+  }
+
+  for (const t of toasts) t.t += dt;
+  toasts = toasts.filter(t => t.t < 2.8);
+}
+
+/* ===== RENDU =============================================================== */
+function worldToScreen(x, y) { return { x: (x - cam.x) * cam.zoom + CSSW / 2, y: (y - cam.y) * cam.zoom + CSSH / 2 }; }
+
+function drawBackground() {
+  ctx.fillStyle = "#04181c"; ctx.fillRect(0, 0, CSSW, CSSH);
+  // grille en espace monde
+  const step = 90, z = cam.zoom;
+  const left = cam.x - CSSW / 2 / z, top = cam.y - CSSH / 2 / z;
+  const right = cam.x + CSSW / 2 / z, bottom = cam.y + CSSH / 2 / z;
+  ctx.strokeStyle = "#0e2e33"; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let gx = Math.floor(left / step) * step; gx < right; gx += step) { const s = worldToScreen(gx, top); ctx.moveTo(s.x, 0); ctx.lineTo(s.x, CSSH); }
+  for (let gy = Math.floor(top / step) * step; gy < bottom; gy += step) { const s = worldToScreen(left, gy); ctx.moveTo(0, s.y); ctx.lineTo(CSSW, s.y); }
+  ctx.stroke();
+  // bordure du monde
+  const a = worldToScreen(0, 0), b = worldToScreen(CFG.WORLD.w, CFG.WORLD.h);
+  ctx.strokeStyle = "#2fd6a677"; ctx.lineWidth = 4;
+  ctx.strokeRect(a.x, a.y, b.x - a.x, b.y - a.y);
+}
+
+function drawFruits() {
+  for (const f of fruits) {
+    const s = worldToScreen(f.x, f.y), r = f.r * cam.zoom;
+    if (s.x < -20 || s.x > CSSW + 20 || s.y < -20 || s.y > CSSH + 20) continue;
+    if (f.glow) { ctx.globalAlpha = 0.5; ctx.fillStyle = f.c; ctx.beginPath(); ctx.arc(s.x, s.y, r + f.glow * cam.zoom, 0, TAU); ctx.fill(); ctx.globalAlpha = 1; }
+    ctx.fillStyle = f.c; ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, TAU); ctx.fill();
+  }
+}
+
+function drawCreature(c) {
+  const me = creatures[0];
+  const isAlly = me && !c.isPlayer && me.allies.has(c.id);
+  const hr = headR(c) * cam.zoom, br = bodyR(c) * cam.zoom;
+  // corps (queue → tête)
+  for (let i = c.segments.length - 1; i >= 1; i--) {
+    const s = worldToScreen(c.segments[i].x, c.segments[i].y);
+    if (s.x < -40 || s.x > CSSW + 40 || s.y < -40 || s.y > CSSH + 40) continue;
+    ctx.globalAlpha = lerp(0.55, 1, 1 - i / c.segments.length);
+    ctx.fillStyle = c.color;
+    ctx.beginPath(); ctx.arc(s.x, s.y, br, 0, TAU); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  // tête
+  const h = head(c), hs = worldToScreen(h.x, h.y);
+  if (c.isPlayer || isAlly) { ctx.lineWidth = 3; ctx.strokeStyle = c.isPlayer ? "#fff" : "#ffe27a";
+    ctx.beginPath(); ctx.arc(hs.x, hs.y, hr + 3, 0, TAU); ctx.stroke(); }
+  ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(hs.x, hs.y, hr, 0, TAU); ctx.fill();
+  // yeux
+  const ex = Math.cos(c.heading), ey = Math.sin(c.heading), px = -ey, py = ex;
+  for (const sgn of [-1, 1]) {
+    const eyex = hs.x + ex * hr * 0.35 + px * sgn * hr * 0.45;
+    const eyey = hs.y + ey * hr * 0.35 + py * sgn * hr * 0.45;
+    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(eyex, eyey, hr * 0.28, 0, TAU); ctx.fill();
+    ctx.fillStyle = "#10202a"; ctx.beginPath(); ctx.arc(eyex + ex * hr * 0.12, eyey + ey * hr * 0.12, hr * 0.14, 0, TAU); ctx.fill();
+  }
+  // nom + masse pour les grosses créatures
+  if (hr > 11 || c.isPlayer) {
+    ctx.fillStyle = "#eaf6f2"; ctx.font = "600 12px system-ui, sans-serif"; ctx.textAlign = "center";
+    ctx.fillText((isAlly ? "🤝 " : "") + c.name + " · " + Math.round(c.mass), hs.x, hs.y - hr - 7);
+    ctx.textAlign = "left";
+  }
+}
+
+function drawHUD() {
+  const me = creatures[0];
+  // score haut-gauche
+  ctx.fillStyle = "#0a3438cc"; roundRect(56, 8, 196, 58, 10); ctx.fill();
+  ctx.fillStyle = "#eaf6f2"; ctx.font = "700 22px system-ui, sans-serif"; ctx.textAlign = "left";
+  ctx.fillText("🦠 " + (me && me.alive ? Math.round(me.mass) : 0), 70, 38);
+  ctx.font = "12px system-ui, sans-serif"; ctx.fillStyle = "#8fe9cd";
+  ctx.fillText("Record : " + bestMass, 70, 56);
+  // barre d'objectif (apex)
+  if (me) {
+    const p = clamp(me.maxMass / CFG.APEX_MASS, 0, 1);
+    ctx.fillStyle = "#0a3438cc"; roundRect(56, 70, 196, 14, 7); ctx.fill();
+    ctx.fillStyle = "#ffd24d"; roundRect(58, 72, 192 * p, 10, 5); ctx.fill();
+    ctx.fillStyle = "#bfeede"; ctx.font = "10px system-ui, sans-serif"; ctx.fillText("Objectif apex : " + CFG.APEX_MASS, 60, 96);
+  }
+
+  // classement haut-droite
+  const board = creatures.filter(c => c.alive).slice().sort((a, b) => b.mass - a.mass).slice(0, 6);
+  const bx = CSSW - 184, by = 8;
+  ctx.fillStyle = "#0a3438cc"; roundRect(bx, by, 176, 22 + board.length * 18, 10); ctx.fill();
+  ctx.fillStyle = "#8fe9cd"; ctx.font = "700 12px system-ui, sans-serif"; ctx.fillText("Classement", bx + 12, by + 17);
+  ctx.font = "12px system-ui, sans-serif";
+  board.forEach((c, i) => {
+    const y = by + 34 + i * 18;
+    const isAlly = me && c !== me && me.allies.has(c.id);
+    ctx.fillStyle = c === me ? "#ffe27a" : "#eaf6f2";
+    const tag = c === me ? "▶ " : (isAlly ? "🤝 " : "");
+    let nm = tag + c.name; if (nm.length > 14) nm = nm.slice(0, 14) + "…";
+    ctx.fillText((i + 1) + ". " + nm, bx + 12, y);
+    ctx.textAlign = "right"; ctx.fillText("" + Math.round(c.mass), bx + 166, y); ctx.textAlign = "left";
+  });
+
+  drawMinimap();
+
+  // toasts bas-centre
+  ctx.textAlign = "center"; ctx.font = "600 13px system-ui, sans-serif";
+  toasts.forEach((t, i) => {
+    const a = t.t < 0.3 ? t.t / 0.3 : (t.t > 2.3 ? clamp((2.8 - t.t) / 0.5, 0, 1) : 1);
+    ctx.globalAlpha = a; ctx.fillStyle = "#0a3438dd";
+    const w = ctx.measureText(t.text).width + 24, y = CSSH - 96 - (toasts.length - 1 - i) * 28;
+    roundRect(CSSW / 2 - w / 2, y - 16, w, 24, 8); ctx.fill();
+    ctx.fillStyle = "#eaf6f2"; ctx.fillText(t.text, CSSW / 2, y);
+  });
+  ctx.globalAlpha = 1; ctx.textAlign = "left";
+}
+
+function drawMinimap() {
+  const mw = 132, mh = 132 * (CFG.WORLD.h / CFG.WORLD.w), mx = CSSW - mw - 12, my = CSSH - mh - 12;
+  ctx.fillStyle = "#0a3438cc"; roundRect(mx, my, mw, mh, 8); ctx.fill();
+  ctx.strokeStyle = "#2fd6a655"; ctx.lineWidth = 1; ctx.strokeRect(mx, my, mw, mh);
+  const me = creatures[0];
+  for (const c of creatures) {
+    if (!c.alive) continue;
+    const h = head(c), px = mx + h.x / CFG.WORLD.w * mw, py = my + h.y / CFG.WORLD.h * mh;
+    ctx.fillStyle = c.isPlayer ? "#fff" : (me && me.allies.has(c.id) ? "#ffe27a" : c.color);
+    ctx.beginPath(); ctx.arc(px, py, c.isPlayer ? 3.2 : clamp(1 + c.mass / 200, 1.2, 4), 0, TAU); ctx.fill();
+  }
+}
+
+function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+
+function render() {
+  drawBackground();
+  drawFruits();
+  // dessiner les créatures par taille croissante (les grosses au-dessus)
+  const order = creatures.filter(c => c.alive).slice().sort((a, b) => a.mass - b.mass);
+  for (const c of order) drawCreature(c);
+  drawHUD();
+}
+
+/* ===== BOUCLE PRINCIPALE =================================================== */
+function frame(t) {
+  if (CSSW !== window.innerWidth || CSSH !== window.innerHeight) resize();   // auto-guérison : page chargée dans un panneau replié, resize manqué…
+  let dt = (t - lastT) / 1000; lastT = t;
+  if (!(dt > 0)) dt = 0.016;
+  dt = Math.min(dt, 0.033);
+  if (!gameOver) update(dt);
+  else { for (const t2 of toasts) t2.t += dt; toasts = toasts.filter(x => x.t < 2.8); update_camOnly(dt); }
+  render();
+}
+function startLoop() {   // jeton de boucle : une SEULE boucle rAF vivante (pas de double simulation si on relance une partie / passe en duel)
+  const myGen = ++loopGen; lastT = performance.now();
+  (function step(t) { if (myGen !== loopGen || !running) return; frame(t); requestAnimationFrame(step); })(performance.now());
+}
+function update_camOnly(dt) { // après mort : le vivier continue de bouger en fond
+  for (const c of creatures) { if (!c.alive) continue; if (!c.isPlayer) aiThink(c, dt); }
+  for (const c of creatures) if (c.alive) moveCreature(c, dt);
+  for (const c of creatures) if (c.alive) eatFruits(c);
+  creatureCollisions();
+  creatures = creatures.filter(c => c.isPlayer || c.alive);
+  let n = 0; for (const c of creatures) if (!c.isPlayer && c.alive) n++;
+  if (n < CFG.TARGET_POP - 1) creatures.push(spawnAI());
+  let g = 0; while (fruits.length < CFG.FRUIT_TARGET && g++ < 30) spawnFruit();
+}
+
+/* ===== CYCLE DE PARTIE ===================================================== */
+function startGame(mode) {
+  mode = (mode === "duel") ? "duel" : "solo";
+  creatures = []; fruits = []; toasts = []; gameOver = false; apexShown = false; nextId = 1; oppBuf = []; netPendingEat = new Set();
+  if (mode === "duel" && NET && NET.spawn) {
+    creatures.push(makeCreature({ x: NET.spawn.x, y: NET.spawn.y, name: "Toi", color: PLAYER_COLOR, mass: CFG.START_MASS_PLAYER, isPlayer: true }));
+    creatures.push(makeCreature({ x: NET.oppSpawn.x, y: NET.oppSpawn.y, name: NET.oppName || "Adversaire", color: "#ff7b7b", mass: CFG.START_MASS_PLAYER }));
+    for (const f of NET.fruits) fruits.push(netMakeFruit(f));
+    NET.lastBoost = false; netSendT = 0; lastOppT = performance.now();
+    cam.x = NET.spawn.x; cam.y = NET.spawn.y; cam.zoom = 1.25;
+  } else {
+    const p = { x: CFG.WORLD.w / 2, y: CFG.WORLD.h / 2 };
+    creatures.push(makeCreature({ x: p.x, y: p.y, name: "Toi", color: PLAYER_COLOR, mass: CFG.START_MASS_PLAYER, isPlayer: true }));
+    for (let i = 0; i < CFG.TARGET_POP - 1; i++) creatures.push(spawnAI());
+    for (let i = 0; i < CFG.FRUIT_TARGET; i++) spawnFruit();
+    cam.x = p.x; cam.y = p.y; cam.zoom = 1.25;
+  }
+  input.boost = false; pointer.has = false;
+  document.getElementById("intro").classList.add("hidden");
+  document.getElementById("gameover").classList.add("hidden");
+  running = true; startLoop();
+}
+
+function endGame(won) {
+  const me = creatures[0];
+  saveBest(me ? me.maxMass : 0);
+  if (won) {
+    // apex atteint : on félicite mais on laisse continuer
+    toast("👑 APEX ! Tu domines le vivier (continue ou rejoue)");
+    return;
+  }
+  gameOver = true;
+  const alive = creatures.filter(c => c.alive).length;
+  document.getElementById("goTitle").textContent = "Dévoré !";
+  document.getElementById("goSub").textContent = "Ta créature a fini dans l'estomac d'un rival.";
+  document.getElementById("goMass").textContent = me ? Math.round(me.maxMass) : 0;
+  document.getElementById("goRank").textContent = "Créatures encore en vie : " + alive;
+  document.getElementById("goBest").textContent = "🏆 Ton record : " + bestMass;
+  document.getElementById("gameover").classList.remove("hidden");
+}
+
+/* ===== ENTRÉES ============================================================= */
+function setPointerFromEvent(e) { const r = cv.getBoundingClientRect(); pointer.x = e.clientX - r.left; pointer.y = e.clientY - r.top; pointer.has = true; }
+cv.addEventListener("pointermove", e => { setPointerFromEvent(e); });
+cv.addEventListener("pointerdown", e => { setPointerFromEvent(e); if (e.pointerType !== "touch") input.boost = true; });
+window.addEventListener("pointerup", () => { input.boost = false; });
+
+window.addEventListener("keydown", e => {
+  if (e.code === "Space") { input.boost = true; e.preventDefault(); }
+  else if (e.key === "a" || e.key === "A") { playerAllyAction(); }
+  else if (e.key === "Enter") { if (!running || gameOver) startGame(); }
+});
+window.addEventListener("keyup", e => { if (e.code === "Space") input.boost = false; });
+
+function bindHold(el, on, off) {
+  el.addEventListener("pointerdown", e => { e.preventDefault(); on(); });
+  el.addEventListener("pointerup", e => { e.preventDefault(); off(); });
+  el.addEventListener("pointerleave", () => off());
+  el.addEventListener("pointercancel", () => off());
+}
+bindHold(document.getElementById("boostBtn"), () => input.boost = true, () => input.boost = false);
+document.getElementById("allyBtn").addEventListener("pointerdown", e => { e.preventDefault(); playerAllyAction(); });
+
+document.getElementById("startBtn").addEventListener("click", startGame);
+document.getElementById("replayBtn").addEventListener("click", startGame);
+
+document.addEventListener("visibilitychange", () => { if (document.hidden) input.boost = false; });
+
+/* ===== DUEL LIVE (multijoueur temps réel via /ws/voraces) ================== */
+function setDuelStatus(t) { const el = document.getElementById("duelStatus"); if (el) el.textContent = t || ""; }
+function resetDuelBtn() { const b = document.getElementById("duelBtn"); if (b) b.textContent = "🌐 Duel live"; }
+function netSend(obj) { if (NET && NET.ws && NET.ws.readyState === 1) { try { NET.ws.send(JSON.stringify(obj)); } catch (e) { } } }
+function netMakeFruit(f) { const t = FRUIT_TIERS[f.t] || FRUIT_TIERS[0]; return { i: f.i, x: f.x, y: f.y, r: t.r, v: t.v, c: t.c, glow: t.glow }; }
+
+function netUpdate(dt) {
+  const me = creatures[0];
+  if (me && me.alive) {
+    moveCreature(me, dt);
+    netEatFruits(me);
+    if (me.boost !== NET.lastBoost) { NET.lastBoost = me.boost; netSend({ t: "boost", on: me.boost ? 1 : 0 }); }
+  }
+  netInterpOpp();
+  netSendT -= dt;
+  if (netSendT <= 0 && me && me.alive) { netSendT = 0.066; netSendSnapshot(me); }   // ~15 Hz
+  if (me && me.alive) { const h = head(me); cam.x = lerp(cam.x, h.x, 0.12); cam.y = lerp(cam.y, h.y, 0.12); const tz = clamp(1.25 / (1 + me.mass * 0.0016), 0.45, 1.25); cam.zoom = lerp(cam.zoom, tz, 0.05); }
+  for (const t of toasts) t.t += dt; toasts = toasts.filter(t => t.t < 2.8);
+}
+function netEatFruits(me) {
+  const h = head(me), reach = headR(me), ids = [];
+  for (const f of fruits) { if (f.i == null || netPendingEat.has(f.i)) continue; const rr = reach + f.r;
+    if (dist2(h.x, h.y, f.x, f.y) < rr * rr) { ids.push(f.i); netPendingEat.add(f.i); } }   // on SIGNALE seulement : ni retrait ni crédit local → zéro désync
+  if (ids.length) netSend({ t: "ef", ids });   // le serveur valide, supprime ('fr' del) et renvoie la masse autoritative ('fr' m)
+}
+function netSendSnapshot(me) {   // le serveur reconstruit le corps (trail) depuis la tête → on n'envoie PAS le corps (anti-triche + bande passante)
+  netSend({ t: "s", x: Math.round(head(me).x), y: Math.round(head(me).y), h: +me.heading.toFixed(3), m: Math.round(me.mass) });
+}
+function lerpSnap(a, b, f) {
+  const n = Math.min(a.seg.length, b.seg.length), seg = [];
+  for (let i = 0; i < n; i++) seg.push({ x: lerp(a.seg[i].x, b.seg[i].x, f), y: lerp(a.seg[i].y, b.seg[i].y, f) });
+  for (let i = n; i < b.seg.length; i++) seg.push({ x: b.seg[i].x, y: b.seg[i].y });
+  return { x: lerp(a.x, b.x, f), y: lerp(a.y, b.y, f), m: lerp(a.m, b.m, f), h: a.h + angleDiff(a.h, b.h) * f, seg };
+}
+function netInterpOpp() {
+  const opp = creatures[1]; if (!opp || !oppBuf.length) return;
+  const rt = performance.now() - OPP_DELAY;
+  let a = null, b = null;
+  for (let i = 0; i < oppBuf.length; i++) { if (oppBuf[i].t <= rt) a = oppBuf[i]; else { b = oppBuf[i]; break; } }
+  const s = (a && b) ? lerpSnap(a, b, clamp((rt - a.t) / (b.t - a.t || 1), 0, 1)) : (b || a || oppBuf[oppBuf.length - 1]);
+  if (!s) return;
+  opp.mass = s.m; opp.heading = s.h;
+  opp.segments = (s.seg && s.seg.length) ? s.seg.map(p => ({ x: p.x, y: p.y })) : [{ x: s.x, y: s.y }];
+  if (opp.mass > opp.maxMass) opp.maxMass = opp.mass;
+  while (oppBuf.length > 2 && oppBuf[1].t < rt) oppBuf.shift();
+}
+function connectDuel() {
+  let ws;
+  try { ws = new WebSocket(VOR_API.replace("https://", "wss://").replace("http://", "ws://") + "/ws/voraces"); }
+  catch (e) { duelFallback(); return; }
+  NET = { ws, you: 0, oppName: "", spawn: null, oppSpawn: null, fruits: [], lastBoost: false, started: false };
+  setDuelStatus("🔌 Connexion…");
+  ws.onopen = () => { setDuelStatus("🔎 Recherche d'un adversaire…"); netSend({ t: "join", n: myName() }); };
+  ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } onDuelMsg(m); };
+  ws.onclose = () => onDuelClose();
+  ws.onerror = () => { try { ws.close(); } catch (e) { } };
+}
+function onDuelMsg(m) {
+  if (!NET) return;
+  if (m.t === "waiting") setDuelStatus("🔎 En attente d'un adversaire… (garde l'onglet ouvert)");
+  else if (m.t === "full") setDuelStatus("Trop de duels en cours — réessaie dans un instant.");
+  else if (m.t === "start") {
+    NET.you = m.you; NET.oppName = m.opp || "Adversaire"; NET.spawn = m.spawn; NET.oppSpawn = m.oppSpawn; NET.fruits = m.fruits || []; NET.started = true;
+    setDuelStatus(""); resetDuelBtn(); startGame("duel"); toast("⚔️ Duel ! Toi vs " + NET.oppName);
+  }
+  else if (m.t === "o") {
+    const seg = []; if (Array.isArray(m.seg)) for (let k = 0; k + 1 < m.seg.length; k += 2) seg.push({ x: m.seg[k], y: m.seg[k + 1] });
+    oppBuf.push({ t: performance.now(), x: m.x, y: m.y, h: m.h, m: m.m, seg }); if (oppBuf.length > 10) oppBuf.shift(); lastOppT = performance.now();
+  }
+  else if (m.t === "fr") netApplyFruit(m);
+  else if (m.t === "kill") netEndDuel(m.who === NET.you ? "lose" : "win");
+  else if (m.t === "end") netEndDuel("win", m.reason);   // l'adversaire est parti → forfait gagnant
+}
+function netApplyFruit(m) {
+  if (m.del && m.del.length) { const set = new Set(m.del); fruits = fruits.filter(f => f.i == null || !set.has(f.i)); for (const id of m.del) netPendingEat.delete(id); }
+  if (m.add && m.add.length) for (const f of m.add) fruits.push(netMakeFruit(f));
+  if (typeof m.m === "number") { const me = creatures[0]; if (me) { me.mass = m.m; if (me.mass > me.maxMass) me.maxMass = me.mass; } }   // masse autoritative serveur
+}
+function onDuelClose() {
+  if (NET && NET.started && !gameOver) netEndDuel("interrupt");   // connexion perdue en plein duel
+  else if (NET && !NET.started) { duelFallback(); }                // échec avant l'appariement → repli solo
+  NET = null; resetDuelBtn();
+}
+function duelFallback() { NET = null; resetDuelBtn(); setDuelStatus(""); toast("Duel indisponible — partie solo"); startGame("solo"); }
+function netEndDuel(outcome, reason) {
+  if (gameOver) return;
+  const me = creatures[0]; if (me) { me.alive = false; saveBest(me.maxMass); }   // alive=false → le fond ne ré-déclenche pas endGame
+  const opp2 = creatures[1]; if (opp2) opp2.alive = false;   // ne pas laisser update_camOnly piloter l'adversaire en IA
+  gameOver = true;
+  const won = outcome === "win";
+  document.getElementById("goTitle").innerHTML = won ? "Duel gagné !" : (outcome === "interrupt" ? "Duel interrompu" : "Dévoré !");
+  document.getElementById("goSub").textContent = won ? ((reason === "left" || reason === "resign") ? "Ton adversaire a quitté le duel." : "Tu as dévoré ton adversaire !") : (outcome === "interrupt" ? "Connexion au duel perdue." : "Ton adversaire t'a dévoré.");
+  document.getElementById("goMass").textContent = me ? Math.round(me.maxMass) : 0;
+  document.getElementById("goRank").textContent = won ? "🏆 Victoire en duel" : (outcome === "interrupt" ? "" : "Vaincu en duel");
+  document.getElementById("goBest").textContent = "🏆 Ton record : " + bestMass;
+  document.getElementById("gameover").classList.remove("hidden");
+  const ws = NET && NET.ws; NET = null; resetDuelBtn(); try { ws && ws.close(); } catch (e) { }
+}
+(function () {
+  const b = document.getElementById("duelBtn");
+  if (!b) return;
+  b.addEventListener("click", () => {
+    if (NET) { try { netSend({ t: "leave" }); NET.ws.close(); } catch (e) { } NET = null; setDuelStatus(""); resetDuelBtn(); return; }
+    b.textContent = "⛌ Annuler"; connectDuel();
+  });
+})();
+
+/* ===== REDIMENSIONNEMENT =================================================== */
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  CSSW = window.innerWidth; CSSH = window.innerHeight;
+  cv.width = Math.round(CSSW * DPR); cv.height = Math.round(CSSH * DPR);
+  cv.style.width = CSSW + "px"; cv.style.height = CSSH + "px";
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener("resize", resize);
+resize();
+</script>
+</body>
+</html>

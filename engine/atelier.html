@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>L'Atelier — Crée tes jeux avec l'IA</title>
+<title>L'Atelier — Crée tes jeux (Coding ou Vibecoding)</title>
 <style>
   :root { color-scheme: dark; --acc:#7c5cff; --acc2:#22b8a6; --ok:#36c46a; --bad:#ff6b6b; }
   * { box-sizing: border-box; }
@@ -16,6 +16,8 @@
   .top .sp { flex: 1; }
   .chip { font-size: .8rem; background: #ffffff14; border: 1px solid #ffffff24; border-radius: 1rem; padding: .25rem .6rem; white-space: nowrap; }
   .chip b { color: #ffd76a; }
+  #trackChip.vibe { background: #2a2350; border-color: #7c5cff66; color: #d8ccff; }
+  #trackChip.code { background: #14322a; border-color: #22b8a666; color: #b7ecde; }
   .tbtn { font: inherit; color: #fff; background: #ffffff14; border: 1px solid #ffffff2e; border-radius: .5rem; padding: .35rem .6rem; cursor: pointer; text-decoration: none; }
   .tbtn:hover { background: #ffffff24; }
   .layout { display: flex; gap: 0; align-items: stretch; min-height: calc(100vh - 49px); }
@@ -23,7 +25,7 @@
   .side { width: 290px; flex-shrink: 0; border-right: 1px solid #ffffff14; padding: .8rem .6rem 2rem; overflow-y: auto; }
   .mod { margin-bottom: .5rem; }
   .mod h3 { font-size: .76rem; text-transform: uppercase; letter-spacing: 1.3px; opacity: .55; margin: .9rem .4rem .35rem; }
-  .lk { display: flex; align-items: center; gap: .5rem; padding: .5rem .55rem; border-radius: .55rem; cursor: pointer; font-size: .9rem; }
+  .lk { display: flex; align-items: center; gap: .5rem; padding: .5rem .55rem; border-radius: .55rem; cursor: pointer; font-size: .9rem; width: 100%; text-align: left; border: 0; background: none; color: inherit; font-family: inherit; }
   .lk:hover { background: #ffffff10; }
   .lk.active { background: var(--acc); color: #11101e; font-weight: 700; }
   .lk .st { width: 1.2rem; text-align: center; flex-shrink: 0; }
@@ -34,19 +36,34 @@
   /* Main */
   .main { flex: 1; min-width: 0; padding: 1rem 1.1rem 3rem; max-width: 920px; }
   .lesson h2 { margin: .2rem 0 .2rem; font-size: 1.5rem; }
-  .lesson .sub { opacity: .6; font-size: .82rem; margin-bottom: .8rem; }
+  .lesson .sub { opacity: .6; font-size: .82rem; margin-bottom: .5rem; }
+  .concept { font-size: .9rem; opacity: .85; border-left: 3px solid var(--acc2); padding: .15rem .6rem; margin: .1rem 0 .2rem; }
   .teach { line-height: 1.6; font-size: .97rem; }
   .teach p { margin: .5rem 0; }
   .teach code { background: #ffffff18; padding: .05rem .35rem; border-radius: .3rem; font-size: .9em; }
   .teach .k { color: #ffd76a; font-weight: 600; }
   .box { border-radius: .7rem; padding: .7rem .85rem; margin: .8rem 0; border: 1px solid #ffffff1c; }
   .ai { background: linear-gradient(180deg, #2a2350, #1c1838); border-color: #7c5cff55; }
+  .ai.vibe { background: linear-gradient(180deg, #21304a, #16202f); border-color: #22b8a655; }
   .ai .h { display: flex; align-items: center; gap: .5rem; font-weight: 700; color: #c9b8ff; margin-bottom: .35rem; }
-  .ai .prompt { background: #0c0e16; border: 1px dashed #7c5cff66; border-radius: .5rem; padding: .5rem .6rem; font-size: .88rem; font-style: italic; color: #e7e0ff; }
+  .ai.vibe .h { color: #8fe0d4; }
+  .ai .prompt { background: #0c0e16; border: 1px dashed #7c5cff66; border-radius: .5rem; padding: .5rem .6rem; font-size: .88rem; font-style: italic; color: #e7e0ff; white-space: pre-wrap; }
+  .ai.vibe .prompt { border-color: #22b8a666; color: #dbfff5; }
   .ai .copy { margin-top: .45rem; font-size: .8rem; }
+  .verify { margin-top: .5rem; font-size: .88rem; background: #0c1a16; border: 1px solid #22b8a644; border-radius: .5rem; padding: .45rem .6rem; color: #c8efe0; }
+  /* Onglets de piste */
+  .tracks { display: flex; gap: .5rem; margin: .2rem 0 .6rem; }
+  .track { flex: 1; display: flex; flex-direction: column; align-items: center; gap: .05rem; font: inherit; cursor: pointer;
+           background: #ffffff10; border: 1px solid #ffffff24; border-radius: .6rem; padding: .45rem .5rem; color: #cfd3e0; }
+  .track small { font-size: .72rem; opacity: .7; font-weight: 400; }
+  .track:hover { background: #ffffff1c; }
+  .track:focus-visible, .btn:focus-visible, .tbtn:focus-visible, .lk:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  .track.on { font-weight: 800; color: #fff; }
+  #tab-code.on { background: linear-gradient(180deg,#14322a,#0e2620); border-color: var(--acc2); color: #d6fff0; }
+  #tab-vibe.on { background: linear-gradient(180deg,#2a2350,#1c1838); border-color: var(--acc); color: #e7defc; }
   /* Playground */
   .pg { display: grid; grid-template-columns: 1fr 340px; gap: .7rem; margin: .8rem 0; }
-  @media (max-width: 760px){ .pg { grid-template-columns: 1fr; } .side { position: fixed; left: 0; top: 49px; bottom: 0; background: #11121c; transform: translateX(-100%); transition: transform .25s; z-index: 6; } .side.open { transform: none; } .menuBtn { display: inline-block !important; } }
+  @media (max-width: 760px){ .pg { grid-template-columns: 1fr; } .side { position: fixed; left: 0; top: 49px; bottom: 0; background: #11121c; transform: translateX(-100%); transition: transform .25s; z-index: 6; } .side.open { transform: none; } .menuBtn { display: inline-block !important; } .tracks { position: sticky; top: 49px; z-index: 4; background: #0c0e16; } }
   .menuBtn { display: none; }
   .editor { width: 100%; min-height: 230px; resize: vertical; font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace; font-size: 13px;
             line-height: 1.5; color: #e8eef7; background: #0b0d14; border: 1px solid #ffffff24; border-radius: .6rem; padding: .6rem .7rem; tab-size: 2; white-space: pre; overflow-wrap: normal; }
@@ -64,7 +81,7 @@
   .banner.bad { background: #45201f; border: 1px solid #ff6b6b66; color: #ffc9c9; }
   .nav { display: flex; justify-content: space-between; gap: .5rem; margin-top: 1.3rem; }
   /* Mentor */
-  .mentor { display: flex; gap: .6rem; align-items: flex-start; background: #ffffff0d; border: 1px solid #ffffff1c; border-radius: .7rem; padding: .6rem .7rem; margin: .8rem 0; }
+  .mentor { display: flex; gap: .6rem; align-items: flex-start; background: #ffffff0d; border: 1px solid #ffffff1c; border-radius: .7rem; padding: .6rem .7rem; margin: .8rem 0 .4rem; }
   .mentor .av { font-size: 1.7rem; line-height: 1; flex-shrink: 0; }
   .mentor .bubble { font-size: .92rem; line-height: 1.45; }
   .mentor .who { font-weight: 700; color: #8fe0d4; font-size: .82rem; }
@@ -74,9 +91,10 @@
 </head>
 <body>
   <div class="top">
-    <button class="tbtn menuBtn" onclick="toggleSide()">☰</button>
-    <h1>🎓 L'Atelier <span style="opacity:.6;font-weight:400">— crée tes jeux avec l'IA</span></h1>
+    <button class="tbtn menuBtn" aria-label="Ouvrir le menu des leçons" aria-expanded="false" aria-controls="side" onclick="toggleSide()">☰</button>
+    <h1>🎓 L'Atelier <span style="opacity:.6;font-weight:400">— Coding ou Vibecoding</span></h1>
     <span class="sp"></span>
+    <span class="chip" id="trackChip">Piste</span>
     <span class="chip">⭐ <b id="xp">0</b> XP</span>
     <span class="chip" id="progChip">0 %</span>
     <a class="tbtn" href="index.html">≡ Menu</a>
@@ -96,9 +114,75 @@
 
 <script>
 /* ============================================================================
-   L'ATELIER — apprendre à coder en créant les jeux d'AwemA, guidé par l'IA (Awa).
+   L'ATELIER — apprendre à créer les jeux d'AwemA, en DEUX pistes au choix :
+     • 🧑‍💻 CODING   : on écrit le vrai code soi-même (comprendre le code + les méthodes).
+     • 🪄 VIBECODING : on dirige une IA de code et on VÉRIFIE (gérer une IA, apprendre en faisant).
    100% local, hors-ligne. Bac à sable de code en direct + progression sauvegardée.
+   Guide : Awa, mentor IA. Ancrage culturel ouest-africain (Akwaba, griot, mil, cacao…).
+
+   ─────────────────────────────────────────────────────────────────────────
+   ▶▶▶  COMMENT FAIRE GROSSIR CE TUTO À CHAQUE NOUVEAU JEU  (lis-moi !)  ◀◀◀
+   Règle de croissance : un nouveau jeu n'est PAS terminé tant que son étude de
+   cas bi-piste n'est pas ajoutée ici (module "jeux"). Procédure :
+     1. Repérer LA méthode authentique enseignable du jeu (keyMethod) : boucle à
+        dt borné, fonction pure, FSM, structure de données, formule de stat
+        bornée, autorité serveur… (la prendre dans le VRAI code du jeu).
+     2. En faire une démo réduite n'utilisant QUE les primitives du bac à sable.
+     3. Écrire la piste CODING (teach + task + check OBJECTIF : FAUX sur le starter à compléter, VRAI sur la solution).
+     4. Écrire la piste VIBECODING avec la boucle Spécifier→Prédire→Coller→
+        Vérifier→Itérer, et 1 à 3 PIÈGES IA RÉELS du jeu (jamais inventés :
+        prends-les dans la revue de code / la cartographie). Le starter vibe = le
+        code "écrit par l'IA" volontairement bugué ; le check valide la correction.
+     5. Ajouter une entrée dans ATELIER_CASES ci-dessous (dette visible).
+     6. Bumper le cache du service worker (engine/sw.js : awema-vXX → vXX+1),
+        sinon les visiteurs gardent l'ancienne version.
+
+   GABARIT À COPIER (nouvelle leçon, à pousser dans le module "jeux") :
+   { id:"jX", title:"…", xp:20, concept:"… (le concept commun aux 2 pistes)",
+     coding: {
+       mode:"code",            // 'code' | 'canvas' | 'anim' (descriptif ; leçon de lecture = simplement sans check)
+       intro:"… (phrase d'Awa)",
+       teach:`<p>…</p>`,        // HTML pédagogique, échapper &lt; &gt;
+       prompt:"… (un bon prompt modèle)",
+       starter:`… code de départ (souvent avec un TODO) …`,
+       task:"… la mission …",
+       hint:"… l'indice …",
+       solution:`… une solution …`,   // ou null
+       check:(a)=> { throw "TODO: check objectif (booléen sur a.logs / a.calls(Set) / a.src / a.pix) — FAUX sur le starter, VRAI sur la solution"; } },
+     vibecoding: {
+       mode:"code",
+       intro:"… (Awa rassure : se tromper en pilotant est normal)",
+       teach:`<p>… le concept + le PIÈGE IA réel …</p>`,
+       missionType:"… ex: Repérer le bug + corriger …",
+       examplePrompt:"… le prompt CADRÉ à envoyer à l'IA …",
+       whatToVerify:"… la check-list de vérification du code IA …",
+       starter:`… code "écrit par l'IA" VOLONTAIREMENT bugué (un vrai piège IA observé sur ce jeu) …`,
+       task:"… corrige / réécris …",
+       hint:"… l'indice …",
+       solution:`… la version corrigée …`,
+       check:(a)=> { throw "TODO: check qui valide la correction — FAUX sur le starter bugué, VRAI sur la solution"; } },
+
+   CONTRAT DU BAC À SABLE — un starter/solution n'a accès QU'À :
+     print(...), clear(), rand(a,b), loop(fn(dt)), onKey(fn(key)), onClick(fn(x,y)),
+     et les variables  ctx (contexte 2D), W=320, H=200.
+     AUCUN DOM (document/addEventListener), AUCUN import, AUCUN fetch, PAS de
+     requestAnimationFrame brut (utiliser loop). Math/JSON sont disponibles.
+   check(api) reçoit api = { logs:[], calls:Set, error, src:"", W, H, ctx, pix(x,y) }.
+   • api.calls ne contient QUE les 6 primitives instrumentées (print/clear/rand/loop/onKey/onClick) ;
+     pour détecter une fonction définie par l'élève, teste a.src ou a.logs, jamais a.calls.
+   • Un check par regex sur a.src ne doit JAMAIS matcher un token présent dans la PROSE du starter
+     (commentaires / print) : ancre le motif sur de la syntaxe de code, sinon la regex matche le texte.
    ========================================================================== */
+
+/* Registre déclaratif : quels jeux ont déjà leur étude de cas (dette visible). */
+const ATELIER_CASES = [
+  { gameId:"voraces",  keyMethod:"Boucle à dt borné + stat dérivée d'une masse (plancher)", lessons:["d2","j2"] },
+  { gameId:"lignees",  keyMethod:"Fonction pure (clone) + hasard déterministe (seed)",      lessons:["j1","j1b"] },
+  { gameId:"sables",   keyMethod:"Machine à états (u.state + switch)",                       lessons:["j3"] },
+  { gameId:"echecs",   keyMethod:"Plateau plat idx=r*8+f + génération glissante",            lessons:["j4"] },
+  { gameId:"multi",    keyMethod:"Lobby duelWaiting[jeu] + serveur recalcule l'Indice",      lessons:["j5"] },
+  // + à chaque nouveau jeu : pousser { gameId, keyMethod, lessons:["jX"] } ici.
+];
 
 const PRAISE = ["Akwaba au club des codeurs ! 🎉", "Magnifique, ça marche !", "Tu progresses vite 💪",
   "Voilà du beau code !", "Le griot racontera tes exploits 🥁", "Impeccable, on continue !"];
@@ -106,189 +190,961 @@ const ENCOURAGE = ["Presque ! Relis l'énoncé tranquillement.", "Pas grave, on 
   "Essaie encore — clique sur 💡 Indice si tu bloques.", "Tu y es presque, regarde la console."];
 
 /* --- Le programme : modules → leçons ---
-   Chaque leçon : {id,title,xp, teach(HTML), prompt(IA), mode:'code'|'canvas'|'anim'|'read',
-                   starter, task, hint, solution, check(api)->bool, intro(phrase d'Awa)} */
+   Chaque leçon : { id, title, xp, concept, coding:{...}, vibecoding:{...} }.
+   coding/vibecoding partagent : mode, intro, teach, starter, task, hint, solution, check.
+   vibecoding ajoute : missionType, examplePrompt, whatToVerify (rôle du "prompt"). */
 const COURSE = [
 { id:"start", title:"Bienvenue", icon:"👋", lessons:[
-  { id:"s1", title:"Akwaba ! Comment ça marche", xp:10, mode:"code",
-    intro:"Salut, moi c'est Awa, ton guide. Ici on apprend en FAISANT : tu écris du vrai code, tu cliques ▶, tu vois le résultat tout de suite !",
-    teach:`<p>Bienvenue dans <b>l'Atelier</b> ! Tu vas apprendre à <span class="k">programmer</span> en construisant, petit à petit, les jeux de la plateforme — <em>avec l'aide de l'IA</em>.</p>
-      <p>À droite, un <b>bac à sable</b> : écris du code, clique <span class="k">▶ Lancer</span>, et la console affiche le résultat. La commande <code>print(...)</code> affiche un message.</p>
-      <p>👉 Ta première mission : affiche un message, puis ton prénom.</p>`,
-    prompt:`Comment afficher un message à l'écran en JavaScript ? Donne-moi un exemple simple avec une fonction print().`,
-    starter:`print("Akwaba, le monde !");\n// ajoute une 2e ligne avec ton prénom :\n`,
-    task:"Affiche deux messages (deux print).",
-    hint:"Écris une 2e ligne, par exemple : print(\"Awa\");",
-    solution:`print("Akwaba, le monde !");\nprint("Awa");`,
-    check:(a)=> a.logs.length>=2 },
+  { id:"s1", title:"Akwaba ! Comment ça marche", xp:10,
+    concept:"Le bac à sable : print() affiche, ▶ lance, la console montre le résultat. Et il y a DEUX façons d'avancer : écrire le code, ou piloter l'IA et vérifier.",
+    coding:{ mode:"code",
+      intro:"Salut, moi c'est Awa, ton guide. Ici on apprend en FAISANT : tu écris du vrai code, tu cliques ▶, tu vois le résultat tout de suite !",
+      teach:`<p>Bienvenue dans <b>l'Atelier</b> ! Tu vas apprendre à <span class="k">programmer</span> en construisant les jeux de la plateforme.</p>
+        <p>À droite, un <b>bac à sable</b> : écris du code, clique <span class="k">▶ Lancer</span>, et la console affiche le résultat. <code>print(...)</code> affiche un message.</p>
+        <p>👉 Choisis ta piste avec les onglets ci-dessus. En <b>Coding</b>, tu tapes le code. Ta 1re mission : affiche un message, puis ton prénom.</p>`,
+      prompt:`Comment afficher un message à l'écran en JavaScript ? Donne un exemple simple avec une fonction print().`,
+      starter:`print("Akwaba, le monde !");\n// ajoute une 2e ligne avec ton prénom :\n`,
+      task:"Affiche deux messages (deux print), le 2e contient ton prénom.",
+      hint:"Écris une 2e ligne, par exemple : print(\"Awa\");",
+      solution:`print("Akwaba, le monde !");\nprint("Awa");`,
+      check:(a)=> a.logs.length>=2 },
+    vibecoding:{ mode:"code",
+      intro:"En Vibecoding, tu ne tapes pas forcément tout : tu PILOTES une IA et tu VÉRIFIES. Se tromper en dirigeant l'IA, c'est normal — ton métier, c'est de contrôler.",
+      teach:`<p>La boucle du vibecodeur, à chaque leçon : <span class="k">SPÉCIFIER</span> (demander précisément) → <span class="k">PRÉDIRE</span> (ce que ça devrait afficher) → <span class="k">COLLER &amp; LANCER</span> (le code de l'IA) → <span class="k">VÉRIFIER</span> (comparer à ta prédiction) → <span class="k">ITÉRER</span> (corriger / mieux demander).</p>
+        <p>👉 Ici, l'IA t'a donné deux lignes (déjà dans l'éditeur). <b>Prédis</b> ce que la console va afficher, puis clique ▶ pour vérifier.</p>`,
+      missionType:"Prédire la sortie + coller & lancer",
+      examplePrompt:`En JavaScript, dans un bac à sable qui ne fournit que print(), écris deux lignes : la 1re affiche un accueil, la 2e affiche mon prénom. Donne uniquement les deux lignes.`,
+      whatToVerify:"La console affiche EXACTEMENT deux lignes, dans l'ordre attendu, sans erreur rouge — comme ta prédiction.",
+      starter:`// Code "écrit par l'IA" — prédis la sortie AVANT de lancer :\nprint("Akwaba sur AwemA !");\nprint("Awa");\n`,
+      task:"Prédis les 2 lignes, puis lance pour vérifier.",
+      hint:"Le 1er print affiche l'accueil, le 2e le prénom. Lance et compare.",
+      solution:null,
+      check:(a)=> a.logs.length>=2 } },
 ]},
 { id:"bases", title:"Les bases du code", icon:"🧱", lessons:[
-  { id:"b1", title:"Les variables : ranger des valeurs", xp:15, mode:"code",
-    intro:"Une variable, c'est comme un sac étiqueté où tu ranges une valeur pour t'en servir plus tard.",
-    teach:`<p>Une <span class="k">variable</span> garde une valeur sous un nom. On la crée avec <code>let</code> :</p>
-      <p><code>let sacs = 3;</code> range le nombre 3 dans <code>sacs</code>.</p>
-      <p>On peut calculer : <code>+</code> <code>-</code> <code>*</code> (multiplier) <code>/</code> (diviser).</p>
-      <p>👉 Mission : un planteur a <b>3 sacs</b> de <b>12 fèves</b> de cacao. Affiche le <b>total</b> de fèves.</p>`,
-    prompt:`En JavaScript, comment créer des variables et afficher le résultat d'une multiplication ?`,
-    starter:`let sacs = 3;\nlet parSac = 12;\n// affiche le total (sacs multiplié par parSac) :\n`,
-    task:"Affiche 36 (le total), calculé à partir des variables.",
-    hint:"print(sacs * parSac);",
-    solution:`let sacs = 3;\nlet parSac = 12;\nprint(sacs * parSac);`,
-    check:(a)=> a.logs.includes("36") },
-  { id:"b2", title:"Les conditions : si... alors...", xp:15, mode:"code",
-    intro:"Un jeu doit DÉCIDER : si tu as assez d'or, tu peux construire. C'est le rôle de if/else.",
-    teach:`<p>Avec <span class="k">if / else</span>, le programme choisit :</p>
-      <p><code>if (or >= 5) { ... } else { ... }</code> — <code>>=</code> veut dire « supérieur ou égal ».</p>
-      <p>👉 Mission : la variable <code>or</code> vaut 7. Affiche <b>"riche"</b> si <code>or</code> ≥ 5, sinon <b>"pauvre"</b>.</p>`,
-    prompt:`Montre-moi un exemple de if/else en JavaScript qui affiche un mot différent selon une valeur.`,
-    starter:`let or = 7;\n// si or >= 5 -> "riche", sinon -> "pauvre"\n`,
-    task:"Affiche \"riche\" (car or vaut 7).",
-    hint:`if (or >= 5) { print("riche"); } else { print("pauvre"); }`,
-    solution:`let or = 7;\nif (or >= 5) { print("riche"); } else { print("pauvre"); }`,
-    check:(a)=> a.logs.some(l=>/riche/i.test(l)) && !a.logs.some(l=>/pauvre/i.test(l)) },
-  { id:"b3", title:"Les boucles : répéter sans se fatiguer", xp:15, mode:"code",
-    intro:"Pour générer 8 villageois, on ne copie pas 8 fois la même ligne : on fait une boucle !",
-    teach:`<p>La boucle <span class="k">for</span> répète :</p>
-      <p><code>for (let i = 1; i &lt;= 5; i++) { ... }</code> exécute le bloc pour i = 1, 2, 3, 4, 5.</p>
-      <p>👉 Mission : affiche les nombres de <b>1 à 5</b>, un par ligne.</p>`,
-    prompt:`Explique-moi la boucle for en JavaScript avec un exemple qui affiche les nombres de 1 à 5.`,
-    starter:`for (let i = 1; i <= 5; i++) {\n  // affiche i\n}`,
-    task:"Affiche 1, 2, 3, 4 et 5.",
-    hint:"Dans la boucle : print(i);",
-    solution:`for (let i = 1; i <= 5; i++) {\n  print(i);\n}`,
-    check:(a)=> ["1","2","3","4","5"].every(n=> a.logs.includes(n)) },
-  { id:"b4", title:"Les fonctions : ranger une recette", xp:20, mode:"code",
-    intro:"Une fonction, c'est une recette réutilisable. On l'écrit une fois, on l'appelle autant qu'on veut.",
-    teach:`<p>Une <span class="k">fonction</span> regroupe des instructions sous un nom, avec des <em>paramètres</em> :</p>
-      <p><code>function salue(nom) { print("Akwaba, " + nom + " !"); }</code></p>
-      <p>Puis on l'<b>appelle</b> : <code>salue("Awa");</code>. Le <code>+</code> colle des textes.</p>
-      <p>👉 Mission : écris <code>salue(nom)</code> qui affiche « Akwaba, &lt;nom&gt; ! » et appelle-la avec ton prénom.</p>`,
-    prompt:`Comment définir et appeler une fonction avec un paramètre en JavaScript ? Exemple court.`,
-    starter:`function salue(nom) {\n  // affiche "Akwaba, <nom> !"\n}\nsalue("Awa");`,
-    task:"Affiche un message du type « Akwaba, Awa ! ».",
-    hint:`Dans la fonction : print("Akwaba, " + nom + " !");`,
-    solution:`function salue(nom) {\n  print("Akwaba, " + nom + " !");\n}\nsalue("Awa");`,
-    check:(a)=> a.logs.some(l=>/Akwaba,\s*\S+/.test(l)) },
+  { id:"b1", title:"Les variables : ranger des valeurs", xp:15,
+    concept:"Variables et calcul (let, *, /) : le total de fèves de cacao = 3 sacs × 12.",
+    coding:{ mode:"code",
+      intro:"Une variable, c'est comme un sac étiqueté où tu ranges une valeur pour t'en servir plus tard.",
+      teach:`<p>Une <span class="k">variable</span> garde une valeur sous un nom, avec <code>let</code> : <code>let sacs = 3;</code>.</p>
+        <p>On calcule avec <code>+</code> <code>-</code> <code>*</code> (multiplier) <code>/</code> (diviser).</p>
+        <p>👉 Un planteur a <b>3 sacs</b> de <b>12 fèves</b> de cacao. Affiche le <b>total</b>.</p>`,
+      prompt:`En JavaScript, comment créer des variables et afficher le résultat d'une multiplication ?`,
+      starter:`let sacs = 3;\nlet parSac = 12;\n// affiche le total (sacs multiplié par parSac) :\n`,
+      task:"Affiche 36 (le total), calculé à partir des variables.",
+      hint:"print(sacs * parSac);",
+      solution:`let sacs = 3;\nlet parSac = 12;\nprint(sacs * parSac);`,
+      check:(a)=> a.logs.includes("36") },
+    vibecoding:{ mode:"code",
+      intro:"On apprend à SPÉCIFIER (entrées/sortie) et à PRÉDIRE avant de lancer. Une IA confond vite « additionner » et « multiplier ».",
+      teach:`<p>Le piège classique : l'IA écrit <code>+</code> au lieu de <code>*</code>. <b>Prédis</b> : 3 × 12 = ? Puis lance le code de l'IA et regarde s'il a multiplié… ou pas.</p>
+        <p>Si ce n'est pas 36, <span class="k">corrige l'opérateur</span> et relance.</p>`,
+      missionType:"Prédire la sortie puis repérer le bug d'opérateur",
+      examplePrompt:`En JavaScript (bac à sable avec print uniquement), crée sacs=3 et parSac=12, puis affiche leur PRODUIT. Sortie attendue : 36. N'invente pas d'autres nombres.`,
+      whatToVerify:"Le code multiplie (et non additionne ni concatène) ; valeurs 3 et 12 ; sortie = 36, pas 15 ni \"312\".",
+      starter:`// Code "écrit par l'IA" — prédis 36, puis vérifie :\nlet sacs = 3;\nlet parSac = 12;\nprint(sacs + parSac);   // l'IA a-t-elle multiplié ?\n`,
+      task:"Prédis 36, lance, et corrige l'opérateur si besoin pour obtenir 36.",
+      hint:"« doubler/total » = multiplier : remplace + par *.",
+      solution:`let sacs = 3;\nlet parSac = 12;\nprint(sacs * parSac);`,
+      check:(a)=> a.logs.includes("36") } },
+  { id:"b2", title:"Les conditions : si... alors...", xp:15,
+    concept:"if/else et la comparaison >= : riche/pauvre selon l'or.",
+    coding:{ mode:"code",
+      intro:"Un jeu doit DÉCIDER : si tu as assez d'or, tu peux construire. C'est le rôle de if/else.",
+      teach:`<p>Avec <span class="k">if / else</span>, le programme choisit : <code>if (or &gt;= 5) { ... } else { ... }</code> — <code>&gt;=</code> = « supérieur ou égal ».</p>
+        <p>👉 <code>or</code> vaut 7. Affiche <b>"riche"</b> si <code>or</code> ≥ 5, sinon <b>"pauvre"</b>.</p>`,
+      prompt:`Montre un exemple de if/else en JavaScript qui affiche un mot différent selon une valeur.`,
+      starter:`let or = 7;\n// si or >= 5 -> "riche", sinon -> "pauvre"\n`,
+      task:"Affiche \"riche\" (car or vaut 7).",
+      hint:`if (or >= 5) { print("riche"); } else { print("pauvre"); }`,
+      solution:`let or = 7;\nif (or >= 5) { print("riche"); } else { print("pauvre"); }`,
+      check:(a)=> a.logs.some(l=>/riche/i.test(l)) && !a.logs.some(l=>/pauvre/i.test(l)) },
+    vibecoding:{ mode:"code",
+      intro:"Les IA se trompent souvent sur les bornes : > au lieu de >=. Le bon réflexe : tester le CAS LIMITE.",
+      teach:`<p>Ici l'or vaut exactement <b>5</b> — la frontière. La règle veut que <b>5 donne "riche"</b>. Mais l'IA a écrit <code>or &gt; 5</code> (strictement supérieur) → 5 tombe à tort dans "pauvre".</p>
+        <p>👉 <b>Prédis</b> ce que devrait afficher or=5, lance, puis <span class="k">corrige l'opérateur</span> en <code>&gt;=</code>.</p>`,
+      missionType:"Prédire puis repérer le bug de borne (> vs >=)",
+      examplePrompt:`En JavaScript, écris un if/else : si or est supérieur OU ÉGAL à 5, affiche "riche", sinon "pauvre". Attention : 5 doit donner "riche".`,
+      whatToVerify:"Teste mentalement or=5 ET or=7. Si l'IA a mis > au lieu de >=, le cas limite 5 casse. Corrige en >=.",
+      starter:`// Code "écrit par l'IA" — or vaut la frontière (5). Prédis le mot attendu :\nlet or = 5;\nif (or > 5) { print("riche"); } else { print("pauvre"); }   // > au lieu de >= ?\n`,
+      task:"Corrige pour que or=5 affiche \"riche\".",
+      hint:"Remplace > par >=.",
+      solution:`let or = 5;\nif (or >= 5) { print("riche"); } else { print("pauvre"); }`,
+      check:(a)=> a.logs.some(l=>/riche/i.test(l)) && !a.logs.some(l=>/pauvre/i.test(l)) } },
+  { id:"b3", title:"Les boucles : répéter sans se fatiguer", xp:15,
+    concept:"for : afficher 1 à 5 (générer N villageois).",
+    coding:{ mode:"code",
+      intro:"Pour générer 8 villageois, on ne copie pas 8 fois la même ligne : on fait une boucle !",
+      teach:`<p>La boucle <span class="k">for</span> répète : <code>for (let i = 1; i &lt;= 5; i++) { ... }</code> exécute pour i = 1, 2, 3, 4, 5.</p>
+        <p>👉 Affiche les nombres de <b>1 à 5</b>, un par ligne.</p>`,
+      prompt:`Explique la boucle for en JavaScript avec un exemple qui affiche les nombres de 1 à 5.`,
+      starter:`for (let i = 1; i <= 5; i++) {\n  // affiche i\n}`,
+      task:"Affiche 1, 2, 3, 4 et 5.",
+      hint:"Dans la boucle : print(i);",
+      solution:`for (let i = 1; i <= 5; i++) {\n  print(i);\n}`,
+      check:(a)=> ["1","2","3","4","5"].every(n=> a.logs.includes(n)) },
+    vibecoding:{ mode:"code",
+      intro:"Bug n°1 des IA sur les boucles : l'« off-by-one ». On compte la sortie AVANT de lancer.",
+      teach:`<p>On veut <b>5 lignes</b> (1 à 5 inclus). L'IA a écrit <code>i &lt; 5</code> : elle s'arrête à 4 et <b>oublie le 5</b>.</p>
+        <p>👉 <b>Prédis</b> le nombre de lignes, lance, puis <span class="k">corrige la condition d'arrêt</span> en <code>&lt;=</code>.</p>`,
+      missionType:"Prédire le nombre de lignes + repérer l'off-by-one",
+      examplePrompt:`En JavaScript avec print(), affiche les nombres de 1 à 5 INCLUS, un par ligne (5 lignes). Vérifie que 5 est bien affiché.`,
+      whatToVerify:"Compte : 5 lignes attendues, en finissant par 5. Vérifie la condition d'arrêt (< vs <=) et le départ (0 vs 1).",
+      starter:`// Code "écrit par l'IA" — combien de lignes ? Prédis avant de lancer :\nfor (let i = 1; i < 5; i++) {   // < ou <= ?\n  print(i);\n}`,
+      task:"Corrige la borne pour afficher 1, 2, 3, 4 ET 5.",
+      hint:"Remplace i < 5 par i <= 5.",
+      solution:`for (let i = 1; i <= 5; i++) {\n  print(i);\n}`,
+      check:(a)=> ["1","2","3","4","5"].every(n=> a.logs.includes(n)) } },
+  { id:"b4", title:"Les fonctions : ranger une recette", xp:20,
+    concept:"function + paramètre + concaténation : salue(nom).",
+    coding:{ mode:"code",
+      intro:"Une fonction, c'est une recette réutilisable. On l'écrit une fois, on l'appelle autant qu'on veut.",
+      teach:`<p>Une <span class="k">fonction</span> regroupe des instructions sous un nom, avec des <em>paramètres</em> : <code>function salue(nom) { print("Akwaba, " + nom + " !"); }</code></p>
+        <p>Puis on l'<b>appelle</b> : <code>salue("Awa");</code>. Le <code>+</code> colle des textes.</p>
+        <p>👉 Écris <code>salue(nom)</code> et appelle-la avec ton prénom.</p>`,
+      prompt:`Comment définir et appeler une fonction avec un paramètre en JavaScript ? Exemple court.`,
+      starter:`function salue(nom) {\n  // affiche "Akwaba, <nom> !"\n}\nsalue("Awa");`,
+      task:"Affiche un message du type « Akwaba, Awa ! ».",
+      hint:`Dans la fonction : print("Akwaba, " + nom + " !");`,
+      solution:`function salue(nom) {\n  print("Akwaba, " + nom + " !");\n}\nsalue("Awa");`,
+      check:(a)=> a.logs.some(l=>/Akwaba,\s*\S+/.test(l)) },
+    vibecoding:{ mode:"code",
+      intro:"On spécifie le CONTRAT d'une fonction (nom, paramètre, ce qu'elle affiche) et on vérifie que l'IA l'APPELLE vraiment.",
+      teach:`<p>Une fonction définie mais jamais <b>appelée</b> n'affiche rien. Ici l'IA a écrit <code>salue</code>… mais a oublié de l'appeler : la console reste vide.</p>
+        <p>👉 <b>Prédis</b> (rien ne s'affiche !), lance pour confirmer, puis <span class="k">ajoute l'appel</span> <code>salue("…")</code>.</p>`,
+      missionType:"Vérifier la signature + l'appel + l'usage du paramètre",
+      examplePrompt:`En JavaScript, définis salue(nom) qui affiche "Akwaba, <nom> !" en UTILISANT le paramètre (pas de prénom en dur), PUIS appelle-la avec un prénom. N'oublie pas l'appel.`,
+      whatToVerify:"La fonction est-elle réellement appelée ? Le paramètre nom est-il utilisé (pas un prénom en dur) ? La concaténation met-elle les espaces ?",
+      starter:`// Code "écrit par l'IA" — pourquoi la console reste-t-elle vide ?\nfunction salue(nom) {\n  print("Akwaba, " + nom + " !");\n}\n// … l'IA a oublié d'APPELER la fonction\n`,
+      task:"Ajoute l'appel salue(\"<prénom>\") pour afficher le message.",
+      hint:"Sous la fonction, écris : salue(\"Kofi\");",
+      solution:`function salue(nom) {\n  print("Akwaba, " + nom + " !");\n}\nsalue("Kofi");`,
+      check:(a)=> a.logs.some(l=>/Akwaba,\s*\S+/.test(l)) } },
 ]},
 { id:"dessin", title:"Dessiner & animer", icon:"🎨", lessons:[
-  { id:"d1", title:"Dessiner sur la toile", xp:20, mode:"canvas",
-    intro:"Place au dessin ! Le canvas est ta toile. ctx est ton pinceau : couleur, rectangles, cercles.",
-    teach:`<p>Sur le <span class="k">canvas</span>, on peint avec <code>ctx</code> :</p>
-      <p><code>ctx.fillStyle = "#e8702a";</code> choisit la couleur, puis<br>
-      <code>ctx.fillRect(x, y, largeur, hauteur);</code> peint un rectangle.</p>
-      <p>Un cercle : <code>ctx.beginPath(); ctx.arc(x, y, rayon, 0, Math.PI*2); ctx.fill();</code></p>
-      <p>La toile fait <code>W</code> de large et <code>H</code> de haut. 👉 Mission : le fond vert est déjà là — ajoute un <b>soleil orange</b> (cercle) au centre.</p>`,
-    prompt:`Comment dessiner un cercle plein d'une couleur donnée sur un canvas HTML avec le contexte 2D ?`,
-    starter:`// fond vert (déjà fait) :\nctx.fillStyle = "#0f7a4e";\nctx.fillRect(0, 0, W, H);\n\n// à toi : un cercle ORANGE au centre (W/2, H/2), rayon 34\n`,
-    task:"Dessine un cercle orange au centre de la toile.",
-    hint:`ctx.fillStyle = "#e8702a";\nctx.beginPath();\nctx.arc(W/2, H/2, 34, 0, Math.PI*2);\nctx.fill();`,
-    solution:`ctx.fillStyle = "#0f7a4e";\nctx.fillRect(0,0,W,H);\nctx.fillStyle = "#e8702a";\nctx.beginPath();\nctx.arc(W/2, H/2, 34, 0, Math.PI*2);\nctx.fill();`,
-    check:(a)=>{ const c=a.pix(a.W/2|0,a.H/2|0); return c[0]>180 && c[1]>70 && c[1]<170 && c[2]<90; } },
-  { id:"d2", title:"La boucle de jeu : ça bouge !", xp:25, mode:"anim",
-    intro:"Le secret de TOUT jeu vidéo : redessiner très vite, en bougeant un peu à chaque image. C'est la boucle de jeu.",
-    teach:`<p>Avec <code>loop(function(dt){ ... })</code>, ton code tourne ~60 fois par seconde (<code>dt</code> = temps écoulé). À chaque image : on <span class="k">efface</span>, on <span class="k">bouge</span>, on <span class="k">redessine</span>.</p>
-      <p>👉 Lance la démo : un cercle traverse l'écran. Change la vitesse (le <code>120</code>) et relance pour voir !</p>`,
-    prompt:`Comment animer un cercle qui se déplace sur un canvas avec requestAnimationFrame ? Donne la structure de la boucle.`,
-    starter:`let x = 0;\nloop(function(dt){\n  clear();                 // efface l'image précédente\n  x = x + 120 * dt;        // avance (vitesse x temps)\n  if (x > W) x = 0;        // revient à gauche\n  ctx.fillStyle = "#e8702a";\n  ctx.beginPath();\n  ctx.arc(x, H/2, 16, 0, Math.PI*2);\n  ctx.fill();\n});`,
-    task:"Lance l'animation (utilise loop).",
-    hint:"Clique simplement ▶ Lancer — puis amuse-toi à changer la vitesse 120.",
-    solution:null,
-    check:(a)=> a.calls.has("loop") },
-  { id:"d3", title:"Réagir au joueur : le clic", xp:25, mode:"anim",
-    intro:"Un jeu, ça répond ! Capte les clics du joueur avec onClick.",
-    teach:`<p><code>onClick(function(x, y){ ... })</code> appelle ton code à chaque clic, avec la position <code>x, y</code> dans la toile.</p>
-      <p>👉 Mission : à chaque clic, fais pousser un <b>fruit</b> (cercle vert) là où tu cliques. Lance, puis clique dans le cadre !</p>`,
-    prompt:`Comment détecter un clic de souris sur un canvas et récupérer les coordonnées x, y à l'intérieur ?`,
-    starter:`print("Lance, puis clique dans le cadre !");\nonClick(function(x, y){\n  ctx.fillStyle = "#13875a";\n  ctx.beginPath();\n  ctx.arc(x, y, 14, 0, Math.PI*2);\n  ctx.fill();\n});`,
-    task:"Utilise onClick pour dessiner au clic.",
-    hint:"Clique ▶ Lancer, puis clique dans la toile à droite.",
-    solution:null,
-    check:(a)=> a.calls.has("onClick") },
+  { id:"d1", title:"Dessiner sur la toile", xp:20,
+    concept:"canvas/ctx : fillStyle, fillRect, arc — un soleil au centre, et l'ordre des calques (fond d'abord).",
+    coding:{ mode:"canvas",
+      intro:"Place au dessin ! Le canvas est ta toile. ctx est ton pinceau : couleur, rectangles, cercles.",
+      teach:`<p>Sur le <span class="k">canvas</span>, on peint avec <code>ctx</code> : <code>ctx.fillStyle = "#e8702a";</code> puis <code>ctx.fillRect(x, y, l, h);</code>.</p>
+        <p>Un cercle : <code>ctx.beginPath(); ctx.arc(x, y, rayon, 0, Math.PI*2); ctx.fill();</code></p>
+        <p>La toile fait <code>W</code> de large, <code>H</code> de haut. 👉 Le fond vert est là — ajoute un <b>soleil orange</b> (cercle) au centre.</p>`,
+      prompt:`Comment dessiner un cercle plein d'une couleur donnée sur un canvas avec le contexte 2D ?`,
+      starter:`// fond vert (déjà fait) :\nctx.fillStyle = "#0f7a4e";\nctx.fillRect(0, 0, W, H);\n\n// à toi : un cercle ORANGE au centre (W/2, H/2), rayon 34\n`,
+      task:"Dessine un cercle orange au centre de la toile.",
+      hint:`ctx.fillStyle = "#e8702a";\nctx.beginPath();\nctx.arc(W/2, H/2, 34, 0, Math.PI*2);\nctx.fill();`,
+      solution:`ctx.fillStyle = "#0f7a4e";\nctx.fillRect(0,0,W,H);\nctx.fillStyle = "#e8702a";\nctx.beginPath();\nctx.arc(W/2, H/2, 34, 0, Math.PI*2);\nctx.fill();`,
+      check:(a)=>{ const c=a.pix(a.W/2|0,a.H/2|0); return c[0]>180 && c[1]>70 && c[1]<170 && c[2]<90; } },
+    vibecoding:{ mode:"canvas",
+      intro:"L'IA ne connaît pas TON environnement : ici ctx, W, H sont DÉJÀ fournis, et l'ORDRE des dessins fait les calques.",
+      teach:`<p>Dans un canvas, ce qu'on peint <b>en dernier</b> passe au-dessus. L'IA a peint le <b>soleil d'abord</b>, puis le fond vert <b>par-dessus</b> → le soleil disparaît !</p>
+        <p>👉 <b>Prédis</b> (que verra-t-on ?), lance, puis <span class="k">remets le fond en premier</span>. (Astuce : c'est exactement comme ça que Voraces « efface » — il repeint le fond à chaque image.)</p>`,
+      missionType:"Repérer le mauvais ordre des calques",
+      examplePrompt:`Dans un bac à sable qui fournit DÉJÀ ctx, W, H (aucun document/getElementById), peins d'ABORD un fond vert plein écran, PUIS un cercle orange au centre (W/2,H/2) rayon 34. L'ordre compte : le fond avant le cercle.`,
+      whatToVerify:"Le fond est-il peint AVANT le cercle (sinon il le recouvre) ? beginPath() avant arc ? fillStyle fixé avant fill ? Aucun document.* (ctx est déjà là).",
+      starter:`// Code "écrit par l'IA" — pourquoi ne voit-on pas le soleil ?\nctx.fillStyle = "#e8702a";\nctx.beginPath(); ctx.arc(W/2, H/2, 34, 0, Math.PI*2); ctx.fill();\nctx.fillStyle = "#0f7a4e"; ctx.fillRect(0, 0, W, H);   // le fond, peint APRÈS, recouvre tout\n`,
+      task:"Remets le fond vert AVANT le soleil pour qu'on le voie.",
+      hint:"Déplace les 2 lignes du fond vert TOUT EN HAUT.",
+      solution:`ctx.fillStyle = "#0f7a4e"; ctx.fillRect(0, 0, W, H);\nctx.fillStyle = "#e8702a";\nctx.beginPath(); ctx.arc(W/2, H/2, 34, 0, Math.PI*2); ctx.fill();`,
+      check:(a)=>{ const c=a.pix(a.W/2|0,a.H/2|0); return c[0]>180 && c[1]>70 && c[1]<170 && c[2]<90; } } },
+  { id:"d2", title:"La boucle de jeu : ça bouge ! (dt)", xp:25,
+    concept:"loop(dt) : effacer → bouger → redessiner, vitesse × dt — le cœur de Voraces.",
+    coding:{ mode:"anim",
+      intro:"Le secret de TOUT jeu vidéo : redessiner très vite, en bougeant un peu à chaque image. C'est la boucle de jeu.",
+      teach:`<p><code>loop(function(dt){ ... })</code> tourne ~60 fois/seconde (<code>dt</code> = temps écoulé, en secondes). À chaque image : on <span class="k">efface</span>, on <span class="k">bouge</span> (<code>x += vitesse * dt</code>), on <span class="k">redessine</span>.</p>
+        <p>Multiplier par <code>dt</code> = même vitesse sur un mobile lent ou un PC rapide. C'est <code>update(dt)</code> de Voraces. 👉 Lance, puis change le <code>120</code> et relance !</p>`,
+      prompt:`Comment animer un cercle qui se déplace sur un canvas avec une boucle ? Donne la structure (dt en secondes).`,
+      starter:`let x = 0;\nloop(function(dt){\n  clear();                 // efface l'image précédente\n  x = x + 120 * dt;        // avance (vitesse x temps)\n  if (x > W) x = 0;        // revient à gauche\n  ctx.fillStyle = "#e8702a";\n  ctx.beginPath();\n  ctx.arc(x, H/2, 16, 0, Math.PI*2);\n  ctx.fill();\n});`,
+      task:"Lance l'animation (utilise loop). Bonus : change la vitesse 120.",
+      hint:"Clique ▶ Lancer — puis amuse-toi à changer la vitesse 120.",
+      solution:null,
+      check:(a)=> a.calls.has("loop") },
+    vibecoding:{ mode:"anim",
+      intro:"LE piège n°1 des IA sur une boucle : oublier × dt (jeu dépendant du matériel) ou oublier clear() (traînées).",
+      teach:`<p>L'IA a écrit <code>x = x + 2</code> (par image, pas par seconde) et a <b>oublié <code>clear()</code></b> → le cercle laisse une traînée et va trop vite/trop lent selon la machine.</p>
+        <p>👉 Lance, observe la traînée, puis <span class="k">remets <code>clear()</code> en 1re ligne</span> et passe à <code>x += 120 * dt</code>.</p>`,
+      missionType:"Repérer le bug « sans dt » / « sans clear »",
+      examplePrompt:`En JS pour un bac à sable avec loop(fn(dt)) (dt en SECONDES), clear(), ctx, W, H : anime un cercle à 120 pixels par SECONDE. Le déplacement doit être x += 120 * dt, et clear() doit être la 1re instruction de la boucle. Pas de requestAnimationFrame brut.`,
+      whatToVerify:"Y a-t-il × dt sur CHAQUE déplacement ? clear() en premier (sinon traînée) ? Pas de requestAnimationFrame brut ? (Dans le vrai Voraces, l'IA oublie aussi le /1000 et le plafond Math.min(dt,0.033).)",
+      starter:`// Code "écrit par l'IA" — d'où viennent la traînée et la mauvaise vitesse ?\nlet x = 0;\nloop(function(dt){\n  x = x + 2;            // par image (sans dt) → dépend du matériel\n  if (x > W) x = 0;\n  ctx.fillStyle = "#e8702a";\n  ctx.beginPath(); ctx.arc(x, H/2, 16, 0, Math.PI*2); ctx.fill();\n  // clear() manquant → traînée\n});`,
+      task:"Ajoute clear() en 1re ligne de la boucle et passe à x += 120 * dt.",
+      hint:"1re ligne de loop : clear(); puis x = x + 120 * dt;",
+      solution:`let x = 0;\nloop(function(dt){\n  clear();\n  x = x + 120 * dt;\n  if (x > W) x = 0;\n  ctx.fillStyle = "#e8702a";\n  ctx.beginPath(); ctx.arc(x, H/2, 16, 0, Math.PI*2); ctx.fill();\n});`,
+      check:(a)=> a.calls.has("loop") && a.calls.has("clear") && /\*\s*dt|dt\s*\*/.test(a.src) } },
+  { id:"d3", title:"Réagir au joueur : le clic", xp:25,
+    concept:"onClick(x,y) : capter le clic, déjà en coordonnées de la toile.",
+    coding:{ mode:"anim",
+      intro:"Un jeu, ça répond ! Capte les clics du joueur avec onClick.",
+      teach:`<p><code>onClick(function(x, y){ ... })</code> appelle ton code à chaque clic, avec la position <code>x, y</code> dans la toile.</p>
+        <p>👉 À chaque clic, fais pousser un <b>fruit</b> (cercle vert) là où tu cliques. Lance, puis clique dans le cadre !</p>`,
+      prompt:`Comment détecter un clic sur un canvas et récupérer x, y à l'intérieur ?`,
+      starter:`print("Lance, puis clique dans le cadre !");\nonClick(function(x, y){\n  ctx.fillStyle = "#13875a";\n  ctx.beginPath();\n  ctx.arc(x, y, 14, 0, Math.PI*2);\n  ctx.fill();\n});`,
+      task:"Utilise onClick pour dessiner au clic.",
+      hint:"Clique ▶ Lancer, puis clique dans la toile à droite.",
+      solution:null,
+      check:(a)=> a.calls.has("onClick") },
+    vibecoding:{ mode:"anim",
+      intro:"L'IA sort souvent du code « web générique » qui ne marche pas dans le bac à sable. À toi de le réécrire avec onClick.",
+      teach:`<p>L'IA t'a donné du code de page web classique (une variable <code>canvas</code>, un écouteur de clic, un recalcul de coordonnées). Mais ici <code>onClick(function(x, y){ ... })</code> te donne <b>déjà</b> <code>x, y</code> dans la toile — et la variable <code>canvas</code> n'existe pas : le code plante.</p>
+        <p>👉 Lance pour voir l'erreur, puis <span class="k">réécris</span> avec <code>onClick</code> seul (supprime le code navigateur ; x,y sont déjà bons).</p>`,
+      missionType:"Repérer & remplacer le code hors-sandbox (réécrire avec onClick)",
+      examplePrompt:`Dans un bac à sable où la SEULE façon de capter un clic est onClick(function(x,y){...}) avec x,y DÉJÀ dans la toile (W×H), dessine un cercle vert #13875a rayon 14 à l'endroit cliqué. N'utilise NI variable canvas, NI écouteur de clic, NI recalcul de coordonnées : x,y sont déjà bons.`,
+      whatToVerify:"Le code passe bien une fonction à onClick (et non un écouteur sur « canvas ») ? Il utilise x,y directement, sans recalcul ? La variable canvas (inexistante ici) a disparu ? Le cercle apparaît sous le curseur ?",
+      starter:`// Code "écrit par l'IA" (style page web) — il NE marche PAS ici : « canvas » n'existe pas.\n// Réécris-le avec onClick(function(x,y){ ... }) : x,y sont déjà dans la toile.\ncanvas.addEventListener("click", function(e){\n  const r = canvas.getBoundingClientRect();\n  const x = e.clientX - r.left, y = e.clientY - r.top;\n  ctx.fillStyle = "#13875a"; ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI*2); ctx.fill();\n});`,
+      task:"Réécris avec onClick(function(x,y){...}) : x,y sont déjà dans la toile (supprime le code « canvas »).",
+      hint:`onClick(function(x, y){ ctx.fillStyle = "#13875a"; ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI*2); ctx.fill(); });`,
+      solution:`print("Lance, puis clique dans le cadre !");\nonClick(function(x, y){\n  ctx.fillStyle = "#13875a";\n  ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI*2); ctx.fill();\n});`,
+      check:(a)=> a.calls.has("onClick") && !/addEventListener|getBoundingClientRect/.test(a.src) } },
 ]},
 { id:"jeux", title:"Concevoir les jeux d'AwemA", icon:"🎮", lessons:[
-  { id:"j1", title:"Lignées : le tour par tour", xp:20, mode:"read",
-    intro:"Regardons comment est pensé chaque jeu de la plateforme. D'abord Lignées : un jeu de stratégie au tour par tour.",
-    teach:`<p><b>Idée</b> : tu donnes des ordres, puis on « résout » le tour. Le cœur est une <span class="k">fonction pure</span> : <code>nouvelÉtat = résoudre(état, ordres)</code>. Même entrée → même sortie : facile à tester !</p>
-      <p>L'<b>état</b> est juste un objet : <code>{ or: 80, grain: 100 }</code>. Un ordre le transforme.</p>
-      <p>👉 Lance : on simule « commercer » (+25 d'or). C'est exactement l'esprit de Lignées.</p>`,
-    prompt:`Aide-moi à concevoir un jeu au tour par tour : une fonction resoudreTour(etat, ordre) qui renvoie un nouvel état. Quels avantages d'une fonction pure ?`,
-    starter:`let etat = { or: 80, grain: 100 };\n\nfunction resoudre(etat, ordre){\n  if (ordre === "commercer") return { or: etat.or + 25, grain: etat.grain };\n  return etat;\n}\n\nlet apres = resoudre(etat, "commercer");\nprint("Avant : or = " + etat.or);\nprint("Après : or = " + apres.or);`,
-    task:"Lance la démo et observe l'état avant/après.",
-    hint:"Clique ▶ Lancer la démo.",
-    solution:null, check:null },
-  { id:"j2", title:"Voraces : créatures qui grandissent", xp:20, mode:"anim",
-    intro:"Voraces : une créature gobe des fruits, grandit... et ralentit. Une règle simple crée tout le plaisir.",
-    teach:`<p><b>Idée</b> : une créature est un objet <code>{ x, y, taille }</code>. <span class="k">Plus elle est grosse, plus elle est lente</span> : <code>vitesse = 120 / taille</code>.</p>
-      <p>👉 Lance : le cercle grandit avec le temps et ralentit tout seul. Voilà le moteur de Voraces, en 8 lignes !</p>`,
-    prompt:`Conçois la mécanique d'un jeu type "snake/agar" : une créature qui grandit en mangeant et ralentit quand elle grossit. Quelle formule pour la vitesse ?`,
-    starter:`let bestiole = { x: 30, y: 90, taille: 1 };\nloop(function(dt){\n  clear();\n  bestiole.taille += 0.4 * dt;          // grandit\n  let vitesse = 120 / bestiole.taille;  // plus gros = plus lent\n  bestiole.x += vitesse * dt;\n  if (bestiole.x > W) bestiole.x = 0;\n  ctx.fillStyle = "#22b8a6";\n  ctx.beginPath();\n  ctx.arc(bestiole.x, bestiole.y, 8 * bestiole.taille, 0, Math.PI*2);\n  ctx.fill();\n});`,
-    task:"Lance et observe : elle grossit et ralentit.",
-    hint:"Clique ▶ Lancer la démo.",
-    solution:null, check:(a)=> a.calls.has("loop") },
-  { id:"j3", title:"L'Âge des Sables : l'automate des unités", xp:20, mode:"read",
-    intro:"Dans un RTS, chaque villageois a un comportement. On le modélise par un 'automate à états'.",
-    teach:`<p><b>Idée</b> : une unité a un <span class="k">état</span> (« oisif », « récolte », « combat »…) et on choisit quoi faire selon cet état. C'est une <em>machine à états</em>, le secret des centaines d'unités autonomes.</p>
-      <p>👉 Lance : on fait passer un villageois d'« oisif » à « récolte » quand il trouve de la nourriture.</p>`,
-    prompt:`Explique-moi la "machine à états" pour gérer le comportement d'unités dans un jeu de stratégie. Donne un exemple avec switch.`,
-    starter:`let unite = { etat: "oisif" };\nlet nourritureProche = true;\n\nfunction penser(u){\n  switch (u.etat) {\n    case "oisif":\n      if (nourritureProche) u.etat = "recolte";\n      break;\n    case "recolte":\n      print("Le villageois récolte le mil 🌾");\n      break;\n  }\n}\n\npenser(unite);   // oisif -> décide de récolter\npenser(unite);   // maintenant il récolte\nprint("État final : " + unite.etat);`,
-    task:"Lance et suis le changement d'état.",
-    hint:"Clique ▶ Lancer la démo.",
-    solution:null, check:null },
-  { id:"j4", title:"Échecs : le plateau et les règles", xp:20, mode:"read",
-    intro:"Les Échecs à l'ivoirienne : un plateau = un simple tableau de 64 cases, et des règles de déplacement.",
-    teach:`<p><b>Idée</b> : le plateau est un <span class="k">tableau</span> de 64 cases. Chaque pièce a une règle. Pour la Tata (tour), on avance en ligne droite jusqu'à un obstacle.</p>
-      <p>👉 Lance : on compte les cases libres devant une Tata posée au coin. C'est la base d'un moteur d'échecs.</p>`,
-    prompt:`Comment représenter un échiquier en code et générer les déplacements d'une tour (en ligne droite) ? Tableau de 64 cases.`,
-    starter:`// plateau 8x8 vide ('.' = libre), une Tata (T) en bas à gauche\nlet libres = 0;\nlet x = 0;                 // colonne de la Tata\nfor (let y = 1; y < 8; y++){   // on monte tout droit\n  // case vide ? -> déplacement possible\n  libres++;\n}\nprint("La Tata peut avancer de " + libres + " cases tout droit.");`,
-    task:"Lance et lis le nombre de déplacements.",
-    hint:"Clique ▶ Lancer la démo.",
-    solution:null, check:null },
+  { id:"j1", title:"Lignées : le tour par tour (fonction pure)", xp:20,
+    concept:"resoudre(état, ordres) → NOUVEL état, sans modifier l'entrée : une fonction PURE (comme resolveTick de Lignées).",
+    coding:{ mode:"code",
+      intro:"Regardons comment est pensé chaque jeu. D'abord Lignées : tu donnes des ordres, puis on « résout » le tour avec une fonction PURE.",
+      teach:`<p><b>Idée</b> : une <span class="k">fonction pure</span> ne touche jamais à ce qu'on lui donne. La 1re ligne <b>clone</b> l'état, on modifie la copie, on renvoie du neuf : <code>nouvelÉtat = resoudre(état, ordres)</code>.</p>
+        <p>Avantage : on peut rejouer un tour, l'annuler, le simuler — et le serveur obtient le même résultat que toi. Le vrai moteur fait <code>structuredClone(state)</code> en 1re ligne.</p>
+        <p>👉 Ici le clone est CASSÉ (<code>const s = etat;</code> partage l'objet). Corrige-le pour que l'ANCIEN état reste à 100.</p>`,
+      prompt:`En JavaScript, écris resoudre(etat, ordres) PUR : clone l'état en profondeur, applique des phases (revenus, puis levée qui coûte or ET grain), renvoie un nouvel état. L'original ne doit pas changer.`,
+      starter:`clear();
+function resoudre(etat, ordres){
+  const s = etat;            // ❌ ceci PARTAGE l'objet ! clone-le en PROFONDEUR
+  const log = [];
+  s.or += s.cites * 20; log.push("revenus +" + (s.cites*20) + " or");   // phase REVENUS
+  for (const o of ordres){                                              // phase LEVÉE (coûte or ET grain)
+    if (o.type === "LEVEE" && s.or >= o.n && s.grain >= o.n){ s.or -= o.n; s.grain -= o.n; s.soldats += o.n; log.push("levée de " + o.n); }
+  }
+  s.tick += 1;
+  return { etat: s, log };
+}
+let monde = { tick:0, or:100, grain:100, soldats:50, cites:2 };
+const res = resoudre(monde, [{ type:"LEVEE", n:30 }]);
+res.log.forEach(l => print("tick " + res.etat.tick + " | " + l));
+print("nouvel or = " + res.etat.or + " | ANCIEN or = " + monde.or + " (doit rester 100 si pur)");`,
+      task:"Clone l'état en profondeur pour que « ANCIEN or = 100 » s'affiche (l'original intact).",
+      hint:"1re ligne : const s = JSON.parse(JSON.stringify(etat));",
+      solution:`clear();
+function resoudre(etat, ordres){
+  const s = JSON.parse(JSON.stringify(etat));
+  const log = [];
+  s.or += s.cites * 20; log.push("revenus +" + (s.cites*20) + " or");
+  for (const o of ordres){
+    if (o.type === "LEVEE" && s.or >= o.n && s.grain >= o.n){ s.or -= o.n; s.grain -= o.n; s.soldats += o.n; log.push("levée de " + o.n); }
+  }
+  s.tick += 1;
+  return { etat: s, log };
+}
+let monde = { tick:0, or:100, grain:100, soldats:50, cites:2 };
+const res = resoudre(monde, [{ type:"LEVEE", n:30 }]);
+res.log.forEach(l => print("tick " + res.etat.tick + " | " + l));
+print("nouvel or = " + res.etat.or + " | ANCIEN or = " + monde.or + " (doit rester 100 si pur)");`,
+      check:(a)=> a.logs.some(l=>/ANCIEN or = 100/.test(l)) },
+    vibecoding:{ mode:"code",
+      intro:"Le piège majeur des IA sur un moteur de jeu : MUTER l'état d'entrée. On vérifie la PURETÉ.",
+      teach:`<p>L'IA a écrit <code>etat.or += 25</code> : elle <b>modifie l'objet d'origine</b>. Conséquence : impossible de rejouer, et client/serveur divergent.</p>
+        <p>👉 <b>Prédis</b> : après l'appel, l'ancien <code>or</code> devrait-il valoir 80 ? Lance, constate qu'il a bougé, puis <span class="k">force le clone profond</span> et renvoie la copie.</p>`,
+      missionType:"Repérer la mutation d'état + exiger la pureté",
+      examplePrompt:`En JavaScript pur, écris resoudre(etat, ordre) PUR : il ne doit JAMAIS modifier l'objet etat reçu. Commence par cloner en PROFONDEUR (JSON.parse(JSON.stringify) ou structuredClone), modifie la copie, renvoie-la. Pour "commercer", ajoute 25 à l'or. Montre l'ancien et le nouvel or pour prouver l'intégrité.`,
+      whatToVerify:"Le clone est-il PROFOND (pas {...etat}) ? L'ancien etat.or vaut-il TOUJOURS 80 après l'appel ? Deux appels identiques donnent-ils le même résultat ?",
+      starter:`clear();
+// Code "écrit par l'IA" — résout 'commercer' (+25 or). Mais est-il PUR ?
+function resoudre(etat, ordre){
+  if (ordre === "commercer"){ etat.or += 25; }   // ❌ mutation de l'entrée !
+  return etat;
+}
+let monde = { or: 80 };
+let apres = resoudre(monde, "commercer");
+print("après : or = " + apres.or);
+print("ANCIEN or = " + monde.or + " (doit rester 80 si la fonction est pure)");`,
+      task:"Rends la fonction pure (clone profond) pour que « ANCIEN or = 80 ».",
+      hint:"const s = JSON.parse(JSON.stringify(etat)); s.or += 25; return s;",
+      solution:`clear();
+function resoudre(etat, ordre){
+  const s = JSON.parse(JSON.stringify(etat));
+  if (ordre === "commercer"){ s.or += 25; }
+  return s;
+}
+let monde = { or: 80 };
+let apres = resoudre(monde, "commercer");
+print("après : or = " + apres.or);
+print("ANCIEN or = " + monde.or + " (doit rester 80 si la fonction est pure)");`,
+      check:(a)=> a.logs.some(l=>/ANCIEN or = 80/.test(l)) } },
+  { id:"j1b", title:"Lignées : le hasard MAÎTRISÉ (déterminisme)", xp:20,
+    concept:"Remplacer Math.random par un hachage de seed+tick → même seed = même résultat (base du MP async et de l'anti-triche).",
+    coding:{ mode:"code",
+      intro:"Pour que le serveur ET ton navigateur tombent d'accord, le « hasard » d'un jeu ne doit PAS être vraiment aléatoire : il dérive d'une graine (seed).",
+      teach:`<p>Deux ennemis du déterminisme : <code>Math.random()</code> et l'ordre non trié. Lignées choisit l'événement du tour par un <span class="k">hachage</span> de <code>seed</code> et <code>tick</code> (jamais de random), et trie ses parcours.</p>
+        <p>👉 Le hachage est prêt ; complète la ligne <code>return</code> pour renvoyer un index 0, 1 ou 2 (<code>h % 3</code>). Même seed → même événement, à chaque lancement.</p>`,
+      prompt:`En JavaScript pur, écris eventFor(seed, tick) qui choisit un événement parmi 3 de façon DÉTERMINISTE, sans Math.random : dérive le choix d'un hachage entier de seed et tick.`,
+      starter:`clear();
+function eventFor(seed, tick){
+  let h = ((seed ^ (tick * 2654435761)) >>> 0);   // hachage entier dérivé de seed+tick (jamais d'aléatoire)
+  return 0;   // 👉 à toi : renvoie h modulo 3 (un index 0, 1 ou 2)
+}
+const noms = ["Harmattan", "Bonne récolte", "Caravane"];
+print("seed=42 tick=1 -> " + noms[eventFor(42,1)]);
+print("seed=42 tick=1 -> " + noms[eventFor(42,1)] + "  (identique : déterministe)");
+print("seed=99 tick=1 -> " + noms[eventFor(99,1)]);`,
+      task:"Renvoie h % 3 : deux appels même seed+tick doivent donner le même événement.",
+      hint:"return h % 3;",
+      solution:`clear();
+function eventFor(seed, tick){
+  let h = ((seed ^ (tick * 2654435761)) >>> 0);
+  return h % 3;
+}
+const noms = ["Harmattan", "Bonne récolte", "Caravane"];
+print("seed=42 tick=1 -> " + noms[eventFor(42,1)]);
+print("seed=42 tick=1 -> " + noms[eventFor(42,1)] + "  (identique : déterministe)");
+print("seed=99 tick=1 -> " + noms[eventFor(99,1)]);`,
+      check:(a)=> !/Math\.random/i.test(a.src) && /%\s*3/.test(a.src) && a.logs.length>=3 },
+    vibecoding:{ mode:"code",
+      intro:"Les IA glissent presque toujours un Math.random() pour « faire aléatoire » — et cassent le déterminisme.",
+      teach:`<p>L'IA a utilisé <code>Math.random()</code> : lance deux fois, les deux lignes « même seed » <b>diffèrent</b> → injouable en multijoueur (le serveur verrait autre chose que toi).</p>
+        <p>👉 Remplace le random par le hachage de seed+tick (<code>((seed ^ (tick*2654435761)) >>> 0) % 3</code>). Le <code>&gt;&gt;&gt;0</code> force un entier positif.</p>`,
+      missionType:"Traquer Math.random + prouver la non-reproductibilité",
+      examplePrompt:`En JavaScript pur, écris eventFor(seed, tick) DÉTERMINISTE choisissant un événement parmi 3 : INTERDIT d'utiliser Math.random(). Dérive le choix d'un hachage entier ((seed ^ (tick*2654435761))>>>0) % 3. Deux appels mêmes seed/tick = même résultat.`,
+      whatToVerify:"Aucun Math.random ? Deux appels identiques = même résultat (rejouable) ? Le >>>0 force-t-il un entier non signé ?",
+      starter:`clear();
+// Code "écrit par l'IA" : choisit un événement. Est-il REJOUABLE ?
+function eventFor(seed, tick){
+  return Math.floor(Math.random() * 3);   // ❌ Math.random casse le déterminisme
+}
+const noms = ["Harmattan", "Bonne récolte", "Caravane"];
+print("seed=42 tick=1 -> " + noms[eventFor(42,1)]);
+print("seed=42 tick=1 -> " + noms[eventFor(42,1)] + "  (devrait être IDENTIQUE)");
+print("seed=42 tick=1 -> " + noms[eventFor(42,1)]);`,
+      task:"Remplace Math.random par le hachage : les 3 lignes (même seed+tick) doivent être identiques.",
+      hint:"let h = ((seed ^ (tick * 2654435761)) >>> 0); return h % 3;",
+      solution:`clear();
+function eventFor(seed, tick){
+  let h = ((seed ^ (tick * 2654435761)) >>> 0);
+  return h % 3;
+}
+const noms = ["Harmattan", "Bonne récolte", "Caravane"];
+print("seed=42 tick=1 -> " + noms[eventFor(42,1)]);
+print("seed=42 tick=1 -> " + noms[eventFor(42,1)] + "  (identique : déterministe)");
+print("seed=42 tick=1 -> " + noms[eventFor(42,1)]);`,
+      check:(a)=> !/Math\.random/i.test(a.src) && /%\s*3/.test(a.src) && a.logs.length>=3 } },
+  { id:"j2", title:"Voraces : grandir et ralentir (stat dérivée)", xp:20,
+    concept:"Une seule source de vérité (mass) → vitesse et rayon DÉRIVÉS ; ralentissement BORNÉ (jamais figé).",
+    coding:{ mode:"anim",
+      intro:"Voraces : une créature gobe des fruits, grandit… et ralentit. Une règle simple crée tout le plaisir.",
+      teach:`<p><b>Idée</b> : on stocke UNE seule valeur, <code>mass</code>, et on en DÉRIVE tout : <code>rayon = 4 + sqrt(mass)*1.7</code> et <code>vitesse = 120 * (0.40 + 0.60/(1 + mass*0.010))</code>.</p>
+        <p>Cette formule bornée garantit : 100% de vitesse à mass 0, et un <span class="k">plancher de 40%</span> même énorme — donc jamais bloquée. Tout déplacement est × <code>dt</code>.</p>
+        <p>👉 Lance, clique pour diriger, mange : elle grossit et ralentit. Change le plancher <code>0.40</code> et observe.</p>`,
+      prompt:`Conçois une créature dont TOUTES les propriétés dérivent d'une seule variable mass : rayon = 4 + sqrt(mass)*1.7 et vitesse = 120 * (0.40 + 0.60/(1 + mass*0.010)). Elle grossit en mangeant, ralentit sans jamais se figer (plancher 40%).`,
+      starter:`let mass = 12;
+const BASE = 120, PLANCHER = 0.40, K = 0.010;
+const radiusOf = m => 4 + Math.sqrt(m) * 1.7;
+const speedOf  = m => BASE * (PLANCHER + (1 - PLANCHER) / (1 + m * K));   // ralentit mais JAMAIS sous 40%
+const bug = { x: W/2, y: H/2 }, target = { x: W/2, y: H/2 };
+let food = [];
+for (let i = 0; i < 6; i++) food.push({ x: rand(10, W-10), y: rand(10, H-10) });
+onClick((x, y) => { target.x = x; target.y = y; });
+loop(dt => {
+  clear();
+  const dx = target.x - bug.x, dy = target.y - bug.y, d = Math.hypot(dx, dy) || 1;
+  const v = speedOf(mass) * dt;
+  if (d > 2) { bug.x += dx/d*v; bug.y += dy/d*v; }
+  const r = radiusOf(mass);
+  for (let i = food.length-1; i >= 0; i--) { const f = food[i]; if (Math.hypot(bug.x-f.x, bug.y-f.y) < r+3) { mass += 8; food.splice(i,1); food.push({ x: rand(10,W-10), y: rand(10,H-10) }); } }
+  ctx.fillStyle = "#ffd24d"; for (const f of food){ ctx.beginPath(); ctx.arc(f.x, f.y, 3, 0, 7); ctx.fill(); }
+  ctx.fillStyle = "#2fd6a6"; ctx.beginPath(); ctx.arc(bug.x, bug.y, r, 0, 7); ctx.fill();
+  print("masse " + Math.round(mass) + " | vitesse " + Math.round(speedOf(mass)) + " px/s (plancher " + Math.round(BASE*PLANCHER) + ")");
+});`,
+      task:"Lance, clique pour diriger, mange. Bonus : change le plancher 0.40 et observe.",
+      hint:"Clique ▶, puis clique dans la toile pour guider la créature vers les fruits jaunes.",
+      solution:null,
+      check:(a)=> a.calls.has("loop") },
+    vibecoding:{ mode:"anim",
+      intro:"Piège fréquent : l'IA écrit vitesse = BASE / mass → à grosse masse, vitesse ~0, la créature se FIGE.",
+      teach:`<p>L'IA a écrit <code>speedOf = m => 120 / m</code> : déjà lente au départ, elle finit par se figer quand <code>mass</code> grandit. Et un rayon linéaire remplirait l'écran.</p>
+        <p>👉 Lance, regarde le HUD (la vitesse s'effondre), puis remplace par la formule <span class="k">bornée à plancher</span> et garde <code>sqrt</code> pour le rayon.</p>`,
+      missionType:"Vérifier les bornes + repérer la vitesse nulle",
+      examplePrompt:`En JS (loop(dt), ctx, W, H), une créature dont tout dérive de mass : rayon = 4 + Math.sqrt(mass)*1.7, vitesse = 120 * (0.40 + 0.60/(1 + mass*0.010)). EXIGENCE : la vitesse ne tombe JAMAIS sous 40% de 120, même pour une mass énorme. N'utilise PAS vitesse = BASE / mass.`,
+      whatToVerify:"À mass énorme, la vitesse tend vers 48 (40%) et jamais 0 ? Le rayon utilise sqrt (sinon il explose) ? Une seule source de vérité (mass), vitesse/rayon dérivés ? Déplacement × dt ?",
+      starter:`let mass = 12;
+const radiusOf = m => 4 + Math.sqrt(m) * 1.7;
+const speedOf  = m => 120 / m;   // ❌ l'IA : à grosse masse, vitesse → ~0 (créature figée)
+const bug = { x: W/2, y: H/2 }, target = { x: W/2, y: H/2 };
+let food = [];
+for (let i = 0; i < 6; i++) food.push({ x: rand(10, W-10), y: rand(10, H-10) });
+onClick((x, y) => { target.x = x; target.y = y; });
+loop(dt => {
+  clear();
+  const dx = target.x - bug.x, dy = target.y - bug.y, d = Math.hypot(dx, dy) || 1;
+  const v = speedOf(mass) * dt;
+  if (d > 2) { bug.x += dx/d*v; bug.y += dy/d*v; }
+  const r = radiusOf(mass);
+  for (let i = food.length-1; i >= 0; i--) { const f = food[i]; if (Math.hypot(bug.x-f.x, bug.y-f.y) < r+3) { mass += 12; food.splice(i,1); food.push({ x: rand(10,W-10), y: rand(10,H-10) }); } }
+  ctx.fillStyle = "#ffd24d"; for (const f of food){ ctx.beginPath(); ctx.arc(f.x, f.y, 3, 0, 7); ctx.fill(); }
+  ctx.fillStyle = "#2fd6a6"; ctx.beginPath(); ctx.arc(bug.x, bug.y, r, 0, 7); ctx.fill();
+  print("masse " + Math.round(mass) + " | vitesse " + Math.round(speedOf(mass)) + " px/s");
+});`,
+      task:"Remplace 120 / m par la formule bornée 120 * (0.40 + 0.60/(1 + m*0.010)).",
+      hint:"const speedOf = m => 120 * (0.40 + 0.60 / (1 + m * 0.010));",
+      solution:`let mass = 12;
+const radiusOf = m => 4 + Math.sqrt(m) * 1.7;
+const speedOf  = m => 120 * (0.40 + 0.60 / (1 + m * 0.010));
+const bug = { x: W/2, y: H/2 }, target = { x: W/2, y: H/2 };
+let food = [];
+for (let i = 0; i < 6; i++) food.push({ x: rand(10, W-10), y: rand(10, H-10) });
+onClick((x, y) => { target.x = x; target.y = y; });
+loop(dt => {
+  clear();
+  const dx = target.x - bug.x, dy = target.y - bug.y, d = Math.hypot(dx, dy) || 1;
+  const v = speedOf(mass) * dt;
+  if (d > 2) { bug.x += dx/d*v; bug.y += dy/d*v; }
+  const r = radiusOf(mass);
+  for (let i = food.length-1; i >= 0; i--) { const f = food[i]; if (Math.hypot(bug.x-f.x, bug.y-f.y) < r+3) { mass += 12; food.splice(i,1); food.push({ x: rand(10,W-10), y: rand(10,H-10) }); } }
+  ctx.fillStyle = "#ffd24d"; for (const f of food){ ctx.beginPath(); ctx.arc(f.x, f.y, 3, 0, 7); ctx.fill(); }
+  ctx.fillStyle = "#2fd6a6"; ctx.beginPath(); ctx.arc(bug.x, bug.y, r, 0, 7); ctx.fill();
+  print("masse " + Math.round(mass) + " | vitesse " + Math.round(speedOf(mass)) + " px/s");
+});`,
+      check:(a)=> a.calls.has("loop") && /0\.4\d*\s*\+/.test(a.src) && /sqrt/.test(a.src) } },
+  { id:"j3", title:"L'Âge des Sables : l'automate (FSM)", xp:20,
+    concept:"FSM par chaîne : u.state lu par UN switch ; transition = simple affectation ; enchaînement autonome.",
+    coding:{ mode:"anim",
+      intro:"Dans un RTS, chaque villageois a un comportement. On le modélise par une « machine à états ».",
+      teach:`<p><b>Idée</b> : une <b>machine à états</b> (FSM = <em>Finite State Machine</em>) — l'unité a un champ texte <code>u.state</code> (« idle », « gather », « return »…) lu par <span class="k">un seul switch</span> par image. Une <b>transition</b> = une simple affectation <code>u.state = "..."</code>.</p>
+        <p>Les états s'enchaînent seuls : récolter → revenir → récolter. C'est ce qui rend l'unité autonome (le vrai <code>updateUnit</code> de Sables).</p>
+        <p>👉 Le caravanier dépose mais reste bloqué. Complète la transition <code>return → gather</code> pour qu'il reboucle.</p>`,
+      prompt:`Modélise une unité RTS par un objet plat avec un champ state, et UN switch par frame. États idle → gather → return → gather (boucle autonome). Une transition = une affectation state = "...".`,
+      starter:`clear();
+var champ = { x: 70, y: 100 }, cite = { x: 250, y: 100 };
+var u = { x: 250, y: 100, state: "idle", carry: 0, idleT: 0 };
+var CAP = 12, SPEED = 70;
+function moveTo(tx, ty, dt){ var dx=tx-u.x, dy=ty-u.y, d=Math.hypot(dx,dy); if(d<3) return true; var s=SPEED*dt; u.x+=dx/d*s; u.y+=dy/d*s; return false; }
+loop(function(dt){
+  clear();
+  switch (u.state){                                  // UN switch par frame, comme updateUnit()
+    case "idle":   u.idleT += dt; if (u.idleT > 0.6){ u.state = "gather"; u.idleT = 0; } break;
+    case "gather": if (!moveTo(champ.x, champ.y, dt)) break;
+                   u.carry += 14*dt;
+                   if (u.carry >= CAP) u.state = "return";          // plein → on rentre
+                   break;
+    case "return": if (!moveTo(cite.x, cite.y, dt)) break;
+                   print("dépose " + Math.round(u.carry) + " vivres"); u.carry = 0;
+                   // 👉 à toi : repartir récolter — ré-affecte u.state pour relancer la phase de récolte
+                   break;
+  }
+  ctx.fillStyle="#3f8f5a"; ctx.fillRect(champ.x-8, champ.y-8, 16, 16);
+  ctx.fillStyle="#a8631f"; ctx.fillRect(cite.x-10, cite.y-10, 20, 20);
+  ctx.fillStyle="#2f5fb0"; ctx.beginPath(); ctx.arc(u.x, u.y, 6, 0, 7); ctx.fill();
+});`,
+      task:"Ajoute u.state = \"gather\" après le dépôt pour que le caravanier reboucle.",
+      hint:"Dans le case \"return\", après print/carry=0 : u.state = \"gather\";",
+      solution:`clear();
+var champ = { x: 70, y: 100 }, cite = { x: 250, y: 100 };
+var u = { x: 250, y: 100, state: "idle", carry: 0, idleT: 0 };
+var CAP = 12, SPEED = 70;
+function moveTo(tx, ty, dt){ var dx=tx-u.x, dy=ty-u.y, d=Math.hypot(dx,dy); if(d<3) return true; var s=SPEED*dt; u.x+=dx/d*s; u.y+=dy/d*s; return false; }
+loop(function(dt){
+  clear();
+  switch (u.state){
+    case "idle":   u.idleT += dt; if (u.idleT > 0.6){ u.state = "gather"; u.idleT = 0; } break;
+    case "gather": if (!moveTo(champ.x, champ.y, dt)) break; u.carry += 14*dt; if (u.carry >= CAP) u.state = "return"; break;
+    case "return": if (!moveTo(cite.x, cite.y, dt)) break; print("dépose " + Math.round(u.carry) + " vivres"); u.carry = 0; u.state = "gather"; break;
+  }
+  ctx.fillStyle="#3f8f5a"; ctx.fillRect(champ.x-8, champ.y-8, 16, 16);
+  ctx.fillStyle="#a8631f"; ctx.fillRect(cite.x-10, cite.y-10, 20, 20);
+  ctx.fillStyle="#2f5fb0"; ctx.beginPath(); ctx.arc(u.x, u.y, 6, 0, 7); ctx.fill();
+});`,
+      check:(a)=> a.calls.has("loop") && (a.src.match(/state\s*=\s*["']gather["']/g)||[]).length >= 2 },
+    vibecoding:{ mode:"anim",
+      intro:"Pièges IA sur une FSM : un état TERMINAL (l'unité s'arrête) ou la sur-architecture (classe State, table centralisée).",
+      teach:`<p>L'IA a fait passer <code>return</code> vers un état <code>"fini"</code> <b>qui n'a pas de case</b> : le caravanier dépose UNE fois puis s'arrête à jamais. Le gameplay vient de l'<span class="k">enchaînement</span>, pas d'états terminaux.</p>
+        <p>👉 Lance (une seule livraison), puis fais <span class="k">reboucler</span> <code>return → gather</code>.</p>`,
+      missionType:"Repérer l'état terminal (pas d'enchaînement)",
+      examplePrompt:`En JS (loop(dt), ctx), modélise une unité par un objet plat avec un champ state et UN switch par frame : idle → gather → return → (retour en) gather pour reboucler. Une transition = une affectation. Pas de classe State ni de table centralisée.`,
+      whatToVerify:"« return » enchaîne-t-il vers « gather » (boucle), ou retombe-t-il dans un état sans case (l'unité s'arrête) ? Les transitions sont-elles de simples affectations ? Pas de sur-architecture ?",
+      starter:`clear();
+var champ = { x: 70, y: 100 }, cite = { x: 250, y: 100 };
+var u = { x: 250, y: 100, state: "idle", carry: 0, idleT: 0 };
+var CAP = 12, SPEED = 70;
+function moveTo(tx, ty, dt){ var dx=tx-u.x, dy=ty-u.y, d=Math.hypot(dx,dy); if(d<3) return true; var s=SPEED*dt; u.x+=dx/d*s; u.y+=dy/d*s; return false; }
+loop(function(dt){
+  clear();
+  switch (u.state){
+    case "idle":   u.idleT += dt; if (u.idleT > 0.6){ u.state = "gather"; u.idleT = 0; } break;
+    case "gather": if (!moveTo(champ.x, champ.y, dt)) break; u.carry += 14*dt; if (u.carry >= CAP) u.state = "return"; break;
+    case "return": if (!moveTo(cite.x, cite.y, dt)) break; print("dépose " + Math.round(u.carry)); u.carry = 0; u.state = "fini"; break;   // ❌ état terminal : il s'arrête à jamais
+  }
+  ctx.fillStyle="#3f8f5a"; ctx.fillRect(champ.x-8, champ.y-8, 16, 16);
+  ctx.fillStyle="#a8631f"; ctx.fillRect(cite.x-10, cite.y-10, 20, 20);
+  ctx.fillStyle="#2f5fb0"; ctx.beginPath(); ctx.arc(u.x, u.y, 6, 0, 7); ctx.fill();
+});`,
+      task:"Remplace u.state = \"fini\" par u.state = \"gather\" pour qu'il reboucle.",
+      hint:"Dans le case \"return\" : u.state = \"gather\"; (et plus aucun \"fini\").",
+      solution:`clear();
+var champ = { x: 70, y: 100 }, cite = { x: 250, y: 100 };
+var u = { x: 250, y: 100, state: "idle", carry: 0, idleT: 0 };
+var CAP = 12, SPEED = 70;
+function moveTo(tx, ty, dt){ var dx=tx-u.x, dy=ty-u.y, d=Math.hypot(dx,dy); if(d<3) return true; var s=SPEED*dt; u.x+=dx/d*s; u.y+=dy/d*s; return false; }
+loop(function(dt){
+  clear();
+  switch (u.state){
+    case "idle":   u.idleT += dt; if (u.idleT > 0.6){ u.state = "gather"; u.idleT = 0; } break;
+    case "gather": if (!moveTo(champ.x, champ.y, dt)) break; u.carry += 14*dt; if (u.carry >= CAP) u.state = "return"; break;
+    case "return": if (!moveTo(cite.x, cite.y, dt)) break; print("dépose " + Math.round(u.carry)); u.carry = 0; u.state = "gather"; break;
+  }
+  ctx.fillStyle="#3f8f5a"; ctx.fillRect(champ.x-8, champ.y-8, 16, 16);
+  ctx.fillStyle="#a8631f"; ctx.fillRect(cite.x-10, cite.y-10, 20, 20);
+  ctx.fillStyle="#2f5fb0"; ctx.beginPath(); ctx.arc(u.x, u.y, 6, 0, 7); ctx.fill();
+});`,
+      check:(a)=> a.calls.has("loop") && !/["']fini["']/.test(a.src) && (a.src.match(/state\s*=\s*["']gather["']/g)||[]).length >= 2 } },
+  { id:"j4", title:"Échecs : le plateau plat et les déplacements", xp:20,
+    concept:"Plateau = tableau plat de 64 cases (idx=r*8+f) ; pièce glissante par boucle while, bornes sur r ET f.",
+    coding:{ mode:"anim",
+      intro:"Les Échecs à l'ivoirienne : un plateau = un simple tableau de 64 cases, et des règles de déplacement.",
+      teach:`<p><b>Idée</b> : le plateau est <span class="k">un tableau plat</span> de 64 cases. <code>idx = r*8 + f</code> ; pour revenir : <code>r = idx&gt;&gt;3</code>, <code>f = idx&amp;7</code>.</p>
+        <p>Une Tata (tour) <b>glisse</b> : on avance dans une direction tant qu'on est sur le plateau ; case vide → on continue ; <b>adverse → on prend puis on s'arrête</b> ; ami → on s'arrête sans prendre.</p>
+        <p>👉 Complète la règle de prise pour obtenir le bon total (<b>11</b> cases).</p>`,
+      prompt:`Représente un échiquier par un tableau plat de 64 cases (idx=r*8+f, r=idx>>3, f=idx&7). Génère les cases d'une tour glissante : boucle while par direction, bornes sur r ET f, prise sur adverse puis break, stop sur ami.`,
+      starter:`clear();
+var b = new Array(64).fill(".");
+function set(r, f, v){ b[r*8 + f] = v; }          // poser une pièce
+set(4,3,"R"); set(4,6,"r"); set(1,3,"R");         // notre Tata (R), un ennemi (r minuscule), un ami (R)
+var ROOK = [[-1,0],[1,0],[0,-1],[0,1]];            // 4 directions orthogonales
+function genRook(idx){
+  var r = idx >> 3, f = idx & 7, out = [];         // r = ligne, f = colonne
+  for (var k = 0; k < ROOK.length; k++){
+    var dr = ROOK[k][0], df = ROOK[k][1], rr = r + dr, ff = f + df;
+    while (rr >= 0 && rr < 8 && ff >= 0 && ff < 8){ // bornes sur rr ET ff (sinon wrap-around d'un bord à l'autre)
+      var ti = rr*8 + ff, p = b[ti];
+      if (p === ".") { out.push(ti); }             // vide → on continue
+      else { /* 👉 à toi : si p est ADVERSE (minuscule) -> out.push(ti) PUIS break ; si AMI -> break sans prendre */ }
+      rr += dr; ff += df;
+    }
+  }
+  return out;
+}
+var moves = genRook(4*8 + 3);
+print("La Tata atteint " + moves.length + " cases (attendu : 11).");
+var cell = Math.min(W, H) / 8;
+loop(function(){
+  for (var i = 0; i < 64; i++){
+    var rr = i>>3, ff = i&7, x = ff*cell, y = rr*cell;
+    ctx.fillStyle = ((rr+ff)%2) ? "#ab7c4f" : "#ecd8b6"; ctx.fillRect(x, y, cell-1, cell-1);
+    if (moves.indexOf(i) >= 0){ ctx.fillStyle = "#0f7a4e"; ctx.beginPath(); ctx.arc(x+cell/2, y+cell/2, cell/6, 0, 7); ctx.fill(); }
+    if (b[i] !== "."){ ctx.fillStyle = (b[i] === b[i].toUpperCase()) ? "#e8702a" : "#222"; ctx.beginPath(); ctx.arc(x+cell/2, y+cell/2, cell/3, 0, 7); ctx.fill(); }
+  }
+});`,
+      task:"Complète la règle de prise (adverse → push + break ; ami → break) pour atteindre 11 cases.",
+      hint:"else { if (p === p.toLowerCase()) out.push(ti); break; }",
+      solution:`clear();
+var b = new Array(64).fill(".");
+function set(r, f, v){ b[r*8 + f] = v; }
+set(4,3,"R"); set(4,6,"r"); set(1,3,"R");
+var ROOK = [[-1,0],[1,0],[0,-1],[0,1]];
+function genRook(idx){
+  var r = idx >> 3, f = idx & 7, out = [];
+  for (var k = 0; k < ROOK.length; k++){
+    var dr = ROOK[k][0], df = ROOK[k][1], rr = r + dr, ff = f + df;
+    while (rr >= 0 && rr < 8 && ff >= 0 && ff < 8){
+      var ti = rr*8 + ff, p = b[ti];
+      if (p === ".") { out.push(ti); }
+      else { if (p === p.toLowerCase()) out.push(ti); break; }
+      rr += dr; ff += df;
+    }
+  }
+  return out;
+}
+var moves = genRook(4*8 + 3);
+print("La Tata atteint " + moves.length + " cases (attendu : 11).");
+var cell = Math.min(W, H) / 8;
+loop(function(){
+  for (var i = 0; i < 64; i++){
+    var rr = i>>3, ff = i&7, x = ff*cell, y = rr*cell;
+    ctx.fillStyle = ((rr+ff)%2) ? "#ab7c4f" : "#ecd8b6"; ctx.fillRect(x, y, cell-1, cell-1);
+    if (moves.indexOf(i) >= 0){ ctx.fillStyle = "#0f7a4e"; ctx.beginPath(); ctx.arc(x+cell/2, y+cell/2, cell/6, 0, 7); ctx.fill(); }
+    if (b[i] !== "."){ ctx.fillStyle = (b[i] === b[i].toUpperCase()) ? "#e8702a" : "#222"; ctx.beginPath(); ctx.arc(x+cell/2, y+cell/2, cell/3, 0, 7); ctx.fill(); }
+  }
+});`,
+      check:(a)=> a.logs.some(l=>/atteint 11 /.test(l)) },
+    vibecoding:{ mode:"code",
+      intro:"LE bug classique sur tableau plat : le WRAP-AROUND (tester seulement l'index 0..63 → on déborde d'un bord à l'autre) et l'oubli du break.",
+      teach:`<p>L'IA avance par index plat et ne teste <b>que</b> <code>0 &lt;= idx &lt;= 63</code> : un déplacement « gauche » depuis la colonne 0 saute sur la colonne 7 de la ligne d'avant. Et sans <code>break</code>, la tour saute par-dessus les pièces.</p>
+        <p>👉 Réécris <code>genRook</code> avec <code>r = idx&gt;&gt;3</code>, <code>f = idx&amp;7</code>, des bornes sur <span class="k">r ET f</span>, et un <code>break</code> sur une pièce.</p>`,
+      missionType:"Repérer le wrap-around + le break manquant",
+      examplePrompt:`En JS pur, échiquier = tableau plat de 64 cases, idx = r*8 + f (r = idx>>3, f = idx&7). Génère les cases d'une tour glissante : pour chaque direction, avance tant que 0<=rr<8 ET 0<=ff<8 (vérifie rr ET ff SÉPARÉMENT, jamais seulement l'index, sinon wrap-around) ; case vide → continue, adverse → ajoute PUIS break, ami → break sans ajouter.`,
+      whatToVerify:"Les bornes sont-elles testées sur rr ET ff (pas seulement idx 0..63) ? Y a-t-il un break après une pièce (la tour ne saute pas) ? La case amie est-elle non ajoutée ?",
+      starter:`clear();
+var b = new Array(64).fill(".");
+function set(r, f, v){ b[r*8 + f] = v; }
+set(4,0,"R"); set(4,6,"r");                    // Tata au bord gauche (colonne 0), ennemi à droite
+var ROOK = [-8, 8, -1, 1];                      // l'IA avance par INDEX plat (haut/bas/gauche/droite)
+function genRook(idx){
+  var out = [];
+  for (var k = 0; k < ROOK.length; k++){
+    var cur = idx;
+    while (true){
+      cur += ROOK[k];
+      if (cur < 0 || cur > 63) break;           // ❌ ne teste QUE l'index → wrap-around d'un bord à l'autre
+      out.push(cur);                            // ❌ pas de break sur une pièce → saute par-dessus
+    }
+  }
+  return out;
+}
+print("Cases trouvées : " + genRook(4*8 + 0).length + " (FAUX : wrap-around + saut de pièces)");
+print("Réécris genRook proprement : décompose l'index en ligne et colonne, vérifie chaque borne, et stoppe-toi sur une pièce.");`,
+      task:"Réécris genRook avec r=idx>>3, f=idx&7, bornes sur r ET f, et break sur une pièce.",
+      hint:"var r = idx>>3, f = idx&7; … while (rr>=0 && rr<8 && ff>=0 && ff<8){ … else { if (adverse) out.push(ti); break; } rr+=dr; ff+=df; }",
+      solution:`clear();
+var b = new Array(64).fill(".");
+function set(r, f, v){ b[r*8 + f] = v; }
+set(4,0,"R"); set(4,6,"r");
+var ROOK = [[-1,0],[1,0],[0,-1],[0,1]];
+function genRook(idx){
+  var r = idx >> 3, f = idx & 7, out = [];
+  for (var k = 0; k < ROOK.length; k++){
+    var dr = ROOK[k][0], df = ROOK[k][1], rr = r + dr, ff = f + df;
+    while (rr >= 0 && rr < 8 && ff >= 0 && ff < 8){
+      var ti = rr*8 + ff, p = b[ti];
+      if (p === ".") out.push(ti);
+      else { if (p === p.toLowerCase()) out.push(ti); break; }
+      rr += dr; ff += df;
+    }
+  }
+  return out;
+}
+print("Cases trouvées : " + genRook(4*8 + 0).length + " (correct : pas de wrap-around, stop sur pièce)");`,
+      check:(a)=> />>\s*3/.test(a.src) && /&\s*7/.test(a.src) && /\bbreak\b/.test(a.src) } },
+  { id:"j5", title:"Le duel partagé : matchmaking + serveur qui recalcule", xp:25,
+    concept:"File d'attente UNIQUE indexée par jeu (duelWaiting[jeu]) ; le serveur ne fait PAS confiance au client : il RECALCULE l'Indice.",
+    coding:{ mode:"code",
+      intro:"Le multijoueur d'AwemA en 2 idées : appairer 2 joueurs sur la même file, et faire RECALCULER le score par le serveur (jamais le client).",
+      teach:`<p><b>1) Matchmaking</b> : une file <span class="k">indexée par jeu</span> <code>duelWaiting[jeu]</code> (un seul objet, pas une variable par jeu) : si quelqu'un attend, on appaire ; sinon on s'inscrit.</p>
+        <p><b>2) Anti-triche</b> : le serveur IGNORE l'indice envoyé et le <span class="k">recalcule</span> : <code>Σ round(min(1, score/cible) × 1000)</code>, chaque score plafonné.</p>
+        <p>👉 Complète <code>computeIndice</code> pour qu'un indice client « 999999 » soit ignoré (résultat attendu : 2000).</p>`,
+      prompt:`Matchmaking 1v1 multi-jeux : un objet duelWaiting indexé par clé de jeu (appaire si un joueur attend, sinon inscrit). Puis computeIndice(games) = Σ round(min(1, score/cible)*1000) qui ignore l'indice du client et plafonne chaque maîtrise à 1.`,
+      starter:`clear();
+// 1) FILE D'ATTENTE indexée par jeu (UN objet, pas une variable par jeu)
+var duelWaiting = { chess: null, awale: null };
+function join(jeu, joueur){
+  if (duelWaiting[jeu] && duelWaiting[jeu] !== joueur){
+    print("DUEL " + jeu + " : " + duelWaiting[jeu] + " vs " + joueur);
+    duelWaiting[jeu] = null;
+  } else { duelWaiting[jeu] = joueur; print(joueur + " attend un adversaire (" + jeu + ")"); }
+}
+join("chess", "Awa"); join("awale", "Kofi"); join("chess", "Zoé");   // chess s'apparie, awale attend seul
+
+// 2) Le SERVEUR recalcule l'Indice : il IGNORE l'indice envoyé par le client
+var TARGETS = { echecs: 8, oware: 8, voraces: 400 };
+function computeIndice(games){
+  var t = 0;
+  for (var k in TARGETS){ t += 0; }   // 👉 à toi : t += Math.round(Math.min(1, (games[k]||0) / TARGETS[k]) * 1000) — le serveur boucle sur SES cibles
+  return t;
+}
+var triche = { indice: 999999, games: { echecs: 8, voraces: 1000000 } };
+print("indice CLIENT prétendu : " + triche.indice);
+print("indice SERVEUR recalculé : " + computeIndice(triche.games));`,
+      task:"Complète computeIndice : l'indice serveur recalculé doit valoir 2000 (le 999999 ignoré).",
+      hint:"Dans la boucle sur TARGETS : t += Math.round(Math.min(1, (games[k]||0) / TARGETS[k]) * 1000);",
+      solution:`clear();
+var duelWaiting = { chess: null, awale: null };
+function join(jeu, joueur){
+  if (duelWaiting[jeu] && duelWaiting[jeu] !== joueur){ print("DUEL " + jeu + " : " + duelWaiting[jeu] + " vs " + joueur); duelWaiting[jeu] = null; }
+  else { duelWaiting[jeu] = joueur; print(joueur + " attend un adversaire (" + jeu + ")"); }
+}
+join("chess", "Awa"); join("awale", "Kofi"); join("chess", "Zoé");
+var TARGETS = { echecs: 8, oware: 8, voraces: 400 };
+function computeIndice(games){
+  var t = 0;
+  for (var k in TARGETS){ t += Math.round(Math.min(1, (games[k]||0) / TARGETS[k]) * 1000); }
+  return t;
+}
+var triche = { indice: 999999, games: { echecs: 8, voraces: 1000000 } };
+print("indice CLIENT prétendu : " + triche.indice);
+print("indice SERVEUR recalculé : " + computeIndice(triche.games));`,
+      check:(a)=> a.logs.some(l=>/DUEL chess/.test(l)) && a.logs.some(l=>/recalculé : 2000/.test(l)) },
+    vibecoding:{ mode:"code",
+      intro:"Pièges IA documentés : une file par jeu (ne tient pas l'échelle) et — surtout — FAIRE CONFIANCE au score envoyé par le client.",
+      teach:`<p>L'IA a écrit une variable de file par jeu (<code>waitingChess</code>, <code>waitingAwale</code>…) et, pire, <code>submitScore</code> renvoie directement <code>p.indice</code> : un tricheur impose 999999.</p>
+        <p>👉 Réécris : un seul <code>duelWaiting[jeu]</code>, et un serveur qui <span class="k">recalcule</span> l'indice (ignore celui du client, plafonne chaque score).</p>`,
+      missionType:"Repérer la faille de confiance + la file non indexée",
+      examplePrompt:`Matchmaking 1v1 multi-jeux : UN seul objet duelWaiting indexé par clé (jamais une variable par jeu). Pour le classement, le serveur IGNORE l'indice envoyé et le RECALCULE = Σ round(min(1, score/cible)*1000), chaque score plafonné. Prouve qu'un indice gonflé (999999) n'a aucun effet.`,
+      whatToVerify:"UN objet indexé par clé (pas N variables) ? L'indice client est-il IGNORÉ et recalculé ? Chaque maîtrise est-elle saturée à 1 (min(1, score/cible)) ?",
+      starter:`clear();
+var waitingChess = null, waitingAwale = null;   // ❌ une variable par jeu : ne passe pas à l'échelle
+function join(jeu, joueur){
+  if (jeu === "chess"){ if (waitingChess){ print("DUEL chess : " + waitingChess + " vs " + joueur); waitingChess = null; } else waitingChess = joueur; }
+  // ❌ et l'awalé ? il faudrait dupliquer tout le bloc…
+}
+function submitScore(p){ return p.indice; }      // ❌ le serveur FAIT CONFIANCE à l'indice du client
+join("chess", "Awa"); join("chess", "Zoé");
+var triche = { indice: 999999, games: { echecs: 8, voraces: 1000000 } };
+print("indice retenu : " + submitScore(triche) + "  (le tricheur impose 999999 !)");`,
+      task:"Réécris avec un objet duelWaiting indexé par jeu et un computeIndice qui ignore l'indice client.",
+      hint:"var duelWaiting = {}; … function computeIndice(games){ … t += Math.round(Math.min(1, games[k]/TARGETS[k]) * 1000); }",
+      solution:`clear();
+var duelWaiting = { chess: null, awale: null };
+function join(jeu, joueur){
+  if (duelWaiting[jeu] && duelWaiting[jeu] !== joueur){ print("DUEL " + jeu + " : " + duelWaiting[jeu] + " vs " + joueur); duelWaiting[jeu] = null; }
+  else { duelWaiting[jeu] = joueur; print(joueur + " attend (" + jeu + ")"); }
+}
+var TARGETS = { echecs: 8, oware: 8, voraces: 400 };
+function computeIndice(games){ var t = 0; for (var k in TARGETS){ t += Math.round(Math.min(1, (games[k]||0) / TARGETS[k]) * 1000); } return t; }
+join("chess", "Awa"); join("chess", "Zoé");
+var triche = { indice: 999999, games: { echecs: 8, voraces: 1000000 } };
+print("indice CLIENT ignoré : " + triche.indice);
+print("indice SERVEUR recalculé (plafonné) : " + computeIndice(triche.games));`,
+      check:(a)=> /duelWaiting\s*\[/.test(a.src) && /Math\.round\(\s*Math\.min\(\s*1/.test(a.src) && !/return\s+p\.indice/.test(a.src) } },
 ]},
-{ id:"ia", title:"Créer AVEC l'IA", icon:"🤖", lessons:[
-  { id:"i1", title:"Bien demander à l'IA", xp:20, mode:"read",
-    intro:"Voici ma spécialité ! L'IA construit plus vite si tu demandes BIEN. La clé : découper et être précis.",
-    teach:`<p>Pour créer un jeu avec une IA (comme moi 🤖), <b>découpe</b> en petits morceaux et sois <b>précis</b>. Compare :</p>
-      <p>❌ « Fais-moi un jeu. » → trop vague.<br>
-      ✅ « Écris une fonction JS <code>deplacer(joueur, dt)</code> qui fait avancer un objet <code>{x,y}</code> vers la droite à 100 px/s, et qui le ramène à gauche s'il sort de l'écran (largeur W). »</p>
-      <p>Une bonne demande dit : <span class="k">le langage</span>, <span class="k">l'entrée</span>, <span class="k">la sortie attendue</span>, et <span class="k">les contraintes</span>.</p>
-      <p>👉 Lance : la console affiche un modèle de bonne demande, prêt à copier vers ton IA.</p>`,
-    prompt:`Voici mon objectif : [décris ton mini-jeu]. Découpe-le en 5 petites étapes de code, et pour chacune écris-moi une fonction JavaScript courte et commentée.`,
-    starter:`print("Recette d'une bonne demande à l'IA :");\nprint("1) Le langage : 'en JavaScript...'");\nprint("2) Ce que je donne : 'un objet {x, y}'");\nprint("3) Ce que je veux : 'une fonction qui...'");\nprint("4) Les règles : 'la vitesse est 100, l'écran fait W'");\nprint("5) Le format : 'code court et commenté'");`,
-    task:"Lance et lis la recette.",
-    hint:"Clique ▶ Lancer la démo, puis copie le prompt ci-dessus pour t'entraîner.",
-    solution:null, check:null },
-  { id:"i2", title:"Vérifier & corriger le code de l'IA", xp:25, mode:"code",
-    intro:"L'IA se trompe parfois ! Le bon réflexe : tester avec print, repérer le bug, et demander une correction.",
-    teach:`<p>Ne fais jamais confiance aveuglément : <b>teste</b>. Ici, l'IA a écrit une fonction <code>doubler</code>... mais il y a un <span class="k">bug</span> ! Elle <em>additionne</em> au lieu de <em>multiplier</em>.</p>
-      <p>👉 Mission : corrige <code>doubler</code> pour qu'elle renvoie <code>n * 2</code>. La console doit afficher <b>10</b>.</p>`,
-    prompt:`Cette fonction doit doubler un nombre mais renvoie un mauvais résultat : [colle le code]. Trouve le bug et corrige-le.`,
-    starter:`function doubler(n){\n  return n + 2;   // 🐞 bug : ce n'est pas ça, "doubler" !\n}\nprint(doubler(5));   // devrait afficher 10`,
-    task:"Corrige la fonction pour afficher 10.",
-    hint:"Remplace n + 2 par n * 2.",
-    solution:`function doubler(n){\n  return n * 2;\n}\nprint(doubler(5));`,
-    check:(a)=> a.logs.includes("10") },
+{ id:"ia", title:"Créer & piloter l'IA", icon:"🤖", lessons:[
+  { id:"i1", title:"Bien demander à l'IA (spécifier + découper)", xp:20,
+    concept:"Anatomie d'un bon prompt (langage, entrée, sortie, contraintes, format) et l'art de DÉCOUPER en petites étapes.",
+    coding:{ mode:"code",
+      intro:"L'IA construit plus vite si tu demandes BIEN. La clé : découper et être précis.",
+      teach:`<p>Pour créer un jeu avec une IA, <b>découpe</b> en petits morceaux et sois <b>précis</b>. Compare : ❌ « Fais-moi un jeu » → ✅ « Écris <code>deplacer(joueur, dt)</code> qui avance un objet {x,y} à 100 px/s et le ramène à gauche s'il sort (largeur W). »</p>
+        <p>Une bonne demande dit : <span class="k">le langage</span>, <span class="k">l'entrée</span>, <span class="k">la sortie attendue</span>, <span class="k">les contraintes</span>, <span class="k">le format</span>.</p>
+        <p>👉 Lance : la console affiche la recette + les contraintes de notre bac à sable.</p>`,
+      prompt:`Voici mon objectif : [décris ton mini-jeu]. Découpe-le en 5 petites étapes de code, et pour chacune écris une fonction JavaScript courte et commentée.`,
+      starter:`clear();
+print("Recette d'une bonne demande à l'IA :");
+print("1) Le LANGAGE : 'en JavaScript…'");
+print("2) L'ENTRÉE : 'un objet {x, y}'");
+print("3) La SORTIE attendue : 'une fonction qui…'");
+print("4) Les CONTRAINTES du sandbox : loop(dt)/onClick/ctx/W/H — PAS de DOM, import, fetch, requestAnimationFrame");
+print("5) Le FORMAT : 'code court et commenté'");`,
+      task:"Lance la recette d'un bon prompt et lis les contraintes du sandbox.",
+      hint:"Clique ▶, puis copie le prompt modèle pour t'entraîner.",
+      solution:null,
+      check:(a)=> a.logs.length>=5 },
+    vibecoding:{ mode:"code",
+      intro:"Cœur du vibecoding : transformer une envie floue en cahier des charges, et DÉCOUPER en étapes testables.",
+      teach:`<p>Un méga-prompt « fais-moi un jeu » échoue. Un bon vibecodeur <b>découpe</b> : état → boucle → clic → score → garde-fou, une étape testable à la fois.</p>
+        <p>👉 Remplis les 4 étapes (remplace les <code>…</code>) pour le mini-jeu « une colombe ramasse du mil », puis lance. (Ça prépare ton projet final.)</p>`,
+      missionType:"Rédiger un cahier des charges découpé",
+      examplePrompt:`Objectif : un mini-jeu où une colombe ramasse du mil. Écris un prompt PRÉCIS : langage (JS), ce que fournit le bac à sable (loop(dt), ctx, W, H, onClick, rand — et AUCUN DOM/import/fetch/requestAnimationFrame), l'entrée, la sortie visuelle attendue, et découpe en 4 étapes numérotées et testables.`,
+      whatToVerify:"Mon prompt contient les 5 ingrédients ? Mentionne les primitives ET les interdits du sandbox ? Découpé en étapes testables une à une ?",
+      starter:`clear();
+// Transforme l'envie « une colombe ramasse du mil » en cahier des charges DÉCOUPÉ.
+// Remplace les … par tes étapes, puis lance.
+print("Langage + sandbox : JS ; loop(dt), onClick(x,y), ctx, W, H ; PAS de DOM/import/fetch/rAF");
+print("Étape 1 : …");
+print("Étape 2 : …");
+print("Étape 3 : …");
+print("Étape 4 : …");`,
+      task:"Remplace chaque … par une étape testable (4 étapes), puis lance.",
+      hint:"Ex. Étape 1 : placer un grain de mil à une position aléatoire (rand).",
+      solution:`clear();
+print("Langage + sandbox : JS ; loop(dt), onClick(x,y), ctx, W, H ; PAS de DOM/import/fetch/rAF");
+print("Étape 1 : placer un grain de mil à une position aléatoire (rand)");
+print("Étape 2 : au clic près du mil (onClick), +1 au score");
+print("Étape 3 : le mil réapparaît ailleurs");
+print("Étape 4 : la boucle clear() puis dessine le mil et le score");`,
+      check:(a)=> a.logs.length>=4 && !/Étape \d+ : …/.test(a.logs.join("\n")) } },
+  { id:"i2", title:"Vérifier & corriger le code de l'IA", xp:25,
+    concept:"Tester systématiquement : prédire, repérer le bug, corriger — et confirmer avec un 2e cas.",
+    coding:{ mode:"code",
+      intro:"L'IA se trompe parfois ! Le bon réflexe : tester avec print, repérer le bug, corriger.",
+      teach:`<p>Ne fais jamais confiance aveuglément : <b>teste</b>. Ici l'IA a écrit <code>doubler</code>… mais elle <em>additionne</em> au lieu de <em>multiplier</em>.</p>
+        <p>👉 Corrige <code>doubler</code> pour renvoyer <code>n * 2</code>. La console doit afficher <b>10</b>.</p>`,
+      prompt:`Cette fonction doit doubler un nombre mais renvoie un mauvais résultat : [colle le code]. Trouve le bug et corrige-le.`,
+      starter:`function doubler(n){
+  return n + 2;   // 🐞 bug : ce n'est pas « doubler » !
+}
+print(doubler(5));   // devrait afficher 10`,
+      task:"Corrige la fonction pour afficher 10.",
+      hint:"Remplace n + 2 par n * 2.",
+      solution:`function doubler(n){
+  return n * 2;
+}
+print(doubler(5));`,
+      check:(a)=> a.logs.includes("10") },
+    vibecoding:{ mode:"code",
+      intro:"La boucle complète : SPÉCIFIER → PRÉDIRE → COLLER & LANCER → VÉRIFIER → ITÉRER. Et toujours un 2e cas de test.",
+      teach:`<p>L'IA a écrit <code>n + 2</code> : <code>doubler(5)</code> donne 7, pas 10. Attention au <b>faux positif</b> : <code>doubler(5)</code> seul ne prouve rien (un <code>+5</code> donnerait aussi 10 !). D'où un <b>2e cas</b> : <code>doubler(0)</code> doit valoir 0.</p>
+        <p>👉 Prédis, lance, corrige en <code>n * 2</code>, et vérifie les DEUX cas.</p>`,
+      missionType:"Boucle complète : prédire → repérer → corriger → confirmer (2e cas)",
+      examplePrompt:`Cette fonction doit DOUBLER mais renvoie un mauvais résultat : function doubler(n){ return n+2; } — elle affiche 7 au lieu de 10. Explique le bug, corrige en n*2, et donne des tests : doubler(5)=10 et doubler(0)=0.`,
+      whatToVerify:"doubler(5) renvoie 10 (pas 7) ? Le 2e cas doubler(0)=0 confirme une vraie multiplication (pas un +5 qui marche par hasard) ?",
+      starter:`// Code "écrit par l'IA" — cette fonction doit DOUBLER. Prédis, lance, vérifie.
+function doubler(n){ return n + 2; }   // 5 + 2 = 7, pas 10
+print("doubler(5) = " + doubler(5) + " (attendu 10)");
+print("doubler(0) = " + doubler(0) + " (attendu 0 — un 2e cas pour ne pas se faire piéger)");`,
+      task:"Corrige en n * 2, et vérifie que les DEUX cas passent (10 et 0).",
+      hint:"return n * 2; — alors doubler(5)=10 et doubler(0)=0.",
+      solution:`function doubler(n){ return n * 2; }
+print("doubler(5) = " + doubler(5) + " (attendu 10)");
+print("doubler(0) = " + doubler(0) + " (attendu 0 — un 2e cas pour ne pas se faire piéger)");`,
+      check:(a)=> a.logs.some(l=>/= 10\b/.test(l)) && a.logs.some(l=>/= 0\b/.test(l)) } },
+  { id:"i3", title:"Cadrer l'IA pour le bac à sable (anti-hallucination)", xp:25,
+    concept:"Forcer l'IA aux primitives exactes (loop/onClick/ctx…) et refuser le code hors-périmètre (document/addEventListener/rAF/import/fetch).",
+    coding:{ mode:"anim",
+      intro:"L'IA ne connaît pas TON environnement. Il faut le DÉCRIRE et refuser ce qui en sort.",
+      teach:`<p>Notre bac à sable expose <b>seulement</b> : <code>print, clear, rand, loop(dt), onKey, onClick</code> et <code>ctx, W, H</code>. Traductions utiles : <code>requestAnimationFrame</code> → <code>loop</code> ; <code>addEventListener('click')</code> → <code>onClick</code> ; <code>document.*</code> → <code>ctx</code> est déjà fourni.</p>
+        <p>👉 Lance ce code : il n'utilise QUE les primitives autorisées (une animation + un clic).</p>`,
+      prompt:`Mon bac à sable JS expose uniquement print, clear, rand, loop(fn(dt)), onKey, onClick, et ctx/W/H. Écris une animation + un clic en respectant STRICTEMENT ces primitives (aucun DOM, import, fetch, requestAnimationFrame).`,
+      starter:`// Ici : pas d'API navigateur générique — uniquement loop(dt) et onClick(x,y).
+let n = 0;
+loop(function(dt){ clear(); n += 80 * dt; if (n > W) n = 0; ctx.fillStyle = "#7c5cff"; ctx.fillRect(n, 90, 18, 18); });
+onClick(function(x, y){ ctx.fillStyle = "#22b8a6"; ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.fill(); });`,
+      task:"Lance : animation (loop) + clic (onClick), sans aucune API hors bac à sable.",
+      hint:"Clique ▶, puis clique dans la toile : tout passe par loop et onClick.",
+      solution:null,
+      check:(a)=> a.calls.has("loop") && a.calls.has("onClick") && !/requestAnimationFrame|addEventListener|document\./.test(a.src) },
+    vibecoding:{ mode:"canvas",
+      intro:"Compétence-pivot : décrire l'environnement exact et REFUSER le code « générique web » de l'IA.",
+      teach:`<p>L'IA a sorti du code « web générique » : elle récupère le canvas via <code>document.getElementById</code> et refait un <code>getContext</code> — alors que <code>ctx</code> est <b>déjà fourni</b> ! Ça « marche » mais viole le contrat (un jeu AwemA = 1 fichier autonome, pas de DOM imprévu).</p>
+        <p>👉 Réécris en utilisant directement <code>ctx</code> : supprime <code>document</code> et <code>getContext</code>.</p>`,
+      missionType:"Repérer & remplacer les appels hors-sandbox",
+      examplePrompt:`Mon bac à sable fournit DÉJÀ ctx (canvas 2D), W=320, H=200. AUCUN document/getElementById/addEventListener, AUCUN import/fetch, requestAnimationFrame INTERDIT (utilise loop). Dessine un cercle teal #22b8a6 au centre (W/2,H/2) rayon 30 en utilisant directement ctx.`,
+      whatToVerify:"Plus aucun document.* / getElementById / getContext (ctx est déjà là) ? Aucun addEventListener ni requestAnimationFrame ? Le rendu est-il inchangé (cercle teal au centre) ?",
+      starter:`// Code "écrit par l'IA" — il marche, mais VIOLE le contrat : ctx est DÉJÀ fourni.
+var cv = document.getElementById("cv");      // ❌ inutile : pas de DOM dans le bac à sable
+var c = cv.getContext("2d");                 // ❌ ctx existe déjà
+c.fillStyle = "#22b8a6";
+c.beginPath(); c.arc(W/2, H/2, 30, 0, 7); c.fill();`,
+      task:"Réécris en utilisant directement ctx (supprime document et getContext).",
+      hint:"ctx.fillStyle = \"#22b8a6\"; ctx.beginPath(); ctx.arc(W/2, H/2, 30, 0, 7); ctx.fill();",
+      solution:`ctx.fillStyle = "#22b8a6";
+ctx.beginPath(); ctx.arc(W/2, H/2, 30, 0, 7); ctx.fill();`,
+      check:(a)=> !/document\.|getElementById|getContext/.test(a.src) && (function(){ const c=a.pix(a.W/2|0,a.H/2|0); return c[1]>120 && c[2]>120 && c[0]<120; })() } },
+  { id:"i4", title:"Faire EXPLIQUER l'IA, la faire TESTER, garder la main", xp:25,
+    concept:"Exiger des tests de propriété (bornes), confronter explication ↔ code ↔ cahier des charges, décider quoi garder.",
+    coding:{ mode:"code",
+      intro:"Un test qui passe vaut mieux qu'une promesse. On écrit et on teste son propre code.",
+      teach:`<p>Écris <code>borne(v)</code> qui ramène <code>v</code> dans [0, 100], et <b>teste les bornes</b> : <code>borne(-5)=0</code>, <code>borne(50)=50</code>, <code>borne(150)=100</code>.</p>
+        <p>👉 Complète <code>borne</code> et lance : les 3 tests doivent afficher 0, 50, 100.</p>`,
+      prompt:`Écris borne(v) qui ramène v dans [0,100] avec Math.max et Math.min, et 3 tests aux bornes : borne(-5)=0, borne(50)=50, borne(150)=100.`,
+      starter:`function borne(v){ /* 👉 à toi : ramène v entre 0 et 100 */ }
+print("borne(-5) = " + borne(-5) + " (attendu 0)");
+print("borne(50) = " + borne(50) + " (attendu 50)");
+print("borne(150) = " + borne(150) + " (attendu 100)");`,
+      task:"Écris borne(v) (clamp 0..100) ; les 3 tests doivent afficher 0, 50, 100.",
+      hint:"return Math.max(0, Math.min(100, v));",
+      solution:`function borne(v){ return Math.max(0, Math.min(100, v)); }
+print("borne(-5) = " + borne(-5) + " (attendu 0)");
+print("borne(50) = " + borne(50) + " (attendu 50)");
+print("borne(150) = " + borne(150) + " (attendu 100)");`,
+      check:(a)=> a.logs.some(l=>/\(-5\) = 0\b/.test(l)) && a.logs.some(l=>/\(50\) = 50\b/.test(l)) && a.logs.some(l=>/\(150\) = 100\b/.test(l)) },
+    vibecoding:{ mode:"code",
+      intro:"L'IA peut justifier du code FAUX avec aplomb, et ne tester que le cas facile. Garde la main : teste les bornes.",
+      teach:`<p>L'IA jure que <code>borne(v)</code> ramène <code>v</code> dans [0,100]… mais elle a <b>inversé min/max</b> et ne teste que le milieu. Lance : <code>borne(50)</code> ne donne même pas 50 !</p>
+        <p>👉 Corrige (<code>Math.max(0, Math.min(100, v))</code>) ET ajoute les tests aux <span class="k">bornes</span> (-5 → 0, 150 → 100). Une explication confiante ne remplace pas un test.</p>`,
+      missionType:"Faire tester aux bornes + évaluer l'explication",
+      examplePrompt:`Voici borne(v) censée ramener v dans [0,100]. 1) Dis HONNÊTEMENT si le code respecte l'objectif (signale l'erreur au lieu de la justifier). 2) Écris des tests aux CAS LIMITES (v<0 → 0, v dans l'intervalle inchangé, v>100 → 100), pas seulement le milieu.`,
+      whatToVerify:"L'explication correspond-elle au code RÉEL (testé), ou à ce que l'IA CROIT ? Les tests couvrent-ils les bornes (borne(50) seul ne prouve rien) ?",
+      starter:`clear();
+// L'IA jure que borne(v) ramène v dans [0,100], et ne teste QUE le milieu.
+function borne(v){ return Math.min(0, Math.max(100, v)); }   // ❌ min/max inversés
+print("borne(50) = " + borne(50) + " (l'IA ne teste que ça)");
+// 👉 corrige borne, puis ajoute les tests aux bornes : borne(-5)=0 et borne(150)=100`,
+      task:"Corrige borne et ajoute les tests aux bornes (les 3 doivent afficher 0, 50, 100).",
+      hint:"return Math.max(0, Math.min(100, v)); puis print borne(-5) et borne(150).",
+      solution:`clear();
+function borne(v){ return Math.max(0, Math.min(100, v)); }
+print("borne(-5) = " + borne(-5) + " (attendu 0)");
+print("borne(50) = " + borne(50) + " (attendu 50)");
+print("borne(150) = " + borne(150) + " (attendu 100)");`,
+      check:(a)=> a.logs.some(l=>/\(-5\) = 0\b/.test(l)) && a.logs.some(l=>/\(50\) = 50\b/.test(l)) && a.logs.some(l=>/\(150\) = 100\b/.test(l)) } },
 ]},
 { id:"projet", title:"Ton projet", icon:"🏆", lessons:[
-  { id:"p1", title:"Mini-jeu : la collecte au village", xp:40, mode:"anim",
-    intro:"Grand moment : on assemble tout ! Boucle de jeu + clic + score. Tu vas faire ton premier vrai jeu.",
-    teach:`<p>On combine ce que tu sais : un <b>fruit</b> apparaît à une position aléatoire ; <b>clique dessus</b> pour le récolter ; le <b>score</b> monte et un nouveau fruit apparaît.</p>
-      <p>Tout est presque écrit. 👉 Mission : complète la ligne du <span class="k">score</span> (<code>score = score + 1</code>) dans le clic. Lance, puis récolte des fruits !</p>`,
-    prompt:`Aide-moi à assembler un mini-jeu : un fruit cliquable qui rapporte des points et réapparaît ailleurs. Boucle de dessin + gestion du clic + score.`,
-    starter:`let fruit = { x: rand(20, W-20), y: rand(20, H-20) };\nlet score = 0;\n\nonClick(function(mx, my){\n  let d = Math.hypot(mx - fruit.x, my - fruit.y);\n  if (d < 20) {                 // clic sur le fruit ?\n    // 👉 complète : ajoute 1 au score\n    \n    fruit.x = rand(20, W-20);   // nouveau fruit\n    fruit.y = rand(20, H-20);\n  }\n});\n\nloop(function(dt){\n  clear();\n  ctx.fillStyle = "#13875a";    // le fruit\n  ctx.beginPath(); ctx.arc(fruit.x, fruit.y, 14, 0, Math.PI*2); ctx.fill();\n  ctx.fillStyle = "#fff"; ctx.font = "16px system-ui";\n  ctx.fillText("Score : " + score, 10, 22);\n});`,
-    task:"Ajoute score = score + 1 dans le clic, lance, et récolte !",
-    hint:"Dans le if du onClick, écris : score = score + 1;",
-    solution:`let fruit = { x: rand(20, W-20), y: rand(20, H-20) };\nlet score = 0;\nonClick(function(mx, my){\n  let d = Math.hypot(mx - fruit.x, my - fruit.y);\n  if (d < 20) {\n    score = score + 1;\n    fruit.x = rand(20, W-20); fruit.y = rand(20, H-20);\n  }\n});\nloop(function(dt){\n  clear();\n  ctx.fillStyle = "#13875a";\n  ctx.beginPath(); ctx.arc(fruit.x, fruit.y, 14, 0, Math.PI*2); ctx.fill();\n  ctx.fillStyle = "#fff"; ctx.font = "16px system-ui";\n  ctx.fillText("Score : " + score, 10, 22);\n});`,
-    check:(a)=> a.calls.has("loop") && a.calls.has("onClick") && /score\s*=\s*score\s*\+\s*1|score\s*\+=\s*1|score\+\+/.test(a.src) },
+  { id:"p1", title:"Ton projet : la collecte au village", xp:40,
+    concept:"Assembler boucle (loop) + clic (onClick) + état (score) : un fruit cliquable qui rapporte des points et réapparaît.",
+    coding:{ mode:"anim",
+      intro:"Grand moment : on assemble tout ! Boucle de jeu + clic + score. Tu vas faire ton premier vrai jeu.",
+      teach:`<p>On combine ce que tu sais : un <b>fruit</b> apparaît à une position aléatoire ; <b>clique dessus</b> pour le récolter ; le <b>score</b> monte et un nouveau fruit apparaît.</p>
+        <p>Tout est presque écrit. 👉 Complète la ligne du <span class="k">score</span> (<code>score = score + 1</code>) dans le clic. Lance, puis récolte des fruits !</p>`,
+      prompt:`Aide-moi à assembler un mini-jeu : un fruit cliquable qui rapporte des points et réapparaît ailleurs. Boucle de dessin + gestion du clic + score.`,
+      starter:`let fruit = { x: rand(20, W-20), y: rand(20, H-20) };
+let score = 0;
+
+onClick(function(mx, my){
+  let d = Math.hypot(mx - fruit.x, my - fruit.y);
+  if (d < 20) {                 // clic sur le fruit ?
+    // 👉 complète : ajoute 1 au score
+
+    fruit.x = rand(20, W-20);   // nouveau fruit
+    fruit.y = rand(20, H-20);
+  }
+});
+
+loop(function(dt){
+  clear();
+  ctx.fillStyle = "#13875a";    // le fruit
+  ctx.beginPath(); ctx.arc(fruit.x, fruit.y, 14, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = "#fff"; ctx.font = "16px system-ui";
+  ctx.fillText("Score : " + score, 10, 22);
+});`,
+      task:"Ajoute score = score + 1 dans le clic, lance, et récolte !",
+      hint:"Dans le if du onClick, écris : score = score + 1;",
+      solution:`let fruit = { x: rand(20, W-20), y: rand(20, H-20) };
+let score = 0;
+onClick(function(mx, my){
+  let d = Math.hypot(mx - fruit.x, my - fruit.y);
+  if (d < 20) {
+    score = score + 1;
+    fruit.x = rand(20, W-20); fruit.y = rand(20, H-20);
+  }
+});
+loop(function(dt){
+  clear();
+  ctx.fillStyle = "#13875a";
+  ctx.beginPath(); ctx.arc(fruit.x, fruit.y, 14, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = "#fff"; ctx.font = "16px system-ui";
+  ctx.fillText("Score : " + score, 10, 22);
+});`,
+      check:(a)=> a.calls.has("loop") && a.calls.has("onClick") && /score\s*=\s*score\s*\+\s*1|score\s*\+=\s*1|score\+\+/.test(a.src) },
+    vibecoding:{ mode:"anim",
+      intro:"Projet final côté pilotage : l'IA a construit le jeu… mais le score ne monte pas. Répare, puis apprends à PUBLIER sur AwemA.",
+      teach:`<p>L'IA a tout écrit, mais une mécanique manque : <b>le score ne s'incrémente pas</b> au clic. Repère-la et corrige (<code>score = score + 1</code>).</p>
+        <p><b>Puis « publier » sur AwemA</b> — les 4 coutures à ne pas oublier (sinon le jeu reste invisible !) :</p>
+        <p>① une <b>carte</b> dans <code>index.html</code> ; ② une clé <code>&lt;jeu&gt;_best</code> sauvée en <code>Math.max(...) + try/catch</code> et une ligne dans le registre <code>GAMES</code> du classement ; ③ ajouter le fichier au <code>SHELL</code> de <code>sw.js</code> et <span class="k">bumper le numéro de cache</span> (<code>awema-vXX → vXX+1</code>) ; ④ <code>window.track(...)</code> (analytics) en fail-safe.</p>`,
+      missionType:"Réparer le jeu + checklist de publication AwemA",
+      examplePrompt:`Construisons un mini-jeu étape par étape (loop(dt), onClick(x,y), ctx, W, H, rand — pas de DOM/import/fetch/rAF). Étape 1 : un fruit à une position aléatoire. Étape 2 : au clic à moins de 20px, +1 au score. Étape 3 : le fruit réapparaît. Étape 4 : la boucle clear() puis dessine fruit + "Score : N". Puis dis-moi comment le publier sur AwemA : clé '<jeu>_best' en Math.max+try/catch, 1 carte menu, 1 ligne dans GAMES, et le bump du cache du service worker.`,
+      whatToVerify:"Le score monte-t-il au clic (incrément présent) ? La distance du clic est-elle testée ? Le fruit réapparaît-il dans les bornes ? clear() en 1er ? Pour publier : clé '<jeu>_best' (Math.max+try/catch) ET le BUMP du cache n'est-il pas oublié ?",
+      starter:`// Jeu "écrit par l'IA" — pourquoi le score reste-t-il à 0 ?
+let fruit = { x: rand(20, W-20), y: rand(20, H-20) };
+let score = 0;
+
+onClick(function(mx, my){
+  let d = Math.hypot(mx - fruit.x, my - fruit.y);
+  if (d < 20) {
+    // ❌ l'IA a oublié d'incrémenter le score ici
+    fruit.x = rand(20, W-20);
+    fruit.y = rand(20, H-20);
+  }
+});
+
+loop(function(dt){
+  clear();
+  ctx.fillStyle = "#13875a";
+  ctx.beginPath(); ctx.arc(fruit.x, fruit.y, 14, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = "#fff"; ctx.font = "16px system-ui";
+  ctx.fillText("Score : " + score, 10, 22);
+});`,
+      task:"Ajoute l'incrément du score au clic, lance, récolte — puis lis la checklist de publication.",
+      hint:"Dans le if du onClick : score = score + 1;",
+      solution:`let fruit = { x: rand(20, W-20), y: rand(20, H-20) };
+let score = 0;
+onClick(function(mx, my){
+  let d = Math.hypot(mx - fruit.x, my - fruit.y);
+  if (d < 20) {
+    score = score + 1;
+    fruit.x = rand(20, W-20); fruit.y = rand(20, H-20);
+  }
+});
+loop(function(dt){
+  clear();
+  ctx.fillStyle = "#13875a";
+  ctx.beginPath(); ctx.arc(fruit.x, fruit.y, 14, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = "#fff"; ctx.font = "16px system-ui";
+  ctx.fillText("Score : " + score, 10, 22);
+});`,
+      check:(a)=> a.calls.has("loop") && a.calls.has("onClick") && /score\s*=\s*score\s*\+\s*1|score\s*\+=\s*1|score\+\+/.test(a.src) } },
 ]},
 ];
 
 /* ----------------------------- état & sauvegarde -------------------------- */
 const LKEY = "awema_atelier_v1";
 let prog = load();
-function load(){ try { return JSON.parse(localStorage.getItem(LKEY)) || { done:[], xp:0 }; } catch(e){ return { done:[], xp:0 }; } }
+function load(){ try { const p = JSON.parse(localStorage.getItem(LKEY)) || {}; return { done:p.done||[], xp:p.xp||0, track:(p.track==="vibe"?"vibe":"code"), tdone:p.tdone||{} }; } catch(e){ return { done:[], xp:0, track:"code", tdone:{} }; } }
 function save(){ try { localStorage.setItem(LKEY, JSON.stringify(prog)); } catch(e){} }
 const allLessons = COURSE.flatMap(m => m.lessons);
 let current = allLessons.find(l => !prog.done.includes(l.id)) || allLessons[0];
+function viewOf(l){ return (prog.track==="vibe" ? l.vibecoding : l.coding) || l.coding; }
 
 /* ----------------------------- bac à sable -------------------------------- */
 function fmt(v){ if (typeof v === "object" && v !== null) { try { return JSON.stringify(v); } catch(e){ return String(v); } } return String(v); }
@@ -323,13 +1179,17 @@ function moduleOf(l){ return COURSE.find(m => m.lessons.includes(l)); }
 function renderTOC(){
   const toc = document.getElementById("toc"); toc.innerHTML = "";
   for (const m of COURSE){
+    if (!m.lessons.length) continue;
     const md = document.createElement("div"); md.className="mod";
     md.innerHTML = `<h3>${m.icon} ${m.title}</h3>`;
     for (const l of m.lessons){
       const done = prog.done.includes(l.id);
-      const a = document.createElement("div");
+      const a = document.createElement("button");
+      a.type = "button";
       a.className = "lk" + (l===current ? " active" : "");
-      a.innerHTML = `<span class="st">${done ? "✅" : "○"}</span><span>${l.title}</span>`;
+      if (l===current) a.setAttribute("aria-current", "true");
+      a.setAttribute("aria-label", l.title + " — " + (done ? "terminé" : "à faire"));
+      a.innerHTML = `<span class="st" aria-hidden="true">${done ? "✅" : "○"}</span><span>${l.title}</span>`;
       a.onclick = ()=>{ current=l; hintShown=false; renderAll(); document.getElementById("side").classList.remove("open"); };
       md.appendChild(a);
     }
@@ -341,65 +1201,88 @@ function refreshHeader(){
   const pct = Math.round(prog.done.length / allLessons.length * 100);
   document.getElementById("progChip").textContent = pct + " %";
   document.getElementById("progBar").style.width = pct + "%";
-  // badges : un par module complété
+  const tc = document.getElementById("trackChip");
+  tc.textContent = prog.track==="vibe" ? "🪄 Vibecoding" : "🧑‍💻 Coding";
+  tc.className = "chip " + (prog.track==="vibe" ? "vibe" : "code");
   const b = [];
-  for (const m of COURSE) if (m.lessons.every(l => prog.done.includes(l.id))) b.push(m.icon);
+  for (const m of COURSE) if (m.lessons.length && m.lessons.every(l => prog.done.includes(l.id))) b.push(m.icon);
   document.getElementById("badges").textContent = b.join(" ");
 }
 function renderLesson(){
-  const l = current, m = moduleOf(l);
-  const hasCheck = !!l.check, isRead = l.mode === "read" || (!hasCheck);
+  const l = current, m = moduleOf(l), v = viewOf(l), isVibe = prog.track==="vibe";
+  const hasCheck = !!v.check, isRead = !hasCheck;
+  const aiClass = isVibe ? "box ai vibe" : "box ai";
+  const aiTitle = isVibe ? ("🪄 Mission de pilotage IA — " + esc(v.missionType||"diriger & vérifier")) : "🤖 Demande à l'IA";
+  const aiPrompt = isVibe ? (v.examplePrompt||"") : (v.prompt||"");
+  const aiVerify = (isVibe && v.whatToVerify) ? `<div class="verify"><b>🔍 À vérifier :</b> ${esc(v.whatToVerify)}</div>` : "";
+  const nudge = (prog.done.includes(l.id) && !(prog.tdone[l.id] && prog.tdone[l.id][isVibe?"code":"vibe"]))
+      ? `<div class="concept" style="border-color:var(--acc)">✓ Déjà validé. Essaie l'autre piste (${isVibe?"🧑‍💻 Coding":"🪄 Vibecoding"}) pour voir l'autre angle !</div>` : "";
   lessonEl.innerHTML = `
     <h2>${l.title}</h2>
     <div class="sub">${m.icon} ${m.title} · ${l.xp} XP</div>
-    <div class="mentor"><div class="av">🤖</div><div class="bubble"><div class="who">Awa, ton guide IA</div><span id="mentorTxt">${l.intro || "On y va !"}</span></div></div>
-    <div class="teach">${l.teach}</div>
-    <div class="box ai"><div class="h">🤖 Demande à l'IA</div>
-      <div class="prompt" id="promptTxt">${esc(l.prompt || "")}</div>
+    <div class="mentor"><div class="av">🤖</div><div class="bubble"><div class="who">Awa, ton guide IA</div><span id="mentorTxt">${esc(v.intro || "On y va !")}</span></div></div>
+    <div class="tracks" role="tablist" aria-label="Choisir la piste d'apprentissage">
+      <button class="track ${isVibe?"":"on"}" id="tab-code" role="tab" aria-selected="${!isVibe}" tabindex="${isVibe?-1:0}" aria-controls="lessonBody" onclick="setTrack('code')">🧑‍💻 Coding<small>j'écris le code</small></button>
+      <button class="track ${isVibe?"on":""}" id="tab-vibe" role="tab" aria-selected="${isVibe}" tabindex="${isVibe?0:-1}" aria-controls="lessonBody" onclick="setTrack('vibe')">🪄 Vibecoding<small>je dirige l'IA</small></button>
+    </div>
+    <div id="lessonBody" role="tabpanel" aria-labelledby="${isVibe?'tab-vibe':'tab-code'}">
+    ${l.concept ? `<div class="concept">🎯 ${esc(l.concept)}</div>` : ``}
+    ${nudge}
+    <div class="teach">${v.teach}</div>
+    <div class="${aiClass}"><div class="h">${aiTitle}</div>
+      <div class="prompt" id="promptTxt">${esc(aiPrompt)}</div>
+      ${aiVerify}
       <button class="btn copy" onclick="copyPrompt()">📋 Copier ce prompt</button></div>
-    <p class="teach"><b>🎯 Mission :</b> ${l.task || "Lance et observe."}</p>
+    <p class="teach"><b>🎯 Mission :</b> ${esc(v.task || "Lance et observe.")}</p>
     <div class="pg">
       <div>
-        <textarea class="editor" id="editor" spellcheck="false"></textarea>
+        <textarea class="editor" id="editor" spellcheck="false" aria-label="Éditeur de code de la mission"></textarea>
         <div class="pgbtns">
           <button class="btn run" onclick="runPlay()">▶ ${hasCheck ? "Lancer & vérifier" : "Lancer la démo"}</button>
           <button class="btn" onclick="resetCode()">↺ Réinitialiser</button>
           <button class="btn" onclick="showHint()">💡 Indice</button>
-          ${l.solution ? `<button class="btn" onclick="showSolution()">👁 Solution</button>` : ``}
+          ${v.solution ? `<button class="btn" onclick="showSolution()">👁 Solution</button>` : ``}
           ${isRead ? `<button class="btn" onclick="markCompris()">✓ Compris (+${l.xp} XP)</button>` : ``}
         </div>
         <div class="banner" id="banner"></div>
       </div>
       <div class="out">
-        <div class="stage"><canvas class="cv" id="cv" width="320" height="200"></canvas></div>
+        <div class="stage"><canvas class="cv" id="cv" width="320" height="200" role="img" aria-label="Scène du jeu (rendu visuel)"></canvas></div>
         <div class="console" id="console">▶ Lance ton code pour voir le résultat ici…</div>
       </div>
+    </div>
     </div>
     <div class="nav">
       <button class="btn" onclick="go(-1)">← Précédent</button>
       <button class="btn run" onclick="go(1)">Suivant →</button>
     </div>`;
-  document.getElementById("editor").value = l.starter || "";
+  document.getElementById("editor").value = v.starter || "";
   pg = makePlayground(document.getElementById("cv"), document.getElementById("console"));
 }
 function renderAll(){ renderTOC(); renderLesson(); refreshHeader(); }
 
-function esc(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 function setBanner(txt, good){ const b=document.getElementById("banner"); b.textContent=txt; b.className="banner show " + (good?"good":"bad"); }
 function setMentor(txt){ const m=document.getElementById("mentorTxt"); if (m) m.textContent=txt; }
 function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 
-function award(l){ if (!prog.done.includes(l.id)){ prog.done.push(l.id); prog.xp += l.xp; save(); } refreshHeader(); renderTOC(); }
+function setTrack(t){ const want = (t==="vibe"?"vibe":"code"); if (want===prog.track) return; prog.track=want; save(); hintShown=false; if (pg) pg.stop(); renderAll(); window.scrollTo(0,0); const tb=document.getElementById(want==="vibe"?"tab-vibe":"tab-code"); if (tb) tb.focus({preventScroll:true}); setMentor(want==="vibe" ? "Mode 🪄 Vibecoding : tu diriges l'IA et tu VÉRIFIES son code. Se tromper en pilotant est normal, c'est comme ça qu'on apprend !" : "Mode 🧑‍💻 Coding : tu écris le code toi-même, ligne à ligne. À toi de jouer !"); }
+
+function award(l){ if (!prog.done.includes(l.id)){ prog.done.push(l.id); prog.xp += l.xp; } prog.tdone[l.id]=prog.tdone[l.id]||{}; prog.tdone[l.id][prog.track==="vibe"?"vibe":"code"]=true; save(); refreshHeader(); renderTOC(); }
 
 function runPlay(){
   const src = document.getElementById("editor").value;
   pg.run(src);
-  const l = current;
-  if (l.check){
-    let ok=false; try { ok = !!l.check(pg.api); } catch(e){ ok=false; }
-    if (pg.api.error) { setMentor("Il y a une erreur dans le code — regarde la console (en rouge), c'est souvent une parenthèse ou un point-virgule."); setBanner("⛔ " + pg.api.error, false); return; }
-    if (ok){ const first=!prog.done.includes(l.id); award(l); setMentor(pick(PRAISE)); setBanner("✅ Validé ! " + (first?"+"+l.xp+" XP. ":"") + "Clique « Suivant → ».", true); }
-    else { setMentor(hintShown ? l.hint : pick(ENCOURAGE)); setBanner("Pas encore validé. " + (hintShown ? "Indice : " + l.hint : "Clique 💡 Indice."), false); }
+  const l = current, v = viewOf(l);
+  if (v.check){
+    let ok=false; try { ok = !!v.check(pg.api); } catch(e){ ok=false; }
+    if (pg.api.error) { setMentor("Il y a une erreur — regarde la console (en rouge), souvent une parenthèse ou un point-virgule."); setBanner("⛔ " + pg.api.error, false); return; }
+    if (ok){ const first=!prog.done.includes(l.id); award(l); setMentor(pick(PRAISE));
+      const other = prog.track==="vibe" ? "code":"vibe";
+      const extra = !(prog.tdone[l.id] && prog.tdone[l.id][other]) ? " Tu peux retenter en " + (other==="vibe"?"🪄 Vibecoding":"🧑‍💻 Coding") + "." : "";
+      const isLast = allLessons.indexOf(l) === allLessons.length-1;
+      setBanner("✅ Validé ! " + (first?"+"+l.xp+" XP. ":"") + (isLast ? "🎉 Tu as terminé l'Atelier !" : "Clique « Suivant → ».") + extra, true); }
+    else { setMentor(hintShown ? v.hint : pick(ENCOURAGE)); setBanner("Pas encore validé. " + (hintShown ? "Indice : " + v.hint : "Clique 💡 Indice."), false); }
   } else {
     if (pg.api.error){ setBanner("⛔ " + pg.api.error, false); return; }
     award(l); setMentor("Bien vu ! Tu peux modifier le code et relancer pour expérimenter.");
@@ -407,16 +1290,18 @@ function runPlay(){
   }
 }
 function markCompris(){ award(current); setMentor("Super, c'est noté ✅. Direction la suite !"); setBanner("✓ Leçon validée. +"+current.xp+" XP", true); }
-function resetCode(){ document.getElementById("editor").value = current.starter || ""; pg.stop(); document.getElementById("console").textContent="▶ Lance ton code…"; pg.api.ctx.clearRect(0,0,pg.api.W,pg.api.H); }
-function showHint(){ hintShown=true; setMentor("💡 " + (current.hint || "Relis bien l'énoncé, étape par étape.")); setBanner("💡 " + (current.hint||""), true); }
-function showSolution(){ if (current.solution){ document.getElementById("editor").value = current.solution; setMentor("Voici une solution. Lis-la, lance-la, puis essaie de la réécrire toi-même !"); } }
-function copyPrompt(){ const t=current.prompt||""; if (navigator.clipboard) navigator.clipboard.writeText(t).then(()=>setMentor("📋 Prompt copié ! Colle-le à une IA (comme Claude) pour t'entraîner.")); else setMentor("Sélectionne le texte du prompt et copie-le (Ctrl+C)."); }
-function go(d){ if (pg) pg.stop(); const i=allLessons.indexOf(current)+d; if (i<0||i>=allLessons.length) return; current=allLessons[i]; hintShown=false; renderAll(); window.scrollTo(0,0); }
-function toggleSide(){ document.getElementById("side").classList.toggle("open"); }
+function resetCode(){ document.getElementById("editor").value = viewOf(current).starter || ""; pg.stop(); document.getElementById("console").textContent="▶ Lance ton code…"; pg.api.ctx.clearRect(0,0,pg.api.W,pg.api.H); }
+function showHint(){ hintShown=true; const v=viewOf(current); setMentor("💡 " + (v.hint || "Relis bien l'énoncé, étape par étape.")); setBanner("💡 " + (v.hint||""), true); }
+function showSolution(){ const v=viewOf(current); if (v.solution){ document.getElementById("editor").value = v.solution; setMentor("Voici une solution. Lis-la, lance-la, puis essaie de la réécrire toi-même !"); } }
+function copyPrompt(){ const v=viewOf(current); const t=(prog.track==="vibe"?v.examplePrompt:v.prompt)||""; if (navigator.clipboard) navigator.clipboard.writeText(t).then(()=>setMentor("📋 Prompt copié ! Colle-le à une IA (comme Claude) pour t'entraîner.")); else setMentor("Sélectionne le texte du prompt et copie-le (Ctrl+C)."); }
+function go(d){ if (pg) pg.stop(); const i=allLessons.indexOf(current)+d; if (i<0) return; if (i>=allLessons.length){ setMentor("🎉 Bravo, tu as terminé l'Atelier ! Tu sais désormais créer un jeu AwemA — le griot racontera tes exploits 🥁."); setBanner("🎉 Atelier terminé ! Tu sais créer un jeu AwemA. Tu peux retenter chaque leçon dans l'autre piste.", true); return; } current=allLessons[i]; hintShown=false; renderAll(); window.scrollTo(0,0); }
+function toggleSide(){ const open=document.getElementById("side").classList.toggle("open"); const b=document.querySelector(".menuBtn"); if (b){ b.setAttribute("aria-expanded", open?"true":"false"); b.setAttribute("aria-label", open?"Fermer le menu des leçons":"Ouvrir le menu des leçons"); } }
 
 // Tab insère 2 espaces dans l'éditeur
 document.addEventListener("keydown", e=>{
   if (e.key==="Tab" && e.target && e.target.id==="editor"){ e.preventDefault(); const t=e.target, s=t.selectionStart, en=t.selectionEnd; t.value=t.value.slice(0,s)+"  "+t.value.slice(en); t.selectionStart=t.selectionEnd=s+2; }
+  // Flèches ←/→ entre onglets de piste quand le focus est sur un onglet
+  if ((e.key==="ArrowLeft"||e.key==="ArrowRight") && e.target && e.target.getAttribute && e.target.getAttribute("role")==="tab"){ e.preventDefault(); const want = e.key==="ArrowRight" ? "vibe" : "code"; setTrack(want); const nx=document.getElementById(want==="vibe"?"tab-vibe":"tab-code"); if (nx) nx.focus(); }
 });
 
 renderAll();

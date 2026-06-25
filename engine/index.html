@@ -149,7 +149,7 @@
     html += '<div class="cat">' + c.emoji + " " + c.label + "</div><div class=\"grid\">";
     items.forEach(function (g) {
       var mp = g.multiplayer === "duel" ? "Multijoueur · duel" : g.multiplayer === "presence" ? "Multijoueur · présence" : "Solo";
-      html += '<a class="card t-' + (g.theme || "classement") + '" href="' + g.file + '">' + badge(g) +
+      html += '<a class="card t-' + (g.theme || "classement") + '" data-id="' + g.id + '" data-cat="' + g.category + '" data-mp="' + (g.multiplayer || "none") + '" href="' + g.file + '">' + badge(g) +
         '<div class="emoji">' + g.emoji + "</div>" +
         "<h2>" + AWEMA.esc(g.name) + "</h2>" +
         '<div class="tag">' + mp + "</div>" +
@@ -159,6 +159,13 @@
     html += "</div>";
   });
   mainEl.innerHTML = html;
+
+  /* ----- funnel produit (PostHog) : cabinet_open → game_open ----- */
+  if (window.AWEMA) { try { AWEMA.track("cabinet_open", { games: live.length, indice: (function () { try { return AWEMA.indiceOf(AWEMA.localScores()); } catch (e) { return 0; } })() }); } catch (e) {} }
+  mainEl.addEventListener("click", function (e) {
+    var a = e.target && e.target.closest && e.target.closest(".card[data-id]");
+    if (a && window.AWEMA) AWEMA.track("game_open", { game: a.dataset.id, category: a.dataset.cat, mp: a.dataset.mp });
+  });
 
   /* ----- son optionnel (défaut OFF, gesture-gated) ----- */
   var SND_KEY = "awema_sound", sound = (AWEMA.lsGet(SND_KEY) === "1"), actx = null;

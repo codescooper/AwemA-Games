@@ -15,7 +15,7 @@
 (function (g) {
   g.AWEMA = g.AWEMA || {};
 
-  g.AWEMA.CACHE = "awema-v25";   // ← nom du cache SW : bump à CHAQUE changement de shell
+  g.AWEMA.CACHE = "awema-v26";   // ← nom du cache SW : bump à CHAQUE changement de shell
 
   g.AWEMA.CATEGORIES = [
     { id: "arcade",    label: "Arcade & action",  emoji: "🕹️" },

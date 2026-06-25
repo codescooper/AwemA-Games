@@ -19,6 +19,12 @@
   A.clamp = function (v, a, b){ return v < a ? a : v > b ? b : v; };
   A.esc = function (s){ return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); };
 
+  /* ---- analytics (wrapper fail-safe au-dessus de window.track de analytics.js) ----
+     Funnel produit : cabinet_open → game_open → game_finished. Rétention via $pageview (autocapture). */
+  A.track = function (name, props){ try { if (typeof window !== "undefined" && window.track) window.track(name, props || {}); } catch (e) {} };
+  // À appeler par un jeu à la fin d'une partie : AWEMA.finish("voraces", score) → event game_finished comparable entre jeux.
+  A.finish = function (gameId, score){ A.track("game_finished", { game: gameId, score: (+score || 0) }); };
+
   /* ---------- identité (CANONIQUE — remplace ~8 réimplémentations) ----------
      uid() lit d'abord la clé existante → AUCUN reset des joueurs actuels ;
      seul le générateur des NOUVEAUX uid est unifié ici. */

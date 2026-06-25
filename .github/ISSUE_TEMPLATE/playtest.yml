@@ -1,0 +1,63 @@
+name: "🧪 Retour de test (playtest)"
+description: "Ton ressenti après avoir joué — pas besoin d'être technique !"
+title: "[Playtest] "
+labels: ["playtest"]
+body:
+  - type: dropdown
+    id: game
+    attributes:
+      label: Quel jeu as-tu testé ?
+      options:
+        - Voraces
+        - Tam-Tam
+        - Échecs
+        - Awalé (Oware)
+        - Awalé Royal
+        - Harmattan
+        - Banco
+        - L'Âge des Sables
+        - Lignées
+        - L'Atelier
+        - Le Village
+        - Plusieurs / la borne en général
+    validations:
+      required: true
+  - type: input
+    id: time
+    attributes:
+      label: Combien de temps joué ?
+      placeholder: "ex. ~8 minutes"
+  - type: textarea
+    id: understand
+    attributes:
+      label: As-tu compris le but sans explication ? Qu'est-ce qui t'a perdu ?
+    validations:
+      required: true
+  - type: dropdown
+    id: fun
+    attributes:
+      label: C'était…
+      options: ["Très amusant", "Sympa", "Moyen", "Ennuyeux", "Frustrant"]
+    validations:
+      required: true
+  - type: dropdown
+    id: difficulty
+    attributes:
+      label: Difficulté
+      options: ["Trop facile", "Juste bien", "Trop dur", "J'ai décroché"]
+  - type: dropdown
+    id: retention
+    attributes:
+      label: Aurais-tu envie d'y revenir demain ?
+      options: ["Oui clairement", "Peut-être", "Non"]
+    validations:
+      required: true
+  - type: textarea
+    id: free
+    attributes:
+      label: Autre chose ? (ce qui t'a plu, manqué, agacé…)
+  - type: input
+    id: device
+    attributes:
+      label: Sur quel appareil ?
+      placeholder: "ex. téléphone Android / iPhone / ordi"

@@ -1,0 +1,59 @@
+name: "🐛 Bug"
+description: "Quelque chose ne marche pas comme prévu dans la borne."
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: game
+    attributes:
+      label: Quel jeu / page ?
+      options:
+        - Cabinet (menu)
+        - Voraces
+        - Tam-Tam
+        - Échecs
+        - Awalé (Oware)
+        - Awalé Royal
+        - Harmattan
+        - Banco
+        - L'Âge des Sables
+        - Lignées
+        - L'Atelier
+        - Le Village
+        - Le Grand Conseil (classements)
+        - Doléances
+        - Autre
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: Que s'est-il passé ?
+      description: Décris le problème, et ce que tu attendais à la place.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Comment le reproduire ?
+      placeholder: |
+        1. J'ouvre…
+        2. Je clique…
+        3. → bug
+  - type: input
+    id: device
+    attributes:
+      label: Téléphone / ordi + navigateur
+      placeholder: "ex. Tecno Spark, Chrome Android / PC Windows, Firefox"
+    validations:
+      required: true
+  - type: dropdown
+    id: net
+    attributes:
+      label: Connexion
+      options: ["En ligne", "Hors-ligne (PWA installée)", "Je ne sais pas"]
+  - type: textarea
+    id: console
+    attributes:
+      label: Erreur console (si tu sais l'ouvrir — facultatif)
+      render: text

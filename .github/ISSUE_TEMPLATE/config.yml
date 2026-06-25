@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 💡 Proposer un jeu (Doléances)
+    url: https://codescooper.github.io/AwemA-Games/engine/games/idees.html
+    about: Propose une idée de jeu et vote pour les prochaines — directement dans la borne.
+  - name: 🎮 Jouer à la borne
+    url: https://codescooper.github.io/AwemA-Games/
+    about: Ouvrir AwemA pour tester avant de remonter un retour.

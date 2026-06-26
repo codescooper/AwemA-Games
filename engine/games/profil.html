@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mon profil — AwemA</title>
+<style>
+  :root { color-scheme: dark; --gold:#f0c64a; --vio:#7c5cff; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui,-apple-system,sans-serif; margin:0; min-height:100vh; color:#f3ece0;
+    background: radial-gradient(1100px 600px at 50% -10%, #241d3a, #0b0d12 62%); display:flex; flex-direction:column; align-items:center; padding:1rem .9rem 3rem; }
+  a { color:#cdbcff; }
+  .top { width:100%; max-width:760px; display:flex; align-items:center; gap:.7rem; }
+  .top h1 { font-size:clamp(1.3rem,4.5vw,1.9rem); margin:.2rem 0; } .top .sp { flex:1; }
+  .tbtn { font:inherit; color:#fff; background:#ffffff14; border:1px solid #ffffff2e; border-radius:.5rem; padding:.4rem .7rem; cursor:pointer; text-decoration:none; font-size:.85rem; }
+  .tbtn:hover { background:#ffffff24; }
+  .wrap { width:100%; max-width:760px; display:flex; flex-direction:column; gap:1rem; margin-top:.6rem; }
+  .card { background:#ffffff0c; border:1px solid #ffffff1c; border-radius:.9rem; padding:1rem 1.1rem; }
+  .me { display:flex; gap:1rem; align-items:center; flex-wrap:wrap; background:linear-gradient(160deg,#2a2150,#171130); border-color:#7c5cff55; }
+  .ava { width:76px; height:76px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:2.4rem;
+    box-shadow:inset 0 -4px 10px #0006, inset 0 2px 5px #fff3; }
+  .who { font-size:1.4rem; font-weight:800; } .pen { font-size:.8rem; opacity:.75; cursor:pointer; margin-left:.45rem; }
+  .tier { color:var(--gold); font-weight:700; margin-top:.1rem; }
+  .idx { margin-left:auto; text-align:right; } .idx b { font-size:2.2rem; color:var(--gold); line-height:1; font-variant-numeric:tabular-nums; } .idx small { opacity:.7; }
+  .bar { height:9px; background:#0007; border:1px solid #ffffff1c; border-radius:5px; overflow:hidden; margin-top:.5rem; }
+  .bar > i { display:block; height:100%; width:0; background:linear-gradient(90deg,var(--vio),var(--gold)); }
+  h2 { font-size:.95rem; margin:.1rem 0 .7rem; opacity:.85; letter-spacing:.5px; }
+  .pick { display:flex; flex-wrap:wrap; gap:.35rem; }
+  .pick button { font:inherit; cursor:pointer; border-radius:.5rem; border:1px solid #ffffff24; background:#ffffff10; padding:.3rem; width:2.4rem; height:2.4rem; font-size:1.2rem; display:flex; align-items:center; justify-content:center; }
+  .pick button.on { border-color:var(--gold); box-shadow:0 0 0 2px var(--gold)55; }
+  .pick.cols button { width:2rem; height:2rem; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:.6rem; }
+  .stat { background:#ffffff0a; border:1px solid #ffffff14; border-radius:.6rem; padding:.6rem .7rem; }
+  .stat b { font-size:1.3rem; color:var(--gold); display:block; } .stat span { font-size:.8rem; opacity:.75; }
+  .brow { display:flex; align-items:center; gap:.6rem; font-size:.9rem; padding:.18rem 0; }
+  .brow .nm { width:130px; flex-shrink:0; } .brow .nm .ic { margin-right:.3rem; }
+  .brow .track { flex:1; height:8px; background:#0007; border:1px solid #ffffff1c; border-radius:5px; overflow:hidden; }
+  .brow .track > i { display:block; height:100%; width:0; background:linear-gradient(90deg,var(--vio),var(--gold)); }
+  .brow .val { width:96px; text-align:right; font-variant-numeric:tabular-nums; opacity:.85; font-size:.8rem; }
+  .badges { display:flex; flex-wrap:wrap; gap:.5rem; }
+  .badge { background:#ffffff12; border:1px solid #ffffff2e; border-radius:1rem; padding:.3rem .7rem; font-size:.85rem; }
+  .row { display:flex; gap:.5rem; flex-wrap:wrap; } .row > * { flex:1; }
+  .reset { background:none; border:0; color:#ff8a8a; font:inherit; font-size:.78rem; opacity:.7; cursor:pointer; text-decoration:underline; margin-top:.4rem; }
+</style>
+  <script src="../catalog.js"></script>
+  <script src="../shared/awema.js"></script>
+  <script src="../shared/analytics.js"></script>
+</head>
+<body>
+  <div class="top">
+    <h1>👤 Mon profil</h1>
+    <span class="sp"></span>
+    <a class="tbtn" href="classements.html">🏆 Classement</a>
+    <a class="tbtn" href="../index.html">≡ Cabinet</a>
+  </div>
+
+  <div class="wrap" id="wrap"></div>
+
+<script>
+(function () {
+  if (!window.AWEMA) { document.getElementById("wrap").textContent = "Couche partagée indisponible."; return; }
+  const wrap = document.getElementById("wrap"), esc = AWEMA.esc;
+  const scored = (AWEMA.GAMES || []).filter(g => g.score);
+
+  function render() {
+    const av = AWEMA.avatar();
+    const scores = AWEMA.localScores();
+    const idx = AWEMA.indiceOf(scores), tier = AWEMA.tierOf(idx);
+    const next = AWEMA.TIERS.find(t => t.min > idx);
+    const tried = scored.filter(g => (scores[g.id] || 0) > 0);
+    const d = (AWEMA.daily.state && AWEMA.daily.state()) || {};
+    const streak = d.streak || 0, longest = d.longest || 0;
+    // meilleur jeu (maîtrise la plus haute)
+    let best = null, bestM = -1;
+    for (const g of scored) { const m = AWEMA.maitrise(g, scores[g.id] || 0); if (m > bestM) { bestM = m; best = g; } }
+
+    // badges dérivés des données locales
+    const badges = [];
+    badges.push(tier.ic + " " + tier.name);
+    if (idx > 0) badges.push("🥾 Premiers pas");
+    if (streak >= 3) badges.push("🔥 Régulier (" + streak + " j)");
+    if (longest >= 7) badges.push("📅 Assidu (record " + longest + " j)");
+    if (tried.length >= 5) badges.push("🌍 Touche-à-tout");
+    if (scored.length && tried.length === scored.length) badges.push("🧭 Explorateur complet");
+    for (const g of scored) if (AWEMA.maitrise(g, scores[g.id] || 0) >= 1) badges.push("👑 Maître : " + g.name);
+
+    const avatarPick = AWEMA.AVATARS.map(e => '<button class="' + (e === av.e ? "on" : "") + '" data-e="' + e + '" style="background:' + av.c + '22">' + e + "</button>").join("");
+    const colorPick = AWEMA.COLORS.map(c => '<button class="pick-c ' + (c === av.c ? "on" : "") + '" data-c="' + c + '" style="background:' + c + '" title="couleur"></button>').join("");
+
+    let bars = "";
+    for (const g of scored) { const sc = scores[g.id] || 0, m = AWEMA.maitrise(g, sc), pts = Math.round(m * 1000);
+      bars += '<div class="brow"><div class="nm"><span class="ic">' + g.emoji + "</span>" + esc(g.name) + "</div>"
+        + '<div class="track"><i style="width:' + (m * 100) + '%"></i></div>'
+        + '<div class="val">' + (sc ? AWEMA.fmtScore(g, sc) : "—") + " · " + pts + "</div></div>"; }
+
+    wrap.innerHTML =
+      '<div class="card me">'
+        + '<div class="ava" style="background:radial-gradient(circle at 35% 30%, #ffffffcc, ' + av.c + ')">' + av.e + "</div>"
+        + "<div><div class=\"who\">" + esc(AWEMA.name()) + '<span class="pen" id="rename">✏️ changer</span></div>'
+        + '<div class="tier">' + tier.ic + " " + tier.name + "</div>"
+        + (next ? '<div style="font-size:.8rem;opacity:.8">' + (next.min - idx) + " pts → " + next.ic + " " + next.name + "</div>" : '<div style="font-size:.8rem;opacity:.8">rang maximal 🌟</div>')
+        + "</div>"
+        + '<div class="idx"><b>' + idx + "</b><br><small>Indice AwemA</small></div>"
+        + '<div class="bar" style="flex-basis:100%"><i style="width:' + (next ? Math.min(100, (idx - tier.min) / (next.min - tier.min) * 100) : 100) + '%"></i></div>'
+      + "</div>"
+
+      + '<div class="card"><h2>🎨 Mon avatar</h2><div class="pick" id="avEmoji">' + avatarPick + "</div>"
+        + '<div class="pick cols" id="avColor" style="margin-top:.5rem">' + colorPick + "</div></div>"
+
+      + '<div class="card"><h2>📊 Statistiques</h2><div class="stats">'
+        + '<div class="stat"><b>' + idx + '</b><span>points de maîtrise</span></div>'
+        + '<div class="stat"><b>' + tried.length + "/" + scored.length + '</b><span>jeux essayés</span></div>'
+        + '<div class="stat"><b>🔥 ' + streak + '</b><span>jours d\'affilée' + (longest ? " (record " + longest + ")" : "") + '</span></div>'
+        + '<div class="stat"><b>' + (best && bestM > 0 ? best.emoji : "—") + '</b><span>' + (best && bestM > 0 ? "meilleur : " + esc(best.name) : "aucun score") + "</span></div>"
+      + "</div></div>"
+
+      + '<div class="card"><h2>🎮 Maîtrise par jeu</h2>' + (bars || "<div style=\"opacity:.7\">Joue à un jeu pour remplir ta maîtrise !</div>") + "</div>"
+
+      + '<div class="card"><h2>🏅 Badges</h2><div class="badges">' + badges.map(b => '<span class="badge">' + b + "</span>").join("") + "</div></div>"
+
+      + '<div class="card"><div class="row">'
+        + '<a class="tbtn" style="text-align:center" href="classements.html">🏆 Classement mondial</a>'
+        + '<a class="tbtn" style="text-align:center" href="../index.html">≡ Retour au cabinet</a>'
+      + "</div><button class=\"reset\" id=\"reset\">Réinitialiser ma progression locale</button></div>";
+
+    document.getElementById("rename").onclick = () => AWEMA.promptName(render);
+    document.querySelectorAll("#avEmoji button").forEach(b => b.onclick = () => { AWEMA.setAvatar(b.dataset.e, null); render(); });
+    document.querySelectorAll("#avColor button").forEach(b => b.onclick = () => { AWEMA.setAvatar(null, b.dataset.c); render(); });
+    document.getElementById("reset").onclick = () => {
+      if (!confirm("Effacer ta progression locale (scores, séries, parties en cours) ? Ton pseudo et ton avatar sont conservés.")) return;
+      try { const rm = /(_best|_wins)$|^banco_save$|^awema_atelier_v1$|^awema_cloud_v1$|^awema_daily_v1$|^echecs_game_v1$/;
+        Object.keys(localStorage).forEach(k => { if (rm.test(k)) localStorage.removeItem(k); }); } catch (e) {}
+      render();
+    };
+  }
+  render();
+  try { if (window.track) track("profile_open"); } catch (e) {}
+})();
+</script>
+</body>
+</html>

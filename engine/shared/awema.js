@@ -40,6 +40,12 @@
     if (n && n.trim()){ A.setName(n); if (cb) cb(A.name()); return true; } } catch (e){} return false; };
   A.ensureName = function (){ if (!A.hasName()) A.promptName(); return A.name(); };
 
+  /* ---- avatar du joueur (emoji + couleur), persisté ---- */
+  A.AVATARS = ["🦁","🐘","🥁","🎭","👑","🐪","🦓","🦅","🐊","🦒","🐍","🌍","⭐","🌙","🪘","🏆"];
+  A.COLORS = ["#e8702a","#0f7a4e","#7c5cff","#f0c64a","#2fd6a6","#ff5b6e","#c8941f","#3a82f7"];
+  A.avatar = function (){ try { var a = JSON.parse(lsGet("awema_avatar")); if (a && a.e) return { e: a.e, c: a.c || A.COLORS[0] }; } catch (e) {} return { e: A.AVATARS[0], c: A.COLORS[0] }; };
+  A.setAvatar = function (e, c){ var cur = A.avatar(); lsSet("awema_avatar", JSON.stringify({ e: e || cur.e, c: c || cur.c })); };
+
   /* ---------- catalogue (lu paresseusement au moment de l'appel) ---------- */
   function games(){ return (root.AWEMA && root.AWEMA.GAMES) || []; }
   function scored(){ return games().filter(function (g){ return g.score; }); }
@@ -178,6 +184,7 @@
     KEY: "awema_daily_v1",
     _load: function(){ try { return JSON.parse(lsGet(A.daily.KEY)) || {}; } catch (e){ return {}; } },
     _save: function(o){ lsSet(A.daily.KEY, JSON.stringify(o)); },
+    state: function(){ return A.daily._load(); },   // lecture seule (n'incrémente pas la série)
     /* met à jour la série — à appeler UNE fois au chargement du cabinet ; renvoie {last,streak,longest,...} */
     visit: function(){ var o = A.daily._load(), t = todayKey();
       if (o.last !== t){

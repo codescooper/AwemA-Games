@@ -15,7 +15,7 @@
 (function (g) {
   g.AWEMA = g.AWEMA || {};
 
-  g.AWEMA.CACHE = "awema-v29";   // ← nom du cache SW : bump à CHAQUE changement de shell
+  g.AWEMA.CACHE = "awema-v30";   // ← nom du cache SW : bump à CHAQUE changement de shell
 
   g.AWEMA.CATEGORIES = [
     { id: "arcade",    label: "Arcade & action",  emoji: "🕹️" },
@@ -111,6 +111,10 @@
     { id: "contribuer", name: "Contribuer", emoji: "🤝", file: "games/contribuer.html",
       category: "social", theme: "place", multiplayer: "none", ws: null,
       tagline: "C'est ta borne aussi : teste, propose un jeu, ou code. Tout est open-source (AGPL).",
+      score: null, atelier: null, status: "hub" },
+    { id: "profil", name: "Mon profil", emoji: "👤", file: "games/profil.html",
+      category: "social", theme: "atelier", multiplayer: "none", ws: null,
+      tagline: "Ton avatar, ton Indice et ton rang, tes stats et tes badges — tout en local.",
       score: null, atelier: null, status: "hub" },
 
     /* ---- Outils (dev) ---- */

@@ -96,7 +96,7 @@
   <div class="bar">
     <div class="brand">🎮 AwemA<small>BORNE D'ARCADE</small></div>
     <span class="sp"></span>
-    <span class="chip" id="profile" title="Changer mon pseudo">👤 …</span>
+    <a class="chip" id="profile" href="games/profil.html" title="Mon profil — avatar, stats, badges">👤 …</a>
     <a class="chip" href="games/classements.html" title="Classements">🏆 Rangs</a>
     <a class="chip" href="games/contribuer.html" title="Contribuer : tester, proposer, coder">🤝 Contribuer</a>
     <button class="iconbtn" id="soundBtn" title="Son">🔇</button>
@@ -132,13 +132,12 @@
 
   /* ----- barre profil ----- */
   function refreshProfile() {
-    var idx = 0, tier = { ic: "🥾", name: "Voyageur" };
-    try { idx = AWEMA.indiceOf(AWEMA.localScores()); tier = AWEMA.tierOf(idx); } catch (e) {}
+    var idx = 0, tier = { ic: "🥾", name: "Voyageur" }, av = { e: "👤" };
+    try { idx = AWEMA.indiceOf(AWEMA.localScores()); tier = AWEMA.tierOf(idx); av = AWEMA.avatar(); } catch (e) {}
     var el = document.getElementById("profile");
-    el.innerHTML = "👤 " + AWEMA.esc(AWEMA.name()) + " · <b>" + idx + "</b> <span class='tier'>" + tier.ic + "</span>";
-    el.title = tier.name + " · Indice " + idx + " — clique pour changer ton pseudo";
+    el.innerHTML = av.e + " " + AWEMA.esc(AWEMA.name()) + " · <b>" + idx + "</b> <span class='tier'>" + tier.ic + "</span>";
+    el.title = tier.name + " · Indice " + idx + " — voir mon profil";
   }
-  document.getElementById("profile").onclick = function () { AWEMA.promptName(function () { refreshProfile(); }); };
   refreshProfile();
 
   /* ----- défi du jour + série (rétention) ----- */

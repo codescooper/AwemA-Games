@@ -22,7 +22,7 @@ test("le cabinet rend toutes les cartes du catalogue", async ({ page }) => {
   page.on("pageerror", e => errors.push(e.message));
   await page.goto("/index.html");
   await expect(page.locator("#catalog .card")).toHaveCount(SHOWN.length);
-  await expect(page.locator("#profile")).toContainText("👤");
+  await expect(page.locator("#profile")).toBeVisible();   // chip profil (avatar + pseudo + Indice) → lien vers le profil
   await expect(page.locator("#daily .daily-in")).toBeVisible();   // défi du jour + série
   expect(errors, "exceptions JS dans le cabinet").toEqual([]);
 });
@@ -62,6 +62,18 @@ test("Échecs : bascule Classique/Actuel des pièces + persistance", async ({ pa
   expect(/[♔-♟]/.test(t || "")).toBeTruthy();                 // un symbole d'échec classique est rendu
   await page.reload();
   await expect(page.locator("#board.classic")).toBeVisible();           // choix persisté
+});
+
+test("Profil : page rendue (avatar, indice, sélecteurs, badges)", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", e => errors.push(e.message));
+  await page.goto("/games/profil.html");
+  await expect(page.locator(".me .ava")).toBeVisible();
+  await expect(page.locator("#avEmoji button").first()).toBeVisible();   // sélecteur d'avatar
+  await expect(page.locator(".badges .badge").first()).toBeVisible();    // au moins un badge (rang)
+  await page.locator("#avEmoji button").nth(2).click();                  // changer d'avatar ne casse rien
+  await expect(page.locator(".me .ava")).toBeVisible();
+  expect(errors, "exceptions JS dans le profil").toEqual([]);
 });
 
 test("Échecs : la partie reprend après rechargement", async ({ page }) => {

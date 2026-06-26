@@ -7,8 +7,9 @@
 <style>
   :root { color-scheme: dark; --earth:#b4542a; --line:#ffffffcc; }
   * { box-sizing: border-box; }
-  body { font-family: system-ui,-apple-system,sans-serif; margin:0; min-height:100vh; color:#f3ece0;
-    background: radial-gradient(900px 500px at 50% -10%, #2a1810, #0c0805 62%); display:flex; flex-direction:column; align-items:center; padding:.6rem .6rem 1rem; overscroll-behavior:none; touch-action:none; }
+  html, body { overscroll-behavior:none; }
+  body { font-family: system-ui,-apple-system,sans-serif; margin:0; height:100vh; height:100dvh; max-height:100dvh; overflow:hidden; color:#f3ece0;
+    background: radial-gradient(900px 500px at 50% -10%, #2a1810, #0c0805 62%); display:flex; flex-direction:column; align-items:center; padding:.35rem .5rem; gap:.15rem; touch-action:none; }
   a { color:#ffd9a8; }
   .top { width:100%; max-width:440px; display:flex; align-items:center; gap:.5rem; }
   .top h1 { font-size:1.1rem; margin:.2rem 0; } .top .sp { flex:1; }
@@ -18,10 +19,10 @@
   .hud .sc { font-size:1.5rem; font-variant-numeric:tabular-nums; }
   .hud .nm { display:flex; align-items:center; gap:.3rem; font-size:.9rem; }
   .hud .clock { margin-left:auto; background:#0008; border:1px solid #ffffff2e; border-radius:.5rem; padding:.15rem .5rem; font-variant-numeric:tabular-nums; }
-  .stage { position:relative; width:100%; max-width:440px; }
-  canvas { width:100%; height:auto; display:block; border-radius:.6rem; box-shadow:0 12px 40px #000a; background:#7a3a1e; }
+  .stage { position:relative; width:100%; max-width:440px; flex:1; min-height:0; display:flex; align-items:center; justify-content:center; }
+  canvas { max-width:100%; max-height:100%; width:auto; height:auto; display:block; border-radius:.6rem; box-shadow:0 12px 40px #000a; background:#7a3a1e; }
   /* pad de contrôle tactile */
-  .pad { position:relative; width:100%; max-width:440px; display:flex; justify-content:space-between; align-items:flex-end; margin-top:.5rem; min-height:120px; }
+  .pad { position:relative; width:100%; max-width:440px; display:flex; justify-content:space-between; align-items:flex-end; margin-top:.3rem; min-height:124px; flex-shrink:0; }
   .joy { width:120px; height:120px; border-radius:50%; background:#ffffff10; border:1px solid #ffffff24; position:relative; touch-action:none; }
   .joy .stick { position:absolute; width:52px; height:52px; border-radius:50%; left:34px; top:34px; background:radial-gradient(circle at 35% 30%,#fff8,#ffffff33); border:1px solid #fff4; }
   .acts { display:flex; flex-direction:column; gap:.5rem; }
@@ -89,7 +90,8 @@
       <button class="big" onclick="openChamp()">🏆 Championnat Tchoin-Tchoin<small>La saison des quartiers — deviens champion</small></button>
       <button class="big" onclick="openCustomize()">🎨 Mon club<small>Nom, couleurs, blason, joueurs</small></button>
     </div>
-    <div class="sub" style="margin-top:.9rem">Au clavier : flèches/ZQSD pour bouger · <b>K</b>/Espace tir · <b>J</b> passe · <b>Maj</b> sprint. Sur mobile : joystick + boutons.</div>
+    <div id="diffRow" class="row" style="margin-top:.7rem"></div>
+    <div class="sub" style="margin-top:.7rem"><b>Reprendre le ballon</b> : sans la balle, tu pilotes le défenseur le plus proche (anneau blanc) — colle le porteur adverse et appuie sur <b>TACLE</b> (le bouton, ou <b>K</b>/<b>J</b>) pour la lui prendre. Avec la balle : <b>TIR</b> (maintiens pour frapper fort, vise en bougeant) · <b>PASSE</b>. Clavier : flèches/ZQSD bouger, K/Espace, J, Maj=sprint.</div>
   </div></div>
 
   <!-- Championnat -->
@@ -150,8 +152,12 @@ const CFG = {
   PLAYERS: 5, MATCH: 90,            // 5 v 5 ; durée d'un match (secondes de jeu)
   SPEED: 118, SPRINT: 1.45, GK_SPEED: 95, BALL_FRICTION: 0.86,
   CTRL_R: 16, KICK_COOL: 0.35, PASS_PWR: 240, SHOOT_PWR: 360, DRIBBLE: 13,
+  TACKLE_R: 24,                                // portée du tacle (récupérer la balle à l'adversaire)
   GOAL_W: 96, MARGIN: 22                       // largeur des « petits poteaux »
 };
+const DIFFS = [ { name:"Facile", oppSpeed:0.9, tackle:0.55 }, { name:"Normal", oppSpeed:1.0, tackle:0.95 }, { name:"Costaud", oppSpeed:1.08, tackle:1.35 } ];
+let diffIdx = (function(){ try { var v = +localStorage.getItem("petitpoteau_diff"); return (v >= 0 && v <= 2) ? v : 1; } catch (e) { return 1; } })();
+function DIFF(){ return DIFFS[diffIdx]; }
 const GL_TOP = CFG.MARGIN, GL_BOT = H - CFG.MARGIN;   // lignes de but
 const GOAL_X0 = (W - CFG.GOAL_W) / 2, GOAL_X1 = (W + CFG.GOAL_W) / 2;
 
@@ -218,15 +224,16 @@ function update(dt){
 
   for (const p of M.players){
     let tx, ty, sp = (p.role==="gk") ? CFG.GK_SPEED : CFG.SPEED;
+    if (p.team === 1) sp *= DIFF().oppSpeed;                                   // l'adversaire plus/moins rapide selon la difficulté
     const hasBall = b.owner === p;
     if (p === M.active){
       // contrôlé par le joueur
       sp *= (input.sprint ? CFG.SPRINT : 1);
       p.vx = input.dx * sp; p.vy = input.dy * sp;
       if (hasBall){
-        if (input.shoot) kick(p, goalDir(p), CFG.SHOOT_PWR);
-        else if (input.pass) doPass(p);
-      }
+        if (input.shoot){ M.charge = Math.min((M.charge || 0) + dt, 0.8); }    // maintenir TIR = charger la frappe
+        else { if (M.charge > 0){ shootCharged(p, M.charge); M.charge = 0; } else if (input.pass) doPass(p); }
+      } else { M.charge = 0; if (input.shoot || input.pass) tryTackle(p); }     // SANS le ballon → TACLE pour le récupérer
     } else if (p.role === "gk"){
       // gardien : suit le ballon en x, reste sur sa ligne ; dégage si ballon proche
       tx = Math.max(GOAL_X0-6, Math.min(GOAL_X1+6, b.x)); ty = p.home.y;
@@ -249,6 +256,7 @@ function update(dt){
         ty = p.home.y + fwd*90 + (hasBall? fwd*8:0);
       }
       steer(p, tx, ty, sp, dt);
+      if (b.owner && b.owner.team !== p.team && dist2(p, b.owner) < CFG.TACKLE_R*CFG.TACKLE_R && Math.random() < DIFF().tackle * dt * 7) tryTackle(p);   // l'IA aussi peut tacler
       // l'IA porteuse décide : tir si proche du but, sinon passe/dribble
       if (hasBall){
         const goalY = p.team===0 ? GL_TOP : GL_BOT;
@@ -285,6 +293,13 @@ function dirTo(o){ const dx=o.vx, dy=o.vy, d=Math.hypot(dx,dy); if (d<0.05) retu
 function lastBallDir(o){ return o; }
 function goalDir(p){ const gx=W/2, gy=(p.team===0?GL_TOP:GL_BOT); const dx=gx-p.x + (Math.random()*40-20), dy=gy-p.y, d=Math.hypot(dx,dy)||1; return { x:dx/d, y:dy/d }; }
 function kick(p, dir, pwr){ const b=M.ball; b.owner=null; b.cool=CFG.KICK_COOL; b.vx=dir.x*pwr; b.vy=dir.y*pwr; b.x=p.x+dir.x*12; b.y=p.y+dir.y*12; }
+function aimDir(p){ const gx=W/2, gy=(p.team===0?GL_TOP:GL_BOT); let ax=gx-p.x, ay=gy-p.y; const gd=Math.hypot(ax,ay)||1; ax/=gd; ay/=gd;
+  if (p===M.active && Math.hypot(input.dx,input.dy)>0.15){ ax=ax*0.5+input.dx*0.6; ay=ay*0.5+input.dy*0.6; const d=Math.hypot(ax,ay)||1; ax/=d; ay/=d; }  // viser en se déplaçant
+  return { x:ax, y:ay }; }
+function shootCharged(p, c){ kick(p, aimDir(p), CFG.SHOOT_PWR * (0.72 + (c/0.8)*0.55)); }      // 0.72×..1.27× selon la charge
+function tryTackle(p){ const b=M.ball; if (!b.owner || b.owner.team===p.team) return;
+  if (M.stealT && perfNow()-M.stealT < 320) return;                                            // anti ping-pong après un tacle
+  if (dist2(p, b.owner) < CFG.TACKLE_R*CFG.TACKLE_R){ b.owner = p; b.cool = 0; M.stealT = perfNow(); } }
 function doPass(p, gkClear){ const mates=M.players.filter(q=>q.team===p.team && q!==p && q.role!=="gk");
   const fwd = p.team===0?-1:1; let best=null, bs=-1e9;
   for (const m of mates){ const ahead=(m.y-p.y)*fwd; const score=ahead - Math.abs(m.x-p.x)*0.3; if (score>bs){ bs=score; best=m; } }
@@ -335,7 +350,11 @@ function frame(t){
   raf=requestAnimationFrame(frame);
 }
 function syncHUD(){ document.getElementById("score").textContent = M.score[0]+" — "+M.score[1];
-  const c=Math.max(0,M.clock); document.getElementById("clock").textContent = Math.floor(c/60)+":"+String(Math.floor(c%60)).padStart(2,"0"); }
+  const c=Math.max(0,M.clock); document.getElementById("clock").textContent = Math.floor(c/60)+":"+String(Math.floor(c%60)).padStart(2,"0");
+  const hb = !!M.active && M.ball.owner === M.active;                          // boutons contextuels : TIR/PASSE avec la balle, sinon TACLE
+  const bs=document.getElementById("bShoot"), bp=document.getElementById("bPass");
+  const sl=hb?"TIR":"TACLE", pl=hb?"PASSE":"TACLE";
+  if (bs.textContent!==sl) bs.textContent=sl; if (bp.textContent!==pl) bp.textContent=pl; }
 
 /* ---- flux de match ---- */
 function startMatch(teamA, teamB, m, end){ mode=m; onEnd=end||null; hideAll();
@@ -360,7 +379,8 @@ function endMatch(){ running=false; cancelAnimationFrame(raf);
 }
 function afterResult(){ document.getElementById("ovResult").classList.remove("show"); if (mode==="champ") openChamp(); else goHome(); }
 
-function quickMatch(){ const opp = teamFromClub(CLUBS[Math.floor(Math.random()*CLUBS.length)]); startMatch(myTeam, opp, "quick"); }
+function quickMatch(){ const pool = CLUBS.filter(c => c.name !== myTeam.name && c.c1 !== myTeam.c1);   // pas ton propre club ni une couleur identique
+  const opp = teamFromClub((pool.length ? pool : CLUBS)[Math.floor(Math.random()*(pool.length||CLUBS.length))]); startMatch(myTeam, opp, "quick"); }
 
 /* ---- Championnat Tchoin-Tchoin ---- */
 const CH_KEY = "petitpoteau_save", BEST_KEY = "petitpoteau_best";
@@ -431,7 +451,12 @@ function saveCustom(){ myTeam.name = (document.getElementById("cName").value||"M
 /* ---- écrans ---- */
 function show(id){ document.getElementById(id).classList.add("show"); }
 function hideAll(){ document.querySelectorAll(".ov").forEach(o=>o.classList.remove("show")); }
-function goHome(){ running=false; cancelAnimationFrame(raf); document.getElementById("hud").style.visibility="hidden"; document.getElementById("pad").style.visibility="hidden"; hideAll(); show("ovHome"); }
+function goHome(){ running=false; cancelAnimationFrame(raf); document.getElementById("hud").style.visibility="hidden"; document.getElementById("pad").style.visibility="hidden"; hideAll(); show("ovHome"); renderDiff(); }
+function renderDiff(){ const el=document.getElementById("diffRow"); if (!el) return; el.innerHTML="";
+  DIFFS.forEach((d,i)=>{ const b=document.createElement("button"); b.className="big"; b.style.cssText="flex:1;padding:.5rem;font-size:.85rem;text-align:center";
+    if (i===diffIdx){ b.style.background="#3fcf6a"; b.style.color="#06210f"; b.style.borderColor="transparent"; }
+    b.textContent=d.name; b.onclick=()=>{ diffIdx=i; try{ localStorage.setItem("petitpoteau_diff",String(i)); }catch(e){} renderDiff(); };
+    el.appendChild(b); }); }
 function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 let toastT=null; function flash2(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),1600); }
 

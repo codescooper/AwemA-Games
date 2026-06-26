@@ -63,3 +63,14 @@ test("Échecs : bascule Classique/Actuel des pièces + persistance", async ({ pa
   await page.reload();
   await expect(page.locator("#board.classic")).toBeVisible();           // choix persisté
 });
+
+test("Échecs : la partie reprend après rechargement", async ({ page }) => {
+  await page.goto("/games/echecs.html");
+  await expect(page.locator('#board .sq[data-i="52"] .pc')).toBeVisible();   // pion Orange e2
+  await page.click('#board .sq[data-i="52"]');                               // sélection e2
+  await page.click('#board .sq[data-i="36"]');                               // → e4
+  await expect(page.locator("#board .sq.last")).toHaveCount(2);              // coup surligné
+  await page.waitForTimeout(700);                                            // l'IA répond + sauvegarde
+  await page.reload();
+  await expect(page.locator("#board .sq.last").first()).toBeVisible();       // partie restaurée après reload
+});

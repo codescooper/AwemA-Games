@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Échecs à l'Ivoirienne</title>
 <style>
   :root { color-scheme: dark; --o:#e8702a; --v:#0f7a4e; }
@@ -18,7 +18,7 @@
           background: linear-gradient(90deg, var(--o) 0 33.3%, #fff 33.3% 66.6%, var(--v) 66.6% 100%); }
   header p { opacity: .72; margin: .3rem 0 0; font-size: .85rem; }
   .wrap { display: flex; gap: 1.1rem; align-items: flex-start; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 940px; }
-  .board { width: min(92vw, 60vh, 540px); aspect-ratio: 1; display: grid;
+  .board { width: min(94vw, 70vh, 560px); aspect-ratio: 1; display: grid;
            grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);
            border: 7px solid #4e3018; border-radius: 7px; box-shadow: 0 14px 44px #000a, inset 0 0 0 2px #2c1a0c; overflow: hidden; touch-action: manipulation; }
   .sq { position: relative; display: flex; align-items: center; justify-content: center; }
@@ -361,8 +361,8 @@ function render() {
       if (typ(p) === "k" && chkSide === col(p)) t.classList.add("chk");
       sq.appendChild(t);
     }
-    if (f === 0) { const c = document.createElement("span"); c.className = "coord r"; c.textContent = 8 - r; sq.appendChild(c); }
-    if (r === 7) { const c = document.createElement("span"); c.className = "coord f"; c.textContent = "abcdefgh"[f]; sq.appendChild(c); }
+    if (d % 8 === 0) { const c = document.createElement("span"); c.className = "coord r"; c.textContent = 8 - r; sq.appendChild(c); }   // rang : colonne visuelle de GAUCHE (correct aussi quand le plateau est retourné côté 2e joueur)
+    if (d >= 56) { const c = document.createElement("span"); c.className = "coord f"; c.textContent = "abcdefgh"[f]; sq.appendChild(c); }   // lettre de colonne : rangée visuelle du BAS
     sq.dataset.i = i;
     boardEl.appendChild(sq);
   }
@@ -405,7 +405,7 @@ function tryMove(from, to) {
 function applyMove(m, remote) {
   makeMove(S, m); moveHist.push(m);
   last = { from: m.from, to: m.to }; sel = null; targets = new Map();
-  render(); updateStatus();
+  render(); updateStatus(); saveGame();
   if (online) { if (!remote) wsChessSend({ t: "move", m: { from: m.from, to: m.to, promo: m.promo || null } }); return; }
   if (!over && !pvp && S.turn === AI) { thinking = true; render(); setTimeout(aiPlay, 240); }
 }
@@ -447,7 +447,15 @@ function updateStatus() {
   else st.textContent = "À toi de jouer.";
 }
 
-function resetBoard() { S = freshState(); U = []; moveHist = []; sel = null; targets = new Map(); last = null; over = false; thinking = false; render(); updateStatus(); }
+/* ---- persistance de la partie LOCALE : reprise automatique après rechargement ---- */
+const SAVE_KEY = "echecs_game_v1";
+function saveGame() { if (online) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify({ S, last, over, pvp, depth })); } catch (e) {} }
+function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
+function loadGame() { try { const o = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (!o || !o.S || !Array.isArray(o.S.board) || o.S.board.length !== 64) return false;
+    S = o.S; U = []; moveHist = []; sel = null; targets = new Map();
+    last = o.last || null; over = !!o.over; pvp = !!o.pvp; if (o.depth) depth = o.depth; return true; } catch (e) { return false; } }
+function resetBoard() { S = freshState(); U = []; moveHist = []; sel = null; targets = new Map(); last = null; over = false; thinking = false; render(); updateStatus(); saveGame(); }
 function newGame() { if (online) { leaveOnline(); return; } resetBoard(); }
 function undo() {
   if (online || thinking || !moveHist.length) return;
@@ -455,9 +463,9 @@ function undo() {
   if (!pvp && moveHist.length && S.turn === AI) unmakeMove(S, moveHist.pop());  // annule aussi le coup de l'IA
   over = false; sel = null; targets = new Map();
   last = moveHist.length ? { from: moveHist[moveHist.length-1].from, to: moveHist[moveHist.length-1].to } : null;
-  render(); updateStatus();
+  render(); updateStatus(); saveGame();
 }
-function setDiff() { depth = +document.getElementById("diff").value; }
+function setDiff() { depth = +document.getElementById("diff").value; saveGame(); }
 function setPieceSet() {
   const v = document.getElementById("pieceSet").value;
   pieceSet = (v === "classique" ? "classique" : "actuel");
@@ -466,7 +474,7 @@ function setPieceSet() {
   render();
   try { if (window.track) track("echecs_pieceset", { set: pieceSet }); } catch (e) {}
 }
-function togglePvp() { pvp = document.getElementById("pvp").checked; render(); updateStatus(); if (!pvp && !over && S.turn === AI) { thinking = true; render(); setTimeout(aiPlay, 240); } }
+function togglePvp() { pvp = document.getElementById("pvp").checked; saveGame(); render(); updateStatus(); if (!pvp && !over && S.turn === AI) { thinking = true; render(); setTimeout(aiPlay, 240); } }
 
 /* ---- DUEL EN LIGNE (échecs multijoueur via le serveur WebSocket /ws/chess) ---- */
 const BACKEND_URL = "https://awema-games-production.up.railway.app";
@@ -520,7 +528,12 @@ function onRemoteMove(mm) {
 
 try { document.getElementById("pieceSet").value = pieceSet; } catch (e) {}
 document.getElementById("board").classList.toggle("classic", pieceSet === "classique");
-newGame();
+/* reprise de la dernière partie locale si elle existe (sinon nouvelle partie) */
+if (loadGame()) {
+  try { document.getElementById("pvp").checked = pvp; document.getElementById("diff").value = String(depth); } catch (e) {}
+  render(); updateStatus();
+  if (!over && !pvp && S.turn === AI) { thinking = true; render(); setTimeout(aiPlay, 400); }
+} else newGame();
 </script>
 </body>
 </html>

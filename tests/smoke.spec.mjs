@@ -72,6 +72,16 @@ test("Échecs : bascule Classique/Actuel des pièces + persistance", async ({ pa
   await expect(page.locator("#board.classic")).toBeVisible();           // choix persisté
 });
 
+test("Petit Poteau : un match rapide se lance et tourne sans erreur", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", e => errors.push(e.message));
+  await page.goto("/games/petitpoteau.html");
+  await page.locator("#ovHome button.main").click();   // ⚽ Jouer un match rapide
+  await expect(page.locator("#hud")).toBeVisible();     // le HUD du match s'affiche
+  await page.waitForTimeout(2000);                      // ~2 s de jeu (IA + ballon)
+  expect(errors, "exceptions JS pendant le match").toEqual([]);
+});
+
 test("Profil : page rendue (avatar, indice, sélecteurs, badges)", async ({ page }) => {
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));

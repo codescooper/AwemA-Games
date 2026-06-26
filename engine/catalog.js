@@ -15,10 +15,11 @@
 (function (g) {
   g.AWEMA = g.AWEMA || {};
 
-  g.AWEMA.CACHE = "awema-v31";   // ← nom du cache SW : bump à CHAQUE changement de shell
+  g.AWEMA.CACHE = "awema-v32";   // ← nom du cache SW : bump à CHAQUE changement de shell
 
   g.AWEMA.CATEGORIES = [
     { id: "arcade",    label: "Arcade & action",  emoji: "🕹️" },
+    { id: "sport",     label: "Sport",            emoji: "⚽" },
     { id: "rythme",    label: "Rythme",           emoji: "🥁" },
     { id: "puzzle",    label: "Puzzle",           emoji: "🧩" },
     { id: "strategie", label: "Stratégie",        emoji: "🧠" },
@@ -41,6 +42,12 @@
       tagline: "Survie en horde : tes talismans frappent seuls. Tiens le plus longtemps possible.",
       score: { key: "harmattan_best", target: 180, unit: "s", fmt: "sec" },
       atelier: null, demo: true, status: "live" },
+
+    /* ---- Sport ---- */
+    { id: "petitpoteau", name: "Petit Poteau", emoji: "⚽", file: "games/petitpoteau.html",
+      category: "sport", theme: "foot", multiplayer: "none", ws: null,
+      tagline: "Le maracana ivoirien : foot de quartier sur petits poteaux. Championnat Tchoin-Tchoin + clubs à personnaliser.",
+      score: null, atelier: null, demo: true, status: "live" },
 
     /* ---- Rythme ---- */
     { id: "tamtam", name: "Tam-Tam", emoji: "🥁", file: "games/tamtam.html",

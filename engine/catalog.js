@@ -15,7 +15,7 @@
 (function (g) {
   g.AWEMA = g.AWEMA || {};
 
-  g.AWEMA.CACHE = "awema-v30";   // ← nom du cache SW : bump à CHAQUE changement de shell
+  g.AWEMA.CACHE = "awema-v31";   // ← nom du cache SW : bump à CHAQUE changement de shell
 
   g.AWEMA.CATEGORIES = [
     { id: "arcade",    label: "Arcade & action",  emoji: "🕹️" },
@@ -35,12 +35,12 @@
       tagline: "Serpent vorace : gobe, grandis… et ralentis. Solo contre l'IA ou duel live 1v1.",
       score: { key: "voraces_best", target: 400, unit: "masse", fmt: "fr" },
       atelier: { keyMethod: "Boucle à dt borné + stat dérivée d'une masse (plancher)", lessons: ["d2", "j2"] },
-      status: "live" },
+      demo: true, status: "live" },
     { id: "harmattan", name: "Harmattan", emoji: "🌪️", file: "games/harmattan.html",
       category: "arcade", theme: "harmattan", multiplayer: "none", ws: null,
       tagline: "Survie en horde : tes talismans frappent seuls. Tiens le plus longtemps possible.",
       score: { key: "harmattan_best", target: 180, unit: "s", fmt: "sec" },
-      atelier: null, status: "live" },
+      atelier: null, demo: true, status: "live" },
 
     /* ---- Rythme ---- */
     { id: "tamtam", name: "Tam-Tam", emoji: "🥁", file: "games/tamtam.html",
@@ -62,7 +62,7 @@
       tagline: "RTS façon Age of Empires au Sahel : Ghana → Mali → Songhaï. IA adverse.",
       score: { key: "sables_best", target: 2500, unit: "score", fmt: "fr" },
       atelier: { keyMethod: "Machine à états (u.state + switch)", lessons: ["j3"] },
-      status: "live" },
+      demo: true, status: "live" },
     { id: "lignees", name: "Lignées — Le Conseil", emoji: "👑", file: "games/conseil.html",
       category: "strategie", theme: "lignees", multiplayer: "none", ws: null,
       tagline: "Dynastie marchande au Carrefour des Sables. Async : dormir ne fait jamais perdre.",

@@ -27,6 +27,14 @@ test("le cabinet rend toutes les cartes du catalogue", async ({ page }) => {
   expect(errors, "exceptions JS dans le cabinet").toEqual([]);
 });
 
+test("Cabinet : le mode attractif lance une démo de gameplay en direct", async ({ page }) => {
+  await page.goto("/index.html?attract=1");            // idle réduit à 1 s pour le test
+  await page.waitForTimeout(1700);
+  await expect(page.locator("#attract.on")).toBeVisible();
+  const src = await page.locator("#aFrame").getAttribute("src");
+  expect(/games\/.+\.html\?demo=1/.test(src || ""), "un jeu doit tourner en démo dans l'iframe").toBeTruthy();
+});
+
 for (const g of SHOWN) {
   test(`${g.id} se charge sans exception JS`, async ({ page }) => {
     const errors = [];

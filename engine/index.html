@@ -74,17 +74,16 @@
   .d-btn:hover { filter: brightness(1.12); }
   footer { text-align: center; opacity: .55; font-size: .8rem; line-height: 1.8; margin-top: 2rem; }
   footer a { color: #9fd0ff; }
-  /* ── Mode attractif ── */
-  #attract { position: fixed; inset: 0; z-index: 50; display: none; flex-direction: column; align-items: center; justify-content: center;
-             background: radial-gradient(800px 500px at 50% 40%, #1c2b3aee, #06080df7); text-align: center; cursor: pointer; }
+  /* ── Mode attractif : démos de gameplay en direct (IA) ── */
+  #attract { position: fixed; inset: 0; z-index: 50; display: none; flex-direction: column; align-items: center; justify-content: center; gap: .7rem;
+             background: radial-gradient(900px 600px at 50% 40%, #1c2b3af2, #06080dfa); text-align: center; cursor: pointer; padding: 1rem; }
   #attract.on { display: flex; }
-  #attract .big { font-size: 5rem; line-height: 1; filter: drop-shadow(0 0 24px #0008); animation: pop .5s ease; }
-  #attract h3 { font-size: 1.7rem; margin: .8rem 0 .2rem; }
-  #attract p { opacity: .8; max-width: 30rem; padding: 0 1rem; }
-  #attract .hint { position: absolute; bottom: 2rem; font-size: .85rem; opacity: .6; letter-spacing: .1em; animation: blink 1.4s infinite; }
-  @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  #attract .aLabel { font-size: 1.35rem; font-weight: 800; }
+  #attract .aLabel .em { font-size: 1.6rem; }
+  #aFrame { width: min(94vw, 900px); height: min(62vh, 540px); border: 3px solid #ffffff22; border-radius: .8rem; background: #06080d; pointer-events: none; box-shadow: 0 18px 55px #000b; }
+  #attract .hint { font-size: .85rem; opacity: .6; letter-spacing: .08em; animation: blink 1.4s infinite; }
   @keyframes blink { 50% { opacity: .15; } }
-  @media (prefers-reduced-motion: reduce){ .marquee .run{ animation:none } #attract .big{ animation:none } #attract .hint{ animation:none } }
+  @media (prefers-reduced-motion: reduce){ .marquee .run{ animation:none } #attract .hint{ animation:none } }
 </style>
   <script src="catalog.js"></script>
   <script src="shared/awema.js"></script>
@@ -113,10 +112,9 @@
   </footer>
 
   <div id="attract" aria-hidden="true">
-    <div class="big" id="aEmoji">🎮</div>
-    <h3 id="aName"></h3>
-    <p id="aTag"></p>
-    <div class="hint">▶ touche / clique pour jouer</div>
+    <div class="aLabel"><span class="em" id="aEmoji">🎮</span> <span id="aName"></span> <span style="opacity:.55;font-weight:600">· démo</span></div>
+    <iframe id="aFrame" title="aperçu de gameplay" tabindex="-1" scrolling="no"></iframe>
+    <div class="hint">▶ clique pour jouer ce jeu · une touche pour revenir au menu</div>
   </div>
 
 <script>
@@ -203,22 +201,47 @@
     g2.gain.value = .04; o.connect(g2); g2.connect(actx.destination); o.start(); g2.gain.setTargetAtTime(0, actx.currentTime + (d || .05), .04); o.stop(actx.currentTime + .25); } catch (e) {} }
   document.querySelectorAll(".card").forEach(function (c) { c.addEventListener("mouseenter", function () { blip(520, .04); }); });
 
-  /* ----- mode attractif (aperçus à l'inactivité) ----- */
-  var att = document.getElementById("attract"), idleT = null, cycT = null, i = 0;
-  function showAttract() {
-    if (!live.length) return;
+  /* ----- mode attractif : démos de gameplay en DIRECT (l'IA des jeux anime la scène + entrées aléatoires injectées) ----- */
+  var att = document.getElementById("attract"), frame = document.getElementById("aFrame");
+  var DEMO = G.filter(function (g) { return g.demo && g.status === "live"; });
+  var idleT = null, cycT = null, inpT = null, showing = false, current = null, snap = null;
+  var IDLE = (function () { var m = location.search.match(/[?&]attract=(\d+)/); return m ? +m[1] * 1000 : 25000; })();
+  /* la démo écrit dans le MÊME localStorage → on snapshot puis on RESTAURE les scores : une démo ne modifie JAMAIS la progression du joueur */
+  var SCORE_RE = /(_best$|_wins$)|^banco_save$|^awema_atelier_v1$/;
+  function snapScores() { snap = {}; try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (SCORE_RE.test(k)) snap[k] = localStorage.getItem(k); } } catch (e) { snap = null; } }
+  function restoreScores() { if (!snap) return; try { var cur = [], i, k; for (i = 0; i < localStorage.length; i++) { k = localStorage.key(i); if (SCORE_RE.test(k)) cur.push(k); }
+      cur.forEach(function (kk) { if (!(kk in snap)) localStorage.removeItem(kk); });
+      for (k in snap) localStorage.setItem(k, snap[k]); } catch (e) {} snap = null; }
+  function pickDemo() { current = DEMO[Math.floor(Math.random() * DEMO.length)];
+    document.getElementById("aEmoji").textContent = current.emoji;
+    document.getElementById("aName").textContent = current.name;
+    try { frame.src = current.file + "?demo=1"; } catch (e) {} }
+  var KEYS = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"];
+  function poke() { try { var w = frame.contentWindow; if (!w || !w.KeyboardEvent) return; var k = KEYS[Math.floor(Math.random() * KEYS.length)];
+      w.dispatchEvent(new w.KeyboardEvent("keydown", { key: k, bubbles: true }));
+      setTimeout(function () { try { w.dispatchEvent(new w.KeyboardEvent("keyup", { key: k, bubbles: true })); } catch (e) {} }, 300 + Math.random() * 300);
+    } catch (e) {} }
+  /* démarre le jeu chargé dans l'iframe (la plupart ont un écran-titre) → on voit du VRAI gameplay */
+  function autoStart() { try { var doc = frame.contentDocument, w = frame.contentWindow; if (!doc) return;
+    var re = /jouer|affront|combat|commenc|d[ée]marr|nouvelle|survivre|partie|lancer|start|play/i, btns = doc.querySelectorAll("button");
+    for (var i = 0; i < btns.length; i++) { if (re.test(btns[i].textContent || "")) { btns[i].click(); return; } }
+    if (w && w.KeyboardEvent) w.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));   // replis : Entrée…
+    var cv = doc.querySelector("canvas"); if (cv && w && w.MouseEvent) { var r = cv.getBoundingClientRect(); cv.dispatchEvent(new w.MouseEvent("click", { bubbles: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 })); }   // …ou un clic au centre
+  } catch (e) {} }
+  function showAttract() { if (!DEMO.length || showing) return; showing = true; snapScores();
     att.classList.add("on"); att.setAttribute("aria-hidden", "false");
-    function step() { var g = live[i % live.length]; i++;
-      document.getElementById("aEmoji").textContent = g.emoji;
-      document.getElementById("aName").textContent = g.name;
-      document.getElementById("aTag").textContent = g.tagline || ""; }
-    step(); cycT = setInterval(step, 3000);
-  }
-  function hideAttract() { att.classList.remove("on"); att.setAttribute("aria-hidden", "true"); if (cycT) { clearInterval(cycT); cycT = null; } }
-  function resetIdle() { if (idleT) clearTimeout(idleT); if (att.classList.contains("on")) hideAttract(); idleT = setTimeout(showAttract, 25000); }
-  att.addEventListener("click", function () { hideAttract(); resetIdle(); });
-  ["pointermove", "pointerdown", "keydown", "touchstart", "wheel"].forEach(function (ev) { addEventListener(ev, resetIdle, { passive: true }); });
-  resetIdle();
+    frame.onload = function () { setTimeout(autoStart, 400); };   // démarre le jeu dès qu'il est chargé
+    pickDemo(); cycT = setInterval(pickDemo, 12000); inpT = setInterval(poke, 650); }
+  function hideAttract() { if (!showing) return; showing = false;
+    att.classList.remove("on"); att.setAttribute("aria-hidden", "true");
+    if (cycT) { clearInterval(cycT); cycT = null; } if (inpT) { clearInterval(inpT); inpT = null; }
+    try { frame.src = "about:blank"; } catch (e) {}   // stoppe le jeu en démo → libère le CPU
+    restoreScores(); }
+  function resetIdle() { if (idleT) clearTimeout(idleT); idleT = setTimeout(showAttract, IDLE); }
+  att.addEventListener("click", function () { if (current) location.href = current.file; });   // clique → joue le jeu montré (sans ?demo)
+  ["pointermove", "pointerdown", "touchstart", "wheel"].forEach(function (ev) { addEventListener(ev, function () { if (!showing) resetIdle(); }, { passive: true }); });
+  addEventListener("keydown", function () { if (showing) hideAttract(); resetIdle(); });
+  if (DEMO.length) resetIdle();
 
   /* ----- PWA ----- */
   if ("serviceWorker" in navigator && location.protocol !== "file:")

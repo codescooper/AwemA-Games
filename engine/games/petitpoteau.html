@@ -276,8 +276,7 @@ function update(dt){
       b.pressT = (b.pressT||0) + rate*dt;
       b.presser = nearest(foes, b.owner);
       if (b.pressT >= CFG.DUEL_TIME){ const loser=b.owner, w=b.presser; winBall(w);
-        if (CFG.FREEZE_MS && loser && loser.role==="out") loser.frozenUntil = perfNow() + CFG.FREEZE_MS;   // le dépossédé est figé
-        if (w.team===0) flash("Récupéré ! 👏"); }
+        if (CFG.FREEZE_MS && loser && loser.role==="out") loser.frozenUntil = perfNow() + CFG.FREEZE_MS; }   // le dépossédé est figé
     } else b.pressT = Math.max(0, (b.pressT||0) - dt*3);   // plus de contact → la pression retombe VITE (un simple frôlement ne vole jamais la balle)
   } else b.pressT = 0;
 

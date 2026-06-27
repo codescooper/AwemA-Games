@@ -154,11 +154,11 @@ const W = cv.width, H = cv.height;
 const CFG = {
   PLAYERS: 5, MATCH: 90,            // 5 v 5 ; durée d'un match (secondes de jeu)
   SPEED: 126, SPRINT: 1.5, GK_SPEED: 98, BALL_FRICTION: 0.88, DRIBBLE_SLOW: 0.9,   // GK un peu plus lent que les joueurs → les frappes dans les coins peuvent rentrer
-  CTRL_R: 22, KICK_COOL: 0.22, PASS_PWR: 300, SHOOT_PWR: 420, DRIBBLE: 14,
-  DUEL_R: 26, DUEL_TIME: 0.42, PROTECT: 0.6,   // RÉCUPÉRATION AU CONTACT : rayon de duel + durée de contact pour reprendre la balle + protection après l'avoir gagnée
+  CTRL_R: 22, KICK_COOL: 0.3, PASS_PWR: 320, SHOOT_PWR: 420, DRIBBLE: 14,
+  DUEL_R: 26, DUEL_TIME: 0.8, PROTECT: 0.85,   // RÉCUPÉRATION AU CONTACT : il faut TENIR le contact ~0,8 s (délai, pas un frôlement) + protection 0,85 s après l'avoir gagnée
   GOAL_W: 96, MARGIN: 22                       // largeur des « petits poteaux »
 };
-const DIFFS = [ { name:"Facile", oppSpeed:0.92, press:0.7, gkGuess:0.22 }, { name:"Normal", oppSpeed:1.0, press:1.0, gkGuess:0.36 }, { name:"Costaud", oppSpeed:1.06, press:1.45, gkGuess:0.5 } ];   // press = vitesse de récupération de l'IA au contact ; gkGuess = proba que le gardien IA devine ton côté au penalty
+const DIFFS = [ { name:"Facile", oppSpeed:0.92, press:0.55, gkGuess:0.22 }, { name:"Normal", oppSpeed:1.0, press:0.8, gkGuess:0.36 }, { name:"Costaud", oppSpeed:1.06, press:1.2, gkGuess:0.5 } ];   // press = vitesse de récupération de l'IA au contact ; gkGuess = proba que le gardien IA devine ton côté au penalty
 let diffIdx = (function(){ try { var v = +localStorage.getItem("petitpoteau_diff"); return (v >= 0 && v <= 2) ? v : 1; } catch (e) { return 1; } })();
 function DIFF(){ return DIFFS[diffIdx]; }
 const GL_TOP = CFG.MARGIN, GL_BOT = H - CFG.MARGIN;   // lignes de but
@@ -268,15 +268,20 @@ function update(dt){
     const foes = M.players.filter(q => q.team!==b.owner.team && q.role!=="gk" && dist2(q,b.owner) < CFG.DUEL_R*CFG.DUEL_R);
     if (foes.length){
       let rate = 0;
-      for (const q of foes){ rate += (q.team===0) ? ((q===M.user && input.shoot) ? 1.8 : 1.0) : DIFF().press; }   // toi en PRESSER = plus rapide ; plusieurs presseurs = plus vite
+      for (const q of foes){ rate += (q.team===0) ? ((q===M.user && input.shoot) ? 1.25 : 0.65) : DIFF().press; }   // toi en PRESSER = plus rapide ; plusieurs presseurs = plus vite
       b.pressT = (b.pressT||0) + rate*dt;
       b.presser = nearest(foes, b.owner);
       if (b.pressT >= CFG.DUEL_TIME){ const w=b.presser; winBall(w); if (w.team===0) flash("Récupéré ! 👏"); }
-    } else b.pressT = Math.max(0, (b.pressT||0) - dt*2);   // plus de contact → la pression retombe
+    } else b.pressT = Math.max(0, (b.pressT||0) - dt*3);   // plus de contact → la pression retombe VITE (un simple frôlement ne vole jamais la balle)
   } else b.pressT = 0;
 
-  // prise de balle libre
-  if (!b.owner && b.cool<=0){ const c = nearest(M.players, b); if (c && dist2(c,b) < CFG.CTRL_R*CFG.CTRL_R) winBall(c); }
+  // prise de balle libre — pendant une passe, le camp passeur a l'avantage : l'adversaire doit être NETTEMENT sur la balle pour l'intercepter
+  if (!b.owner && b.cool<=0){ const c = nearest(M.players, b);
+    if (c && dist2(c,b) < CFG.CTRL_R*CFG.CTRL_R){
+      const passActive = (b.passTeam!=null) && perfNow() < (b.passUntil||0);
+      const r = (passActive && c.team!==b.passTeam) ? CFG.CTRL_R*0.55 : CFG.CTRL_R;   // interception d'une passe = rayon réduit (passes moins faciles à voler)
+      if (dist2(c,b) < r*r) winBall(c);
+    } }
 
   // ballon : collé au porteur (dribble) sinon physique
   if (b.owner){ const o=b.owner; const dir = dirTo(o); b.x = o.x + dir.x*CFG.DRIBBLE; b.y = o.y + dir.y*CFG.DRIBBLE; b.vx=0; b.vy=0; }
@@ -322,12 +327,12 @@ function aiField(p, sp, dt, hasBall){ const b = M.ball; let tx, ty;
 function steer(p, tx, ty, sp, dt){ const dx=tx-p.x, dy=ty-p.y, d=Math.hypot(dx,dy)||1; if (d>3){ p.x += dx/d*sp*dt; p.y += dy/d*sp*dt; p.vx=dx/d; p.vy=dy/d; } }
 function dirTo(o){ const dx=o.vx, dy=o.vy, d=Math.hypot(dx,dy); if (d<0.05) return { x:0, y:(o.team===0?-1:1) }; return { x:dx/d, y:dy/d }; }
 function goalDir(p){ const gx=W/2, gy=(p.team===0?GL_TOP:GL_BOT); const dx=gx-p.x + (Math.random()*40-20), dy=gy-p.y, d=Math.hypot(dx,dy)||1; return { x:dx/d, y:dy/d }; }
-function kick(p, dir, pwr){ const b=M.ball; b.owner=null; b.cool=CFG.KICK_COOL; b.vx=dir.x*pwr; b.vy=dir.y*pwr; b.x=p.x+dir.x*12; b.y=p.y+dir.y*12; }
+function kick(p, dir, pwr){ const b=M.ball; b.owner=null; b.cool=CFG.KICK_COOL; b.passTeam=null; b.vx=dir.x*pwr; b.vy=dir.y*pwr; b.x=p.x+dir.x*12; b.y=p.y+dir.y*12; }
 function aimDir(p){ const gx=W/2, gy=(p.team===0?GL_TOP:GL_BOT); let ax=gx-p.x, ay=gy-p.y; const gd=Math.hypot(ax,ay)||1; ax/=gd; ay/=gd;
   if (p===M.user && Math.hypot(input.dx,input.dy)>0.15){ ax=ax*0.4+input.dx*0.7; ay=ay*0.4+input.dy*0.7; const d=Math.hypot(ax,ay)||1; ax/=d; ay/=d; }  // viser en se déplaçant
   return { x:ax, y:ay }; }
 function shootCharged(p, c){ kick(p, aimDir(p), CFG.SHOOT_PWR * (0.72 + (c/0.9)*0.55)); if (c > 0.62) flash("Frappe ! 💥"); }   // 0.72×..1.27× selon la charge
-function winBall(p){ const b=M.ball; b.owner=p; b.cool=0; b.protect = perfNow() + CFG.PROTECT*1000; b.pressT=0; b.presser=null; input.shoot=false; if (M) M.charge=0; }   // gagner la balle = protection + duel remis à zéro + annule toute frappe en charge
+function winBall(p){ const b=M.ball; b.owner=p; b.cool=0; b.protect = perfNow() + CFG.PROTECT*1000; b.pressT=0; b.presser=null; b.passTeam=null; input.shoot=false; if (M) M.charge=0; }   // gagner la balle = protection + duel remis à zéro + annule toute frappe en charge
 function doPass(p){ const mates = M.players.filter(q => q.team===p.team && q!==p && q.role!=="gk");
   if (!mates.length){ kick(p, {x:0,y:(p.team===0?-1:1)}, CFG.PASS_PWR); return; }
   const aim = (p===M.user && Math.hypot(input.dx,input.dy)>0.2) ? {x:input.dx, y:input.dy} : null;
@@ -337,7 +342,8 @@ function doPass(p){ const mates = M.players.filter(q => q.team===p.team && q!==p
                       : ((m.y-p.y)*fwd - Math.abs(m.x-p.x)*0.3);     // sinon le plus avancé
     if (score>bs){ bs=score; best=m; } }
   const t = best || mates[0]; const dx=t.x-p.x, dy=t.y-p.y, d=Math.hypot(dx,dy)||1;
-  kick(p, {x:dx/d, y:dy/d}, Math.min(CFG.PASS_PWR, d*4 + 90)); input.shoot=false; if (M) M.charge=0; }   // une passe annule la charge → pas de tir parasite chez le receveur
+  kick(p, {x:dx/d, y:dy/d}, Math.min(CFG.PASS_PWR, d*4 + 90)); M.ball.passTeam = p.team; M.ball.passUntil = perfNow() + 900;   // fenêtre où le camp passeur reçoit plus facilement (passes moins interceptables)
+  input.shoot=false; if (M) M.charge=0; }
 function switchUser(){ if (!M) return; const c = nearest(outfield(0).filter(p=>p!==M.user), M.ball); if (c){ M.user = c; M._userPinned = true; } }   // choix manuel → on ne te le reprend pas à chaque passe adverse (jusqu'à récupération du ballon)
 
 function goal(side){ M.score[side]++; flash((side===0?M.teams[0].name:M.teams[1].name)+" marque ! ⚽"); kickoff(side===0?1:0); }

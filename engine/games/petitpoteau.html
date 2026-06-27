@@ -156,6 +156,7 @@ const CFG = {
   SPEED: 126, SPRINT: 1.5, GK_SPEED: 98, BALL_FRICTION: 0.88, DRIBBLE_SLOW: 0.9,   // GK un peu plus lent que les joueurs → les frappes dans les coins peuvent rentrer
   CTRL_R: 22, KICK_COOL: 0.3, PASS_PWR: 320, SHOOT_PWR: 420, DRIBBLE: 14,
   DUEL_R: 26, DUEL_TIME: 0.8, PROTECT: 0.85,   // RÉCUPÉRATION AU CONTACT : il faut TENIR le contact ~0,8 s (délai, pas un frôlement) + protection 0,85 s après l'avoir gagnée
+  FREEZE_MS: 10000,                            // EXPÉRIMENTAL : fige ce délai (ms) le joueur qui se fait déposséder (0 = désactivé)
   GOAL_W: 96, MARGIN: 22                       // largeur des « petits poteaux »
 };
 const DIFFS = [ { name:"Facile", oppSpeed:0.92, press:0.55, gkGuess:0.22 }, { name:"Normal", oppSpeed:1.0, press:0.8, gkGuess:0.36 }, { name:"Costaud", oppSpeed:1.06, press:1.2, gkGuess:0.5 } ];   // press = vitesse de récupération de l'IA au contact ; gkGuess = proba que le gardien IA devine ton côté au penalty
@@ -221,24 +222,27 @@ function newMatch(teamA, teamB){
   kickoff(0);
 }
 function kickoff(who){ if (!M) return; M.ball.x=W/2; M.ball.y=H/2; M.ball.vx=0; M.ball.vy=0; M.ball.owner=null; M.ball.cool=0.4; M.charge=0;
-  for (const p of M.players){ p.x=p.home.x; p.y=p.home.y; p.vx=0; p.vy=0; } }
+  for (const p of M.players){ p.x=p.home.x; p.y=p.home.y; p.vx=0; p.vy=0; p.frozenUntil=0; } }
 
 const dist2 = (a,b) => { const dx=a.x-b.x, dy=a.y-b.y; return dx*dx+dy*dy; };
 function nearest(players, pt){ let best=null, bd=1e9; for (const p of players){ const d=dist2(p,pt); if (d<bd){ bd=d; best=p; } } return best; }
+function frozen(p){ return !!(p && p.frozenUntil && perfNow() < p.frozenUntil); }   // figé après s'être fait déposséder
 
 /* ====================== MATCH — boucle de jeu ====================== */
 function update(dt){
   const b = M.ball;
   if (b.cool > 0) b.cool -= dt;
 
-  // Contrôle : tu diriges le porteur de ton équipe ; sinon le défenseur choisi.
+  // Contrôle : tu diriges le porteur de ton équipe ; sinon le défenseur choisi (jamais un joueur figé).
+  const live0 = outfield(0).filter(p => !frozen(p));
   if (b.owner && b.owner.team===0 && b.owner.role==="out"){ M.user = b.owner; M._userPinned = false; }   // tu portes le ballon → tu diriges le porteur (et on libère un switch manuel)
-  if (!M.user || M.user.team!==0 || M.user.role!=="out") M.user = nearest(outfield(0), b);
+  if (!M.user || M.user.team!==0 || M.user.role!=="out" || frozen(M.user)) M.user = nearest(live0.length?live0:outfield(0), b);
   const oppBall = !!(b.owner && b.owner.team===1);
-  if (oppBall && !M._oppBall && !M._userPinned) M.user = nearest(outfield(0), b);   // l'adversaire vient de prendre la balle → tu sautes au plus proche (sauf si tu as choisi un défenseur via CHANGER)
+  if (oppBall && !M._oppBall && !M._userPinned) M.user = nearest(live0.length?live0:outfield(0), b);   // l'adversaire vient de prendre la balle → tu sautes au plus proche non figé (sauf choix manuel via CHANGER)
   M._oppBall = oppBall;
 
   for (const p of M.players){
+    if (frozen(p)){ p.vx=0; p.vy=0; continue; }   // EXPÉRIMENTAL : figé après avoir perdu la balle → immobile
     let sp = (p.role==="gk") ? CFG.GK_SPEED : CFG.SPEED;
     if (p.team === 1) sp *= DIFF().oppSpeed;
     const hasBall = b.owner === p;
@@ -265,18 +269,20 @@ function update(dt){
 
   // RÉCUPÉRATION AU CONTACT : un adversaire collé au porteur reprend la balle en ~DUEL_TIME (aucun timing au bouton)
   if (b.owner && perfNow() >= (b.protect||0)){
-    const foes = M.players.filter(q => q.team!==b.owner.team && q.role!=="gk" && dist2(q,b.owner) < CFG.DUEL_R*CFG.DUEL_R);
+    const foes = M.players.filter(q => q.team!==b.owner.team && q.role!=="gk" && !frozen(q) && dist2(q,b.owner) < CFG.DUEL_R*CFG.DUEL_R);
     if (foes.length){
       let rate = 0;
       for (const q of foes){ rate += (q.team===0) ? ((q===M.user && input.shoot) ? 1.25 : 0.65) : DIFF().press; }   // toi en PRESSER = plus rapide ; plusieurs presseurs = plus vite
       b.pressT = (b.pressT||0) + rate*dt;
       b.presser = nearest(foes, b.owner);
-      if (b.pressT >= CFG.DUEL_TIME){ const w=b.presser; winBall(w); if (w.team===0) flash("Récupéré ! 👏"); }
+      if (b.pressT >= CFG.DUEL_TIME){ const loser=b.owner, w=b.presser; winBall(w);
+        if (CFG.FREEZE_MS && loser && loser.role==="out") loser.frozenUntil = perfNow() + CFG.FREEZE_MS;   // le dépossédé est figé
+        if (w.team===0) flash("Récupéré ! 👏"); }
     } else b.pressT = Math.max(0, (b.pressT||0) - dt*3);   // plus de contact → la pression retombe VITE (un simple frôlement ne vole jamais la balle)
   } else b.pressT = 0;
 
   // prise de balle libre — pendant une passe, le camp passeur a l'avantage : l'adversaire doit être NETTEMENT sur la balle pour l'intercepter
-  if (!b.owner && b.cool<=0){ const c = nearest(M.players, b);
+  if (!b.owner && b.cool<=0){ const c = nearest(M.players.filter(p => !frozen(p)), b);
     if (c && dist2(c,b) < CFG.CTRL_R*CFG.CTRL_R){
       const passActive = (b.passTeam!=null) && perfNow() < (b.passUntil||0);
       const r = (passActive && c.team!==b.passTeam) ? CFG.CTRL_R*0.55 : CFG.CTRL_R;   // interception d'une passe = rayon réduit (passes moins faciles à voler)
@@ -363,10 +369,13 @@ function render(){
   ctx.beginPath(); ctx.moveTo(GOAL_X0,GL_TOP); ctx.lineTo(GOAL_X1,GL_TOP); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(GOAL_X0,GL_BOT); ctx.lineTo(GOAL_X1,GL_BOT); ctx.stroke();
   ctx.fillStyle="#fff"; [ [GOAL_X0,GL_TOP],[GOAL_X1,GL_TOP],[GOAL_X0,GL_BOT],[GOAL_X1,GL_BOT] ].forEach(o=>{ ctx.beginPath(); ctx.arc(o[0],o[1],3.5,0,7); ctx.fill(); });
-  for (const p of M.players){ const t=M.teams[p.team];
+  for (const p of M.players){ const t=M.teams[p.team]; const fz=frozen(p);
+    ctx.globalAlpha = fz ? 0.35 : 1;
     ctx.beginPath(); ctx.arc(p.x,p.y,9,0,7);
     ctx.fillStyle = p.role==="gk" ? "#222" : t.c1; ctx.fill();
-    ctx.lineWidth=2; ctx.strokeStyle = t.c2; ctx.stroke();
+    ctx.lineWidth=2; ctx.strokeStyle = fz ? "#7fdfff" : t.c2; ctx.stroke();
+    ctx.globalAlpha = 1;
+    if (fz){ ctx.fillStyle="#bfefff"; ctx.font="bold 10px system-ui"; ctx.textAlign="center"; ctx.fillText("❄"+Math.ceil((p.frozenUntil-perfNow())/1000), p.x, p.y-13); ctx.textAlign="left"; }
     if (p===M.user){ ctx.beginPath(); ctx.arc(p.x,p.y,13,0,7); ctx.strokeStyle="#fff"; ctx.lineWidth=2; ctx.stroke();
       ctx.beginPath(); ctx.moveTo(p.x,p.y+15); ctx.lineTo(p.x-4,p.y+21); ctx.lineTo(p.x+4,p.y+21); ctx.closePath(); ctx.fillStyle="#fff"; ctx.fill(); }
   }

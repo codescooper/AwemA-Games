@@ -27,7 +27,7 @@
   .joy .stick { position:absolute; width:52px; height:52px; border-radius:50%; left:34px; top:34px; background:radial-gradient(circle at 35% 30%,#fff8,#ffffff33); border:1px solid #fff4; }
   .acts { display:flex; flex-direction:column; gap:.5rem; }
   .acts .ab { display:flex; gap:.5rem; }
-  .btnA { width:64px; height:64px; border-radius:50%; font:inherit; font-weight:800; font-size:.9rem; color:#0c0805; cursor:pointer; border:0; box-shadow:0 4px 0 #0006; touch-action:none; }
+  .btnA { width:64px; height:64px; border-radius:50%; font:inherit; font-weight:800; font-size:.72rem; color:#0c0805; cursor:pointer; border:0; box-shadow:0 4px 0 #0006; touch-action:none; }
   .btnA:active { transform:translateY(3px); box-shadow:none; }
   .shoot { background:#ff7a3c; } .pass { background:#f0c64a; } .sprint { background:#2fd6a6; width:54px; height:54px; font-size:.8rem; }
   .btnA.ready { box-shadow:0 0 0 3px #fff, 0 4px 0 #0006; animation:ppready .45s infinite alternate; }
@@ -90,10 +90,11 @@
     <div class="menu">
       <button class="big main" onclick="quickMatch()">⚽ Jouer un match rapide<small>Ton club contre un quartier au hasard</small></button>
       <button class="big" onclick="openChamp()">🏆 Championnat Tchoin-Tchoin<small>La saison des quartiers — deviens champion</small></button>
+      <button class="big" id="btnPk" onclick="shootoutPractice()">🥅 Séance de tirs au but<small>Duel face au gardien — vise les lucarnes, ou arrête tout</small></button>
       <button class="big" onclick="openCustomize()">🎨 Mon club<small>Nom, couleurs, blason, joueurs</small></button>
     </div>
     <div id="diffRow" class="row" style="margin-top:.7rem"></div>
-    <div class="sub" style="margin-top:.7rem"><b>Reprendre le ballon</b> : sans la balle, tu pilotes le défenseur le plus proche (anneau blanc) — colle le porteur adverse et appuie sur <b>TACLE</b> (le bouton, ou <b>K</b>/<b>J</b>) pour la lui prendre. Avec la balle : <b>TIR</b> (maintiens pour frapper fort, vise en bougeant) · <b>PASSE</b>. Clavier : flèches/ZQSD bouger, K/Espace, J, Maj=sprint.</div>
+    <div class="sub" style="margin-top:.7rem"><b>Tu diriges le joueur en surbrillance</b> (anneau blanc). Avec le ballon : <b>PASSE</b> (au coéquipier dans la direction visée) · <b>TIR</b> (maintiens pour frapper fort, oriente avec la direction). Sans le ballon : <b>TACLE</b> au contact du porteur (anneau rouge) · <b>CHANGER</b> de joueur · <b>VITE</b> = sprint.<br>Clavier : flèches/ZQSD bouger · <b>K</b>/Espace = tir·tacle · <b>J</b> = passe·changer · <b>Maj</b> = sprint. Tirs au but : vise (flèches) puis tire ; en gardien, place-toi puis plonge.</div>
   </div></div>
 
   <!-- Championnat -->
@@ -146,22 +147,30 @@
 /* ============================================================================
    PETIT POTEAU — maracana ivoirien (foot d'arcade 5v5, terre battue, petits poteaux).
    Autonome, hors-ligne, vanilla. Championnat « Tchoin-Tchoin » + personnalisation de club.
-   v1 arcade : on poussera le gameplay (tactiques, attributs, sélections nationales) ensuite.
+   Contrôle direct d'UN joueur (le surligné) + changement de joueur + passes + tirs au but.
    ========================================================================== */
 const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
 const W = cv.width, H = cv.height;
 const CFG = {
   PLAYERS: 5, MATCH: 90,            // 5 v 5 ; durée d'un match (secondes de jeu)
-  SPEED: 118, SPRINT: 1.45, GK_SPEED: 95, BALL_FRICTION: 0.86, DRIBBLE_SLOW: 0.84,   // porter la balle ralentit un peu → on peut la rattraper et tacler
-  CTRL_R: 20, KICK_COOL: 0.28, PASS_PWR: 240, SHOOT_PWR: 360, DRIBBLE: 13,
-  TACKLE_R: 28, PROTECT: 0.6,                  // portée du tacle + fenêtre de protection (s) après avoir gagné la balle (anti ping-pong)
+  SPEED: 126, SPRINT: 1.5, GK_SPEED: 98, BALL_FRICTION: 0.88, DRIBBLE_SLOW: 0.9,   // GK un peu plus lent que les joueurs → les frappes dans les coins peuvent rentrer
+  CTRL_R: 22, KICK_COOL: 0.22, PASS_PWR: 300, SHOOT_PWR: 420, DRIBBLE: 14,
+  TACKLE_R: 30, PROTECT: 0.5,                  // portée du tacle + fenêtre de protection (s) après avoir gagné la balle (anti ping-pong)
   GOAL_W: 96, MARGIN: 22                       // largeur des « petits poteaux »
 };
-const DIFFS = [ { name:"Facile", oppSpeed:0.92, aiRate:0.8 }, { name:"Normal", oppSpeed:1.0, aiRate:1.3 }, { name:"Costaud", oppSpeed:1.06, aiRate:2.1 } ];   // aiRate = tacles/seconde de l'IA quand elle est au contact
+const DIFFS = [ { name:"Facile", oppSpeed:0.92, aiRate:0.8, gkGuess:0.22 }, { name:"Normal", oppSpeed:1.0, aiRate:1.3, gkGuess:0.36 }, { name:"Costaud", oppSpeed:1.06, aiRate:2.1, gkGuess:0.5 } ];   // aiRate = tacles/s de l'IA ; gkGuess = proba que le gardien IA devine ton côté
 let diffIdx = (function(){ try { var v = +localStorage.getItem("petitpoteau_diff"); return (v >= 0 && v <= 2) ? v : 1; } catch (e) { return 1; } })();
 function DIFF(){ return DIFFS[diffIdx]; }
 const GL_TOP = CFG.MARGIN, GL_BOT = H - CFG.MARGIN;   // lignes de but
 const GOAL_X0 = (W - CFG.GOAL_W) / 2, GOAL_X1 = (W + CFG.GOAL_W) / 2;
+
+/* géométrie de la séance de tirs au but (vue face au but) */
+const PK_GOAL_L = W*0.16, PK_GOAL_R = W*0.84, PK_BAR_Y = 86, PK_LINE_Y = 158;
+const PK_TL = PK_GOAL_L+14, PK_TR = PK_GOAL_R-14, PK_TT = PK_BAR_Y+10, PK_TB = PK_LINE_Y-8;
+const PK_SPOT_Y = H-118, PK_SAVE_R = 54;
+
+const clamp = (v,a,c) => v<a?a:(v>c?c:v);
+const lerp = (a,c,f) => a+(c-a)*f;
 
 const PALETTE = ["#ff7a3c","#f0c64a","#3fcf6a","#2fd6a6","#3a82f7","#7c5cff","#ff5b6e","#ffffff","#111111","#c8941f"];
 const EMOJIS = ["⚽","🦁","🐘","🦅","🔥","⭐","🐆","🥇","🟢","⚓"];
@@ -189,163 +198,171 @@ let myTeam = loadTeam();
 
 /* ---- état du match ---- */
 let M = null, raf = null, lastT = 0, running = false, mode = "quick", onEnd = null;
-const input = { dx:0, dy:0, pass:false, shoot:false, sprint:false };
+const input = { dx:0, dy:0, shoot:false, sprint:false, _a:false, _b:false };
 
 function teamFromClub(c){ return { name:c.name, emoji:c.emoji, c1:c.c1, c2:c.c2, str:c.str, players:[randName(),randName(),randName(),randName(),randName()] }; }
+const outfield = (team) => M.players.filter(p => p.team===team && p.role==="out");
 
 function newMatch(teamA, teamB){
   // teamA = bas (toi, attaque vers le HAUT) ; teamB = haut (attaque vers le bas)
   const mk = (team, side) => {
     const ps = [];
-    // 0 = gardien
     ps.push({ team:side, role:"gk", x:W/2, y:(side===0?GL_BOT-18:GL_TOP+18), vx:0, vy:0, home:{x:W/2,y:(side===0?GL_BOT-18:GL_TOP+18)} });
-    // 4 joueurs de champ — positions miroir
     const spots = side===0
       ? [[W*0.25,H*0.72],[W*0.75,H*0.72],[W*0.35,H*0.55],[W*0.65,H*0.55]]
       : [[W*0.25,H*0.28],[W*0.75,H*0.28],[W*0.35,H*0.45],[W*0.65,H*0.45]];
     for (const s of spots) ps.push({ team:side, role:"out", x:s[0], y:s[1], vx:0, vy:0, home:{x:s[0],y:s[1]} });
     return ps;
   };
-  M = { teams:[teamA, teamB], players: mk(teamA,0).concat(mk(teamB,1)),
-    ball:{ x:W/2, y:H/2, vx:0, vy:0, owner:null, cool:0 },
-    score:[0,0], clock:CFG.MATCH, active:null, msg:"", msgT:0 };
+  M = { phase:"play", teams:[teamA, teamB], players: mk(teamA,0).concat(mk(teamB,1)),
+    ball:{ x:W/2, y:H/2, vx:0, vy:0, owner:null, cool:0, protect:0 },
+    score:[0,0], clock:CFG.MATCH, user:null, charge:0, msg:"", msgT:0, _oppBall:false };
+  M.user = M.players.find(p => p.team===0 && p.role==="out");
   kickoff(0);
 }
-function kickoff(who){ if (!M) return; M.ball.x=W/2; M.ball.y=H/2; M.ball.vx=0; M.ball.vy=0; M.ball.owner=null; M.ball.cool=0.4;
+function kickoff(who){ if (!M) return; M.ball.x=W/2; M.ball.y=H/2; M.ball.vx=0; M.ball.vy=0; M.ball.owner=null; M.ball.cool=0.4; M.charge=0;
   for (const p of M.players){ p.x=p.home.x; p.y=p.home.y; p.vx=0; p.vy=0; } }
 
 const dist2 = (a,b) => { const dx=a.x-b.x, dy=a.y-b.y; return dx*dx+dy*dy; };
 function nearest(players, pt){ let best=null, bd=1e9; for (const p of players){ const d=dist2(p,pt); if (d<bd){ bd=d; best=p; } } return best; }
 
+/* ====================== MATCH — boucle de jeu ====================== */
 function update(dt){
   const b = M.ball;
   if (b.cool > 0) b.cool -= dt;
-  // joueur actif = coéquipier (équipe 0) le plus proche du ballon (ou porteur)
-  const mine = M.players.filter(p => p.team===0 && p.role==="out");
-  M.active = (b.owner && b.owner.team===0 && b.owner.role==="out") ? b.owner
-    : nearest(mine, (b.owner && b.owner.team===1) ? b.owner : b);   // en défense, contrôle le défenseur le plus proche du PORTEUR (pas juste du ballon)
-  M.aiChaser = nearest(M.players.filter(p => p.team===1 && p.role==="out"), b);   // unique défenseur IA autorisé à tacler (contest 1v1 équitable)
+
+  // Contrôle : tu diriges le porteur de ton équipe ; sinon le défenseur choisi.
+  if (b.owner && b.owner.team===0 && b.owner.role==="out"){ M.user = b.owner; M._userPinned = false; }   // tu portes le ballon → tu diriges le porteur (et on libère un switch manuel)
+  if (!M.user || M.user.team!==0 || M.user.role!=="out") M.user = nearest(outfield(0), b);
+  const oppBall = !!(b.owner && b.owner.team===1);
+  if (oppBall && !M._oppBall && !M._userPinned) M.user = nearest(outfield(0), b);   // l'adversaire vient de prendre la balle → tu sautes au plus proche (sauf si tu as choisi un défenseur via CHANGER)
+  M._oppBall = oppBall;
 
   for (const p of M.players){
-    let tx, ty, sp = (p.role==="gk") ? CFG.GK_SPEED : CFG.SPEED;
-    if (p.team === 1) sp *= DIFF().oppSpeed;                                   // l'adversaire plus/moins rapide selon la difficulté
+    let sp = (p.role==="gk") ? CFG.GK_SPEED : CFG.SPEED;
+    if (p.team === 1) sp *= DIFF().oppSpeed;
     const hasBall = b.owner === p;
-    if (hasBall) sp *= CFG.DRIBBLE_SLOW;                                       // porter la balle ralentit → un défenseur peut revenir et tacler
-    if (p === M.active){
-      // contrôlé par le joueur
+    if (hasBall) sp *= CFG.DRIBBLE_SLOW;
+
+    if (p === M.user && p.role === "out"){
+      // JOUEUR HUMAIN — déplacement direct (les actions sont gérées au bouton/clavier)
       sp *= (input.sprint ? CFG.SPRINT : 1);
       p.vx = input.dx * sp; p.vy = input.dy * sp;
-      if (hasBall){
-        if (input.shoot){ M.charge = Math.min((M.charge || 0) + dt, 0.8); }    // maintenir TIR = charger la frappe
-        else { if (M.charge > 0){ shootCharged(p, M.charge); M.charge = 0; } else if (input.pass) doPass(p); }
-      } else { M.charge = 0; if (input.shoot || input.pass) tryTackle(p); }     // SANS le ballon → TACLE pour le récupérer
-    } else if (p.role === "gk"){
-      // gardien : suit le ballon en x, reste sur sa ligne ; dégage si ballon proche
-      tx = Math.max(GOAL_X0-6, Math.min(GOAL_X1+6, b.x)); ty = p.home.y;
-      steer(p, tx, ty, sp, dt);
-      if (dist2(p,b) < 700 && b.owner !== p && b.cool<=0){ b.owner = p; }
-      if (b.owner === p){ doPass(p, true); }
-      continue;
-    } else {
-      // IA de champ
-      const teamHasBall = b.owner && b.owner.team === p.team;
-      if (b.owner && b.owner.team !== p.team || !b.owner){
-        // défense / récupération : le plus proche chasse, les autres tiennent une position entre but et ballon
-        const closest = nearest(M.players.filter(q=>q.team===p.team && q.role==="out"), b);
-        if (p === closest){ tx=b.x; ty=b.y; }
-        else { tx = (p.home.x + b.x)/2; ty = (p.home.y*1.4 + (p.team===0?GL_BOT:GL_TOP))/2.4; }
-      } else {
-        // attaque : monter et offrir une solution
-        const fwd = p.team===0 ? -1 : 1;
-        tx = p.home.x + (Math.sin((perfNow()/700)+p.home.x)*40);
-        ty = p.home.y + fwd*90 + (hasBall? fwd*8:0);
-      }
-      steer(p, tx, ty, sp, dt);
-      if (p === M.aiChaser && b.owner && b.owner.team !== p.team && dist2(p, b.owner) < CFG.TACKLE_R*CFG.TACKLE_R && Math.random() < DIFF().aiRate * dt) tryTackle(p);   // seul le défenseur IA le plus proche tacle, à un rythme équitable
-      // l'IA porteuse décide : tir si proche du but, sinon passe/dribble
-      if (hasBall){
-        const goalY = p.team===0 ? GL_TOP : GL_BOT;
-        if (Math.abs(p.y - goalY) < 150 && Math.abs(p.x - W/2) < 90){ kick(p, goalDir(p), CFG.SHOOT_PWR*0.95); }
-        else if (Math.random() < 0.012){ doPass(p); }
-      }
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      if (hasBall){ if (input.shoot){ M.charge = Math.min((M.charge||0)+dt, 0.9); }
+                    else if (M.charge > 0){ shootCharged(p, M.charge); M.charge = 0; } }
+      else M.charge = 0;
       continue;
     }
-    // intégration position (joueur actif + repli générique)
-    p.x += p.vx*dt; p.y += p.vy*dt;
+    if (p.role === "gk"){ aiGoalie(p, sp, dt); continue; }
+    aiField(p, sp, dt, hasBall);
   }
-  // bornes joueurs
-  for (const p of M.players){ p.x=Math.max(8,Math.min(W-8,p.x)); p.y=Math.max(8,Math.min(H-8,p.y)); }
+  for (const p of M.players){ p.x = clamp(p.x, 8, W-8); p.y = clamp(p.y, 8, H-8); }
 
-  // prise de balle (hors gardien déjà géré)
-  if (!b.owner && b.cool<=0){ const c = nearest(M.players, b); if (c && dist2(c,b) < CFG.CTRL_R*CFG.CTRL_R){ winBall(c); } }
+  // prise de balle libre
+  if (!b.owner && b.cool<=0){ const c = nearest(M.players, b); if (c && dist2(c,b) < CFG.CTRL_R*CFG.CTRL_R) winBall(c); }
 
   // ballon : collé au porteur (dribble) sinon physique
-  if (b.owner){ const o=b.owner; const dir = dirTo(o, lastBallDir(o)); b.x = o.x + dir.x*CFG.DRIBBLE; b.y = o.y + dir.y*CFG.DRIBBLE; b.vx=0; b.vy=0; }
+  if (b.owner){ const o=b.owner; const dir = dirTo(o); b.x = o.x + dir.x*CFG.DRIBBLE; b.y = o.y + dir.y*CFG.DRIBBLE; b.vx=0; b.vy=0; }
   else {
     b.x += b.vx*dt; b.y += b.vy*dt; b.vx*=Math.pow(CFG.BALL_FRICTION,dt*60); b.vy*=Math.pow(CFG.BALL_FRICTION,dt*60);
     if (b.x<8){ b.x=8; b.vx*=-0.6; } if (b.x>W-8){ b.x=W-8; b.vx*=-0.6; }
-    // buts (petits poteaux)
     if (b.y < GL_TOP){ if (b.x>GOAL_X0 && b.x<GOAL_X1) return goal(0); else { b.y=GL_TOP; b.vy*=-0.5; } }
     if (b.y > GL_BOT){ if (b.x>GOAL_X0 && b.x<GOAL_X1) return goal(1); else { b.y=GL_BOT; b.vy*=-0.5; } }
   }
 
-  // horloge
   M.clock -= dt; if (M.clock <= 0){ M.clock = 0; endMatch(); }
+}
+
+function aiGoalie(p, sp, dt){ const b = M.ball;
+  const tx = clamp(b.x, GOAL_X0-2, GOAL_X1+2), ty = p.home.y;
+  steer(p, tx, ty, sp, dt);
+  if (dist2(p,b) < 470 && b.owner !== p && b.cool<=0) winBall(p);   // rayon d'arrêt réduit → vise les coins pour le battre
+  if (b.owner === p) doPass(p);                                     // dégage
+}
+
+function aiField(p, sp, dt, hasBall){ const b = M.ball; let tx, ty;
+  const teamHasBall = b.owner && b.owner.team === p.team;
+  const myClosest = nearest(outfield(p.team), b);
+  if (!teamHasBall){
+    // défense : le plus proche presse le ballon, les autres couvrent entre but et ballon
+    if (p === myClosest){ tx=b.x; ty=b.y; }
+    else { tx = (p.home.x + b.x)/2; ty = (p.home.y*1.4 + (p.team===0?GL_BOT:GL_TOP))/2.4; }
+  } else {
+    // attaque : monter et offrir une solution de passe
+    const fwd = p.team===0 ? -1 : 1;
+    tx = p.home.x + Math.sin((perfNow()/700)+p.home.x)*40;
+    ty = p.home.y + fwd*90 + (hasBall? fwd*8:0);
+  }
+  steer(p, tx, ty, sp, dt);
+  // tacle : seul le défenseur le plus proche (et pas le joueur humain) ; IA adverse ≈ difficulté, coéquipiers ≈ fixe
+  if (p === myClosest && p !== M.user && b.owner && b.owner.team !== p.team
+      && dist2(p, b.owner) < CFG.TACKLE_R*CFG.TACKLE_R){
+    const rate = (p.team===1) ? DIFF().aiRate : 1.1;
+    if (Math.random() < rate * dt) tryTackle(p);
+  }
+  // décision du porteur IA : tir près du but, sinon passe/dribble
+  if (hasBall){ const goalY = p.team===0 ? GL_TOP : GL_BOT;
+    if (Math.abs(p.y - goalY) < 150 && Math.abs(p.x - W/2) < 90) kick(p, goalDir(p), CFG.SHOOT_PWR*0.9);
+    else if (Math.random() < 0.012) doPass(p);
+  }
 }
 
 function steer(p, tx, ty, sp, dt){ const dx=tx-p.x, dy=ty-p.y, d=Math.hypot(dx,dy)||1; if (d>3){ p.x += dx/d*sp*dt; p.y += dy/d*sp*dt; p.vx=dx/d; p.vy=dy/d; } }
 function dirTo(o){ const dx=o.vx, dy=o.vy, d=Math.hypot(dx,dy); if (d<0.05) return { x:0, y:(o.team===0?-1:1) }; return { x:dx/d, y:dy/d }; }
-function lastBallDir(o){ return o; }
 function goalDir(p){ const gx=W/2, gy=(p.team===0?GL_TOP:GL_BOT); const dx=gx-p.x + (Math.random()*40-20), dy=gy-p.y, d=Math.hypot(dx,dy)||1; return { x:dx/d, y:dy/d }; }
 function kick(p, dir, pwr){ const b=M.ball; b.owner=null; b.cool=CFG.KICK_COOL; b.vx=dir.x*pwr; b.vy=dir.y*pwr; b.x=p.x+dir.x*12; b.y=p.y+dir.y*12; }
 function aimDir(p){ const gx=W/2, gy=(p.team===0?GL_TOP:GL_BOT); let ax=gx-p.x, ay=gy-p.y; const gd=Math.hypot(ax,ay)||1; ax/=gd; ay/=gd;
-  if (p===M.active && Math.hypot(input.dx,input.dy)>0.15){ ax=ax*0.5+input.dx*0.6; ay=ay*0.5+input.dy*0.6; const d=Math.hypot(ax,ay)||1; ax/=d; ay/=d; }  // viser en se déplaçant
+  if (p===M.user && Math.hypot(input.dx,input.dy)>0.15){ ax=ax*0.4+input.dx*0.7; ay=ay*0.4+input.dy*0.7; const d=Math.hypot(ax,ay)||1; ax/=d; ay/=d; }  // viser en se déplaçant
   return { x:ax, y:ay }; }
-function shootCharged(p, c){ kick(p, aimDir(p), CFG.SHOOT_PWR * (0.72 + (c/0.8)*0.55)); }      // 0.72×..1.27× selon la charge
+function shootCharged(p, c){ kick(p, aimDir(p), CFG.SHOOT_PWR * (0.72 + (c/0.9)*0.55)); if (c > 0.62) flash("Frappe ! 💥"); }   // 0.72×..1.27× selon la charge
 function tryTackle(p){ const b=M.ball; if (!b.owner || b.owner.team===p.team) return;
-  if (perfNow() < (b.protect||0)) return;                                                      // le porteur vient de gagner la balle → protégé un court instant
+  if (perfNow() < (b.protect||0)) return;                                                      // porteur protégé un court instant
   if (dist2(p, b.owner) < CFG.TACKLE_R*CFG.TACKLE_R){ const human = p.team===0; winBall(p); if (human) flash("Récupéré ! 👏"); } }
-function winBall(p){ const b=M.ball; b.owner=p; b.cool=0; b.protect = perfNow() + CFG.PROTECT*1000; }   // gagner la balle = fenêtre de protection symétrique (anti ping-pong)
-function doPass(p, gkClear){ const mates=M.players.filter(q=>q.team===p.team && q!==p && q.role!=="gk");
-  const fwd = p.team===0?-1:1; let best=null, bs=-1e9;
-  for (const m of mates){ const ahead=(m.y-p.y)*fwd; const score=ahead - Math.abs(m.x-p.x)*0.3; if (score>bs){ bs=score; best=m; } }
-  const target = best || mates[0]; if (!target) { if(gkClear) kick(p,{x:0,y:fwd},CFG.PASS_PWR); return; }
-  const dx=target.x-p.x, dy=target.y-p.y, d=Math.hypot(dx,dy)||1; kick(p,{x:dx/d,y:dy/d}, Math.min(CFG.PASS_PWR, d*3.2)); }
+function winBall(p){ const b=M.ball; b.owner=p; b.cool=0; b.protect = perfNow() + CFG.PROTECT*1000; input.shoot=false; if (M) M.charge=0; }   // gagner la balle = protection symétrique + annule toute frappe en charge (pas de tir parasite à la récupération)
+function doPass(p){ const mates = M.players.filter(q => q.team===p.team && q!==p && q.role!=="gk");
+  if (!mates.length){ kick(p, {x:0,y:(p.team===0?-1:1)}, CFG.PASS_PWR); return; }
+  const aim = (p===M.user && Math.hypot(input.dx,input.dy)>0.2) ? {x:input.dx, y:input.dy} : null;
+  const fwd = p.team===0 ? -1 : 1; let best=null, bs=-1e9;
+  for (const m of mates){ const dx=m.x-p.x, dy=m.y-p.y, d=Math.hypot(dx,dy)||1;
+    const score = aim ? ((dx/d)*aim.x + (dy/d)*aim.y) - d*0.0016     // meilleur alignement avec la visée
+                      : ((m.y-p.y)*fwd - Math.abs(m.x-p.x)*0.3);     // sinon le plus avancé
+    if (score>bs){ bs=score; best=m; } }
+  const t = best || mates[0]; const dx=t.x-p.x, dy=t.y-p.y, d=Math.hypot(dx,dy)||1;
+  kick(p, {x:dx/d, y:dy/d}, Math.min(CFG.PASS_PWR, d*4 + 90)); input.shoot=false; if (M) M.charge=0; }   // une passe annule la charge → pas de tir parasite chez le receveur
+function switchUser(){ if (!M) return; const c = nearest(outfield(0).filter(p=>p!==M.user), M.ball); if (c){ M.user = c; M._userPinned = true; } }   // choix manuel → on ne te le reprend pas à chaque passe adverse (jusqu'à récupération du ballon)
 
 function goal(side){ M.score[side]++; flash((side===0?M.teams[0].name:M.teams[1].name)+" marque ! ⚽"); kickoff(side===0?1:0); }
 
-/* ---- rendu ---- */
+/* ---- rendu du match ---- */
 let _t0 = null;
 function perfNow(){ return (typeof performance!=="undefined"?performance.now():_t0||0); }
 function render(){
-  // terrain (terre battue)
   const g = ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,"#9a4422"); g.addColorStop(1,"#7a3418"); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-  // bandes
   for (let i=0;i<10;i++){ ctx.fillStyle = i%2 ? "#ffffff08":"#00000010"; ctx.fillRect(0, GL_TOP + i*(GL_BOT-GL_TOP)/10, W, (GL_BOT-GL_TOP)/10); }
-  ctx.strokeStyle="var(--line)"; ctx.lineWidth=2; ctx.strokeStyle="#ffffffcc";
+  ctx.lineWidth=2; ctx.strokeStyle="#ffffffcc";
   ctx.strokeRect(CFG.MARGIN, GL_TOP, W-2*CFG.MARGIN, GL_BOT-GL_TOP);
   ctx.beginPath(); ctx.moveTo(CFG.MARGIN, H/2); ctx.lineTo(W-CFG.MARGIN, H/2); ctx.stroke();
   ctx.beginPath(); ctx.arc(W/2,H/2,46,0,7); ctx.stroke();
-  // surfaces + petits poteaux
   ctx.strokeRect((W-150)/2, GL_TOP, 150, 46); ctx.strokeRect((W-150)/2, GL_BOT-46, 150, 46);
   ctx.lineWidth=5; ctx.strokeStyle="#fff";
   ctx.beginPath(); ctx.moveTo(GOAL_X0,GL_TOP); ctx.lineTo(GOAL_X1,GL_TOP); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(GOAL_X0,GL_BOT); ctx.lineTo(GOAL_X1,GL_BOT); ctx.stroke();
   ctx.fillStyle="#fff"; [ [GOAL_X0,GL_TOP],[GOAL_X1,GL_TOP],[GOAL_X0,GL_BOT],[GOAL_X1,GL_BOT] ].forEach(o=>{ ctx.beginPath(); ctx.arc(o[0],o[1],3.5,0,7); ctx.fill(); });
-  // joueurs
   for (const p of M.players){ const t=M.teams[p.team];
     ctx.beginPath(); ctx.arc(p.x,p.y,9,0,7);
     ctx.fillStyle = p.role==="gk" ? "#222" : t.c1; ctx.fill();
     ctx.lineWidth=2; ctx.strokeStyle = t.c2; ctx.stroke();
-    if (p===M.active){ ctx.beginPath(); ctx.arc(p.x,p.y,13,0,7); ctx.strokeStyle="#fff"; ctx.lineWidth=2; ctx.stroke();
+    if (p===M.user){ ctx.beginPath(); ctx.arc(p.x,p.y,13,0,7); ctx.strokeStyle="#fff"; ctx.lineWidth=2; ctx.stroke();
       ctx.beginPath(); ctx.moveTo(p.x,p.y+15); ctx.lineTo(p.x-4,p.y+21); ctx.lineTo(p.x+4,p.y+21); ctx.closePath(); ctx.fillStyle="#fff"; ctx.fill(); }
   }
-  // cible de tacle : entoure le porteur adverse quand tu es à portée (repère visuel)
-  if (M.active && M.ball.owner && M.ball.owner.team!==0 && dist2(M.active,M.ball.owner) < CFG.TACKLE_R*CFG.TACKLE_R*1.6){ const o=M.ball.owner;
+  // cible de tacle : entoure le porteur adverse quand tu es à portée
+  if (M.user && M.ball.owner && M.ball.owner.team!==0 && dist2(M.user,M.ball.owner) < CFG.TACKLE_R*CFG.TACKLE_R*1.6){ const o=M.ball.owner;
     ctx.beginPath(); ctx.arc(o.x,o.y,15,0,7); ctx.strokeStyle="#ff5b6e"; ctx.lineWidth=2.5; ctx.setLineDash([4,3]); ctx.stroke(); ctx.setLineDash([]); }
-  // ballon
   const b=M.ball; ctx.beginPath(); ctx.arc(b.x,b.y,6,0,7); ctx.fillStyle="#fff"; ctx.fill(); ctx.lineWidth=1; ctx.strokeStyle="#0008"; ctx.stroke();
-  // message flash
+  // jauge de charge de tir
+  if (M.user && M.ball.owner===M.user && M.charge>0){ const cx=M.user.x, cy=M.user.y-18;
+    ctx.fillStyle="#0008"; ctx.fillRect(cx-15,cy-3,30,5); ctx.fillStyle="#3fcf6a"; ctx.fillRect(cx-15,cy-3,30*Math.min(1,M.charge/0.9),5); }
   if (M.msgT>0){ ctx.fillStyle="#000a"; ctx.fillRect(0,H/2-26,W,52); ctx.fillStyle="#ffd24d"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText(M.msg, W/2, H/2+8); ctx.textAlign="left"; }
 }
 function flash(m){ if(M){ M.msg=m; M.msgT=1.4; } }
@@ -354,18 +371,142 @@ function frame(t){
   if (!running){ return; }
   if (_t0===null) _t0=t;
   let dt=(t-lastT)/1000; lastT=t; if (!(dt>0)) dt=0.016; dt=Math.min(dt,0.05);
-  if (M.msgT>0) M.msgT-=dt;
-  update(dt); if (!M) return; render(); syncHUD();
+  if (M && M.phase==="pk"){ pkUpdate(dt); pkRender(); }
+  else { if (M.msgT>0) M.msgT-=dt; update(dt); if (!M || M.phase!=="play") return; render(); syncHUD(); }   // update() a pu basculer en "pk" (nul → tirs au but) : ne pas rendre le terrain sur un état penalty
   raf=requestAnimationFrame(frame);
 }
 function syncHUD(){ document.getElementById("score").textContent = M.score[0]+" — "+M.score[1];
   const c=Math.max(0,M.clock); document.getElementById("clock").textContent = Math.floor(c/60)+":"+String(Math.floor(c%60)).padStart(2,"0");
-  const hb = !!M.active && M.ball.owner === M.active;                          // boutons contextuels : TIR/PASSE avec la balle, sinon TACLE
+  const hb = !!M.user && M.ball.owner === M.user;
   const bs=document.getElementById("bShoot"), bp=document.getElementById("bPass");
-  const sl=hb?"TIR":"TACLE", pl=hb?"PASSE":"TACLE";
+  const sl=hb?"TIR":"TACLE", pl=hb?"PASSE":"CHANGER";
   if (bs.textContent!==sl) bs.textContent=sl; if (bp.textContent!==pl) bp.textContent=pl;
-  const tk = !hb && !!M.active && M.ball.owner && M.ball.owner.team!==0 && dist2(M.active, M.ball.owner) < CFG.TACKLE_R*CFG.TACKLE_R*1.5;   // à portée → les boutons TACLE pulsent
-  bs.classList.toggle("ready", !!tk); bp.classList.toggle("ready", !!tk); }
+  const tk = !hb && !!M.user && M.ball.owner && M.ball.owner.team!==0 && dist2(M.user, M.ball.owner) < CFG.TACKLE_R*CFG.TACKLE_R*1.5;
+  bs.classList.toggle("ready", !!tk); }
+
+/* ====================== TIRS AU BUT (vue face au gardien) ====================== */
+function startShootout(teamA, teamB, onDone, m){
+  mode = m || "pk"; hideAll();
+  M = { phase:"pk", teams:[teamA, teamB], score:[0,0],
+        pk:{ teams:[teamA,teamB], score:[0,0], taken:[0,0], best:5, userSide:0,
+             shooter:0, state:"aim", t:0, aimx:W/2, aimy:(PK_TT+PK_TB)/2, kx:W/2, ky:PK_LINE_Y-8,
+             ballx:W/2, bally:PK_SPOT_Y, sx:W/2, sy:PK_SPOT_Y, target:null, keeper:null,
+             kx0:W/2, ky0:PK_LINE_Y-8, res:"", onDone:onDone } };
+  pkSetupKick();
+  document.getElementById("hudA").innerHTML = teamA.emoji+" "+esc(teamA.name);
+  document.getElementById("hudB").innerHTML = teamB.emoji+" "+esc(teamB.name);
+  document.getElementById("hud").style.visibility="visible";
+  document.getElementById("pad").style.visibility="visible";
+  running=true; lastT=perfNow(); _t0=null; cancelAnimationFrame(raf); raf=requestAnimationFrame(frame);
+  try { if(window.track) track("petitpoteau_pk", { mode:mode }); } catch(e){}
+}
+function pkUserShoots(){ return M.pk.shooter === M.pk.userSide; }
+function pkSetupKick(){ const k=M.pk;
+  k.shooter = (k.taken[0] <= k.taken[1]) ? 0 : 1;   // alternance 0,1,0,1…
+  k.state="aim"; k.t=0; k.res="";
+  k.aimx=W/2; k.aimy=(PK_TT+PK_TB)/2; k.kx=W/2; k.ky=PK_LINE_Y-8; k.ballx=W/2; k.bally=PK_SPOT_Y;
+  input.dx=0; input.dy=0;                              // neutralise une direction encore tenue entre deux tirs (sinon le réticule/gardien dérive seul)
+  k.target = pkUserShoots() ? null : aiShotTarget();   // cible IA décidée tôt → télégraphe possible
+  setPkHud();
+}
+function pkUpdate(dt){ const k=M.pk; k.t+=dt; const us=pkUserShoots();
+  if (k.state==="aim"){
+    if (us){
+      k.aimx = clamp(k.aimx + input.dx*250*dt, PK_TL, PK_TR);
+      k.aimy = clamp(k.aimy + input.dy*130*dt, PK_TT, PK_TB);
+      if (k.t>6) pkCommit();                                   // garde-fou
+    } else {
+      k.kx = clamp(k.kx + input.dx*240*dt, PK_GOAL_L+8, PK_GOAL_R-8);
+      k.ky = clamp(k.ky + input.dy*100*dt, PK_BAR_Y+10, PK_LINE_Y+4);
+      if (k.t>1.3) k.ballx = lerp(W/2, W/2 + (k.target.x-W/2)*0.22, Math.min(1,(k.t-1.3)/0.6));  // léger « tell » du côté visé
+      if (k.t>1.9) pkCommit();                                 // l'IA frappe
+    }
+  } else if (k.state==="strike"){
+    const f = Math.min(1, k.t/0.45);
+    k.ballx = lerp(k.sx, k.target.x, f); k.bally = lerp(k.sy, k.target.y, f);
+    if (us){ k.kx = lerp(k.kx0, k.keeper.x, f); k.ky = lerp(k.ky0, k.keeper.y, f); }              // gardien IA plonge
+    else { k.kx = clamp(k.kx + input.dx*260*dt, PK_GOAL_L+8, PK_GOAL_R-8); k.ky = clamp(k.ky + input.dy*130*dt, PK_BAR_Y+10, PK_LINE_Y+4); }  // tu plonges en live
+    if (f>=1) pkResolve();
+  } else if (k.state==="result"){
+    if (k.t>1.45) pkNext();
+  }
+}
+function pkCommit(){ const k=M.pk; if (k.state!=="aim") return; const us=pkUserShoots();
+  k.sx=W/2; k.sy=PK_SPOT_Y;
+  if (us){ k.target={x:k.aimx, y:k.aimy}; k.keeper=aiKeeperGuess(k.aimx, k.aimy); k.kx0=W/2; k.ky0=PK_LINE_Y-8; }
+  k.state="strike"; k.t=0;
+}
+function pkResolve(){ const k=M.pk; const us=pkUserShoots();
+  const kp = us ? k.keeper : { x:k.kx, y:k.ky };
+  const saved = Math.hypot(k.target.x-kp.x, k.target.y-kp.y) < PK_SAVE_R;
+  if (!saved) k.score[k.shooter]++;
+  k.taken[k.shooter]++;
+  k.res = saved ? "ARRÊT ! 🧤" : "BUT ! ⚽";
+  k.state="result"; k.t=0; setPkHud();
+}
+function pkNext(){ const k=M.pk;
+  const t0=k.taken[0], t1=k.taken[1], s0=k.score[0], s1=k.score[1];
+  if (t0<k.best || t1<k.best){ const l0=k.best-t0, l1=k.best-t1; if (s0>s1+l1 || s1>s0+l0) return pkEnd(); }
+  else if (t0===t1 && s0!==s1) return pkEnd();
+  pkSetupKick();
+}
+function pkEnd(){ const k=M.pk; running=false; cancelAnimationFrame(raf);
+  const win = k.score[0] >= k.score[1] ? 0 : 1;
+  if (k.onDone) k.onDone(win, k.score.slice());
+}
+function aiKeeperGuess(ax, ay){
+  if (Math.random() < DIFF().gkGuess){   // lit ton côté MAIS se place au centre de la zone → une frappe tout au fond de la lucarne passe quand même (récompense la précision)
+    const side = ax < W/2-20 ? -1 : (ax > W/2+20 ? 1 : 0);
+    const gx = W/2 + side*(PK_GOAL_R-PK_GOAL_L)*0.22 + (Math.random()*18-9);
+    const gy = (ay < (PK_TT+PK_TB)/2 ? PK_TT+18 : PK_TB-10) + (Math.random()*14-7);
+    return { x: gx, y: gy };
+  }
+  return { x: PK_GOAL_L + Math.random()*(PK_GOAL_R-PK_GOAL_L), y: PK_BAR_Y + 18 + Math.random()*(PK_LINE_Y-PK_BAR_Y-26) };
+}
+function aiShotTarget(){ const corner = Math.random() < (0.4 + diffIdx*0.2);
+  const x = corner ? (Math.random()<0.5 ? PK_TL+8 : PK_TR-8) : (W/2 + (Math.random()*130-65));
+  const y = PK_TT + 6 + Math.random()*(PK_TB-PK_TT-10);
+  return { x: clamp(x, PK_TL, PK_TR), y: clamp(y, PK_TT, PK_TB) };
+}
+function setPkHud(){ const k=M.pk; if(!k) return;
+  document.getElementById("score").textContent = k.score[0]+" — "+k.score[1];
+  const within = (k.taken[0]<k.best || k.taken[1]<k.best);
+  document.getElementById("clock").textContent = within ? ("Tir "+(Math.max(k.taken[0],k.taken[1])+1)+"/"+k.best) : "Mort subite";
+  const us = pkUserShoots();
+  document.getElementById("bShoot").textContent = us ? "TIRER" : "🧤";
+  document.getElementById("bPass").textContent = us ? "TIRER" : "🧤";
+}
+function pkRender(){ const k=M.pk; const us=pkUserShoots();
+  const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,"#13325c"); g.addColorStop(0.34,"#1a4a6e"); g.addColorStop(0.34,"#8a4422"); g.addColorStop(1,"#5e2a14"); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  // surface + point
+  ctx.strokeStyle="#ffffff66"; ctx.lineWidth=2; ctx.strokeRect(W*0.1, PK_LINE_Y, W*0.8, H-PK_LINE_Y-70);
+  ctx.fillStyle="#ffffffcc"; ctx.beginPath(); ctx.arc(W/2, PK_SPOT_Y, 3, 0, 7); ctx.fill();
+  // cage + filet
+  ctx.lineWidth=5; ctx.strokeStyle="#fff"; ctx.strokeRect(PK_GOAL_L, PK_BAR_Y, PK_GOAL_R-PK_GOAL_L, PK_LINE_Y-PK_BAR_Y);
+  ctx.strokeStyle="#ffffff33"; ctx.lineWidth=1;
+  for (let x=PK_GOAL_L; x<=PK_GOAL_R; x+=11){ ctx.beginPath(); ctx.moveTo(x,PK_BAR_Y); ctx.lineTo(x,PK_LINE_Y); ctx.stroke(); }
+  for (let y=PK_BAR_Y; y<=PK_LINE_Y; y+=11){ ctx.beginPath(); ctx.moveTo(PK_GOAL_L,y); ctx.lineTo(PK_GOAL_R,y); ctx.stroke(); }
+  // gardien
+  ctx.fillStyle="#ffd24d"; ctx.beginPath(); ctx.arc(k.kx,k.ky,12,0,7); ctx.fill(); ctx.lineWidth=2; ctx.strokeStyle="#0008"; ctx.stroke();
+  ctx.fillStyle="#0006"; ctx.fillRect(k.kx-13,k.ky-2,26,4);   // bras
+  // ballon
+  ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(k.ballx,k.bally,7,0,7); ctx.fill(); ctx.lineWidth=1; ctx.strokeStyle="#0008"; ctx.stroke();
+  // tireur (petite silhouette derrière le ballon)
+  ctx.fillStyle = us ? M.teams[k.userSide].c1 : M.teams[k.shooter].c1; ctx.beginPath(); ctx.arc(W/2, PK_SPOT_Y+30, 9, 0, 7); ctx.fill();
+  // réticule de visée
+  if (us && k.state!=="result"){ ctx.strokeStyle="#3fcf6a"; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.arc(k.aimx,k.aimy,11,0,7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(k.aimx-15,k.aimy); ctx.lineTo(k.aimx+15,k.aimy); ctx.moveTo(k.aimx,k.aimy-15); ctx.lineTo(k.aimx,k.aimy+15); ctx.stroke(); }
+  // textes
+  ctx.textAlign="center"; ctx.fillStyle="#fff"; ctx.font="bold 14px system-ui";
+  if (k.state!=="result") ctx.fillText(us ? "Vise (flèches/joystick) puis TIRE" : "Place ton gardien — plonge au bon endroit", W/2, H-52);
+  ctx.font="bold 12px system-ui"; ctx.fillStyle="#ffd9a8";
+  ctx.fillText(us ? ("À toi de tirer — "+k.teams[k.shooter].name) : ("Au tir : "+k.teams[k.shooter].name+" — arrête-le !"), W/2, H-34);
+  if (k.state==="result"){ ctx.fillStyle="#000b"; ctx.fillRect(0,H/2-30,W,60);
+    ctx.fillStyle = k.res.indexOf("BUT")>=0 ? "#3fcf6a" : "#ffd24d"; ctx.font="bold 27px system-ui"; ctx.fillText(k.res, W/2, H/2+9); }
+  ctx.textAlign="left";
+}
+function pkAction(){ if (M && M.pk && M.pk.state==="aim" && pkUserShoots()) pkCommit(); }
 
 /* ---- flux de match ---- */
 function startMatch(teamA, teamB, m, end){ mode=m; onEnd=end||null; hideAll();
@@ -379,7 +520,15 @@ function startMatch(teamA, teamB, m, end){ mode=m; onEnd=end||null; hideAll();
 }
 function endMatch(){ running=false; cancelAnimationFrame(raf);
   document.getElementById("pad").style.visibility="hidden";
-  const a=M.score[0], b=M.score[1], res = a>b?"win":(a<b?"lose":"draw");
+  const a=M.score[0], b=M.score[1];
+  if (a===b && mode==="quick"){                         // match nul en match rapide → on départage aux tirs au but
+    const tA=M.teams[0], tB=M.teams[1]; flash2("Match nul — tirs au but ! 🥅");
+    startShootout(tA, tB, function(win, sc){ quickPkDone(win, sc); }, "quickpk");
+    return;
+  }
+  showResult(a, b);
+}
+function showResult(a, b){ const res = a>b?"win":(a<b?"lose":"draw");
   document.getElementById("hud").style.visibility="hidden";
   const r=document.getElementById("ovResult");
   document.getElementById("resTitle").textContent = res==="win"?"🎉 Victoire !":res==="lose"?"😤 Défaite":"🤝 Match nul";
@@ -388,10 +537,28 @@ function endMatch(){ running=false; cancelAnimationFrame(raf);
   if (mode==="champ" && champ){ recordResult(a,b); }
   r.classList.add("show");
 }
+function quickPkDone(win, sc){ mode="quick";
+  document.getElementById("hud").style.visibility="hidden"; document.getElementById("pad").style.visibility="hidden";
+  const r=document.getElementById("ovResult");
+  document.getElementById("resTitle").textContent = win===0 ? "🎉 Victoire aux tirs au but !" : "😤 Défaite aux tirs au but";
+  document.getElementById("resSub").textContent = "Séance de tirs au but : "+sc[0]+" — "+sc[1];
+  document.getElementById("resNext").textContent = "Continuer →";
+  r.classList.add("show");
+}
+function pkDone(win, sc){
+  document.getElementById("hud").style.visibility="hidden"; document.getElementById("pad").style.visibility="hidden";
+  const r=document.getElementById("ovResult");
+  document.getElementById("resTitle").textContent = win===0 ? "🎉 Séance gagnée !" : "😤 Séance perdue";
+  document.getElementById("resSub").textContent = "Tirs au but : "+sc[0]+" — "+sc[1];
+  document.getElementById("resNext").textContent = "Continuer →";
+  r.classList.add("show");
+}
 function afterResult(){ document.getElementById("ovResult").classList.remove("show"); if (mode==="champ") openChamp(); else goHome(); }
 
 function quickMatch(){ const pool = CLUBS.filter(c => c.name !== myTeam.name && c.c1 !== myTeam.c1);   // pas ton propre club ni une couleur identique
   const opp = teamFromClub((pool.length ? pool : CLUBS)[Math.floor(Math.random()*(pool.length||CLUBS.length))]); startMatch(myTeam, opp, "quick"); }
+function shootoutPractice(){ const pool = CLUBS.filter(c => c.name !== myTeam.name && c.c1 !== myTeam.c1);
+  const opp = teamFromClub((pool.length ? pool : CLUBS)[Math.floor(Math.random()*(pool.length||CLUBS.length))]); startShootout(myTeam, opp, pkDone, "pk"); }
 
 /* ---- Championnat Tchoin-Tchoin ---- */
 const CH_KEY = "petitpoteau_save", BEST_KEY = "petitpoteau_best";
@@ -399,7 +566,6 @@ let champ = null;
 function loadChamp(){ try { return JSON.parse(localStorage.getItem(CH_KEY)); } catch(e){ return null; } }
 function saveChamp(){ try { localStorage.setItem(CH_KEY, JSON.stringify(champ)); } catch(e){} }
 function newSeason(){
-  // 5 adversaires (quartiers) + ton club
   const pool = CLUBS.slice().sort(()=>Math.random()-0.5).slice(0,5);
   const teams = [{ id:"me", name:myTeam.name, emoji:myTeam.emoji, str:myTeam.str||0.6 }].concat(pool.map(c=>({id:c.id,name:c.name,emoji:c.emoji,str:c.str})));
   const table = {}; teams.forEach(t=>table[t.id]={ id:t.id, name:t.name, emoji:t.emoji, str:t.str, P:0,W:0,D:0,L:0,GF:0,GA:0,Pts:0 });
@@ -417,7 +583,7 @@ function renderChamp(){
   if (done){ const champion = rows[0]; const won = champion.id==="me";
     sub.innerHTML = "Saison terminée — <b>"+champion.emoji+" "+esc(champion.name)+"</b> est champion"+(won?" 🎉 (c'est toi !)":"")+".";
     btn.textContent = "↻ Rejouer une saison"; btn.onclick = newSeason;
-    if (won){ try { const n=(+localStorage.getItem(BEST_KEY)||0)+ (champ._counted?0:1); if(!champ._counted){ localStorage.setItem(BEST_KEY,String(n)); champ._counted=true; saveChamp(); flash && 0; } } catch(e){} }
+    if (won){ try { const n=(+localStorage.getItem(BEST_KEY)||0)+ (champ._counted?0:1); if(!champ._counted){ localStorage.setItem(BEST_KEY,String(n)); champ._counted=true; saveChamp(); } } catch(e){} }
   } else {
     const oppId = champ.oppOrder[champ.round]; const opp = champ.table[oppId];
     sub.innerHTML = "Journée "+(champ.round+1)+" / "+champ.total+" — prochain match : <b>"+opp.emoji+" "+esc(opp.name)+"</b>.";
@@ -433,7 +599,6 @@ function recordResult(a,b){
   const oppId = champ.oppOrder[champ.round]; const me=champ.table["me"], op=champ.table[oppId];
   me.P++; op.P++; me.GF+=a; me.GA+=b; op.GF+=b; op.GA+=a;
   if (a>b){ me.W++; op.L++; me.Pts+=3; } else if (a<b){ op.W++; me.L++; op.Pts+=3; } else { me.D++; op.D++; me.Pts++; op.Pts++; }
-  // simuler les autres matchs de la journée (les quartiers s'affrontent)
   simulateOthers(oppId);
   champ.round++; saveChamp();
 }
@@ -462,7 +627,8 @@ function saveCustom(){ myTeam.name = (document.getElementById("cName").value||"M
 /* ---- écrans ---- */
 function show(id){ document.getElementById(id).classList.add("show"); }
 function hideAll(){ document.querySelectorAll(".ov").forEach(o=>o.classList.remove("show")); }
-function goHome(){ running=false; cancelAnimationFrame(raf); document.getElementById("hud").style.visibility="hidden"; document.getElementById("pad").style.visibility="hidden"; hideAll(); show("ovHome"); renderDiff(); }
+function goHome(){ running=false; cancelAnimationFrame(raf); if (M) M.phase="home";
+  document.getElementById("hud").style.visibility="hidden"; document.getElementById("pad").style.visibility="hidden"; hideAll(); show("ovHome"); renderDiff(); }
 function renderDiff(){ const el=document.getElementById("diffRow"); if (!el) return; el.innerHTML="";
   DIFFS.forEach((d,i)=>{ const b=document.createElement("button"); b.className="big"; b.style.cssText="flex:1;padding:.5rem;font-size:.85rem;text-align:center";
     if (i===diffIdx){ b.style.background="#3fcf6a"; b.style.color="#06210f"; b.style.borderColor="transparent"; }
@@ -471,24 +637,41 @@ function renderDiff(){ const el=document.getElementById("diffRow"); if (!el) ret
 function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 let toastT=null; function flash2(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),1600); }
 
-/* ---- contrôles ---- */
+/* ---- contrôles (clavier + tactile) ---- */
 const KEYDIR = {};
-addEventListener("keydown", e=>{ const k=e.key.toLowerCase();
+addEventListener("keydown", e=>{ if (!running) return; const k=e.key.toLowerCase();   // clavier actif seulement en match/penalty → ne vole pas la saisie (nom du club, etc.)
   if (["arrowup","z","w"].includes(k)) KEYDIR.up=1; if (["arrowdown","s"].includes(k)) KEYDIR.dn=1;
   if (["arrowleft","q","a"].includes(k)) KEYDIR.lf=1; if (["arrowright","d"].includes(k)) KEYDIR.rt=1;
-  if (k==="k"||k===" ") input.shoot=true; if (k==="j") input.pass=true; if (k==="shift") input.sprint=true;
-  syncKeyDir(); });
+  if (k==="shift") input.sprint=true;
+  if (k==="k"||k===" "||k==="enter"){ if (k===" "||k==="enter") e.preventDefault(); if (!input._a){ input._a=true; if (M && M.ball && M.user && M.ball.owner===M.user) input.shoot=true; pressA(); } }   // ne charge une frappe QUE si tu portes le ballon (sinon = tacle)
+  if (k==="j"||k==="l"){ if (!input._b){ input._b=true; pressB(); } }
+  if (["arrowup","arrowdown","arrowleft","arrowright"].includes(k)) e.preventDefault();
+  syncKeyDir();
+}, { passive:false });
 addEventListener("keyup", e=>{ const k=e.key.toLowerCase();
   if (["arrowup","z","w"].includes(k)) KEYDIR.up=0; if (["arrowdown","s"].includes(k)) KEYDIR.dn=0;
   if (["arrowleft","q","a"].includes(k)) KEYDIR.lf=0; if (["arrowright","d"].includes(k)) KEYDIR.rt=0;
-  if (k==="k"||k===" ") input.shoot=false; if (k==="j") input.pass=false; if (k==="shift") input.sprint=false;
+  if (k==="shift") input.sprint=false;
+  if (k==="k"||k===" "||k==="enter"){ input._a=false; input.shoot=false; }
+  if (k==="j"||k==="l"){ input._b=false; }
   syncKeyDir(); });
 function syncKeyDir(){ let x=(KEYDIR.rt?1:0)-(KEYDIR.lf?1:0), y=(KEYDIR.dn?1:0)-(KEYDIR.up?1:0); const d=Math.hypot(x,y)||1; if (x||y){ input.dx=x/d; input.dy=y/d; } else { input.dx=0; input.dy=0; } }
-// boutons d'action
+
+/* action A (TIR / TACLE / TIRER au penalty) — appui */
+function pressA(){ if (!M || !running) return;
+  if (M.phase==="pk"){ pkAction(); return; }
+  if (M.user && M.ball.owner !== M.user) tryTackle(M.user);   // sans ballon = tacle ; avec ballon, la charge se fait dans update()
+}
+/* action B (PASSE / CHANGER de joueur) — appui */
+function pressB(){ if (!M || !running) return;
+  if (M.phase==="pk"){ pkAction(); return; }
+  if (M.user){ if (M.ball.owner === M.user) doPass(M.user); else switchUser(); }
+}
+
 function bindBtn(id, on, off){ const el=document.getElementById(id);
   el.addEventListener("pointerdown", e=>{ e.preventDefault(); on(); }); el.addEventListener("pointerup", e=>{ e.preventDefault(); off&&off(); }); el.addEventListener("pointerleave", ()=>off&&off()); }
-bindBtn("bShoot", ()=>input.shoot=true, ()=>input.shoot=false);
-bindBtn("bPass", ()=>input.pass=true, ()=>input.pass=false);
+bindBtn("bShoot", ()=>{ if (M && M.ball && M.user && M.ball.owner===M.user) input.shoot=true; pressA(); }, ()=>{ input.shoot=false; });   // charge SEULEMENT si tu portes le ballon ; sinon TACLE
+bindBtn("bPass", ()=>{ pressB(); }, null);
 bindBtn("bSprint", ()=>input.sprint=true, ()=>input.sprint=false);
 // joystick
 (function(){ const joy=document.getElementById("joy"), stick=document.getElementById("stick"); let id=null, cx=60, cy=60;
@@ -501,7 +684,7 @@ bindBtn("bSprint", ()=>input.sprint=true, ()=>input.sprint=false);
 })();
 
 /* Accès debug EN LECTURE pour les tests automatisés (aucun effet sur le jeu). */
-try { window.__pp = { get M(){ return M; }, input: input, CFG: CFG, get diff(){ return diffIdx; }, setDiff(i){ diffIdx = i; } }; } catch (e) {}
+try { window.__pp = { get M(){ return M; }, input: input, CFG: CFG, get diff(){ return diffIdx; }, setDiff(i){ diffIdx = i; }, pressA: pressA, pressB: pressB }; } catch (e) {}
 
 /* ---- démarrage ---- */
 goHome();

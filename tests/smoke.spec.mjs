@@ -82,6 +82,18 @@ test("Petit Poteau : un match rapide se lance et tourne sans erreur", async ({ p
   expect(errors, "exceptions JS pendant le match").toEqual([]);
 });
 
+test("Petit Poteau : la séance de tirs au but s'ouvre (vue face au gardien)", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", e => errors.push(e.message));
+  await page.goto("/games/petitpoteau.html");
+  await page.locator("#btnPk").click();                 // 🥅 Séance de tirs au but
+  await expect(page.locator("#hud")).toBeVisible();
+  await page.waitForTimeout(1500);                       // la vue penalty tourne (visée / gardien)
+  const phase = await page.evaluate(() => window.__pp && window.__pp.M && window.__pp.M.phase);
+  expect(phase, "le jeu doit être en phase tirs au but").toBe("pk");
+  expect(errors, "exceptions JS pendant les tirs au but").toEqual([]);
+});
+
 test("Profil : page rendue (avatar, indice, sélecteurs, badges)", async ({ page }) => {
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
